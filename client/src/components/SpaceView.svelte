@@ -351,9 +351,7 @@
       {v}
       {list}
       group={sheet.groupId ? v.groups[sheet.groupId] : null}
-      parentId={sheet.parentId ?? null}
       onclose={closeSheet}
-      onsub={(g) => open('group', { create: true, parentId: g.id })}
       ontransfer={(g) => open('transfer', { groupId: g.id, label: g.name })}
       oncreated={(gid, name) => {
         // a new group is empty, so it would sit in the inactive part – aim the input at it instead

@@ -5,8 +5,8 @@
 //   > 📍 Via Roma 1, Olbia      ← optional shop address of the list
 //   - [ ] Bread                 ← open item without group
 //   ### Fridge                  ← group
-//   #### Dairy                  ← subgroup
 //   - [ ] 2 l Milk // lactose free   ← amount, name and a note after //
+//   (#### headings from older backups are read as groups, too)
 //   - [x] Butter                ← checked
 //   - [-] Feta                  ← inactive (shadow list)
 //
@@ -104,14 +104,11 @@ export function parseMarkdown(text) {
       if (h[1].length === 1) {
         if (!doc.spaceName) doc.spaceName = title;
       } else if (h[1].length === 2) ensureList(title);
-      else if (h[1].length === 3) {
+      else {
+        // ### group – and #### (subgroups of older versions) is a group as well
         if (!list) ensureList('');
         group = title;
         subgroup = '';
-      } else {
-        if (!list) ensureList('');
-        subgroup = group ? title : '';
-        if (!group) group = title;
       }
       continue;
     }

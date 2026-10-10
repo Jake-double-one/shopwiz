@@ -86,10 +86,12 @@ describe('items', () => {
   it('learns group placement and follows moves', () => {
     const { store, uid, listId, op, devA } = setup();
     op(devA, { k: 'group.add', id: 'grpcool01', listId, name: 'Kühlwaren' });
+    // older clients may still ask for a subgroup – it becomes a normal group
     op(devA, { k: 'group.add', id: 'grpdairy1', listId, parentId: 'grpcool01', name: 'Milchprodukte' });
+    expect(store.snapshot(uid).groups.every((g) => g.parentId === null)).toBe(true);
     op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milch', groupId: 'grpdairy1' });
     let mem = store.snapshot(uid).memory;
-    expect(mem).toContainEqual({ scope: listId, norm: 'milch', group: 'Kühlwaren', subgroup: 'Milchprodukte' });
+    expect(mem).toContainEqual({ scope: listId, norm: 'milch', group: 'Milchprodukte', subgroup: '' });
     op(devA, { k: 'group.add', id: 'grpdrink1', listId, name: 'Getränke' });
     op(devA, { k: 'item.set', id: 'item00001', fields: { groupId: 'grpdrink1' }, base: { groupId: 999 } });
     mem = store.snapshot(uid).memory;
@@ -142,12 +144,11 @@ describe('items', () => {
   it('deleting a group ungroups its items; restore puts them back', () => {
     const { listId, op, devA, item } = setup();
     op(devA, { k: 'group.add', id: 'grp000001', listId, name: 'G' });
-    op(devA, { k: 'group.add', id: 'grp000002', listId, parentId: 'grp000001', name: 'S' });
-    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'A', groupId: 'grp000002' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'A', groupId: 'grp000001' });
     const r = op(devA, { k: 'group.delete', id: 'grp000001' });
     expect(item('item00001').groupId).toBeNull();
     op(devA, { k: 'group.restore', ids: r.result.groupIds, moves: r.result.moves });
-    expect(item('item00001').groupId).toBe('grp000002');
+    expect(item('item00001').groupId).toBe('grp000001');
   });
 });
 
@@ -294,7 +295,7 @@ describe('shadow list and import', () => {
         { name: '', items: [
           { name: 'milk', state: 'open' },
           { name: 'Bread', state: 'open' },
-          { name: 'Cheese', qty: '200', unit: 'g', state: 'open', group: 'Fridge', subgroup: 'Dairy' },
+          { name: 'Cheese', qty: '200', unit: 'g', state: 'open', group: 'Fridge', subgroup: 'Dairy' }, // old backup: subgroup wins
         ] },
         { name: 'DIY', items: [{ name: 'Screws', state: 'parked' }] },
       ],
@@ -305,8 +306,8 @@ describe('shadow list and import', () => {
     expect(snap.lists.map((l) => l.name)).toContain('DIY');
     expect(snap.items.find((i) => i.name === 'Bread').parked).toBe(false);
     expect(snap.items.find((i) => i.name === 'Screws').parked).toBe(true);
-    expect(snap.groups.map((g) => g.name).sort()).toEqual(['Dairy', 'Fridge']);
-    expect(snap.memory).toContainEqual({ scope: listId, norm: 'cheese', group: 'Fridge', subgroup: 'Dairy' });
+    expect(snap.groups.map((g) => g.name)).toEqual(['Dairy']);
+    expect(snap.memory).toContainEqual({ scope: listId, norm: 'cheese', group: 'Dairy', subgroup: '' });
     // importing the same again adds nothing
     expect(store.importDoc(uid, devA, doc, { defaultListId: listId }).stats.added).toBe(0);
   });
@@ -347,20 +348,46 @@ describe('spot while shopping', () => {
   it('remembers the group of the last checked item only while checked in', () => {
     const { store, uid, listId, op, devA } = setup();
     op(devA, { k: 'group.add', id: 'grp000001', listId, name: 'Fridge' });
-    op(devA, { k: 'group.add', id: 'grp000002', listId, parentId: 'grp000001', name: 'Dairy' });
-    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk', groupId: 'grp000002' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk', groupId: 'grp000001' });
     op(devA, { k: 'item.add', id: 'item00002', listId, name: 'Bread' });
     op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
     expect(store.devices(uid)[0].spot).toBeNull(); // not checked in
     op(devA, { k: 'item.set', id: 'item00001', fields: { checked: false }, base: {} });
     op(devA, { k: 'device.shopping', on: true });
     const r = op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
-    expect(store.devices(uid)[0].spot).toMatchObject({ group: 'Fridge › Dairy', item: 'Milk' });
+    expect(store.devices(uid)[0].spot).toMatchObject({ group: 'Fridge', item: 'Milk' });
     expect(r.allDone).toBeUndefined(); // Bread still open
     const r2 = op(devA, { k: 'item.set', id: 'item00002', fields: { checked: true }, base: {} });
     expect(r2.allDone).toMatchObject({ listId });
     expect(store.devices(uid)[0].spot).toMatchObject({ group: '', item: 'Bread' });
     op(devA, { k: 'device.shopping', on: true });
     expect(store.devices(uid)[0].spot).toBeNull(); // a new trip starts fresh
+  });
+});
+
+describe('subgroup migration', () => {
+  it('turns subgroups of older versions into normal groups', async () => {
+    const { mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const dir = mkdtempSync(join(tmpdir(), 'shopwiz-'));
+    let db = openDb(dir);
+    const ins = db.prepare('INSERT INTO groups (space_uid, id, list_id, parent_id, name, pos, created_at) VALUES (1, ?, ?, ?, ?, ?, 1)');
+    db.exec("INSERT INTO spaces (uid, public_id, name, ttl_days, last_active_at, created_at) VALUES (1, 'AAAAAAAAAA', 'S', 181, 1, 1)");
+    ins.run('fridge', 'l1', null, 'Fridge', 1);
+    ins.run('drinks', 'l1', null, 'Drinks', 2);
+    ins.run('dairy', 'l1', 'fridge', 'Dairy', 1);
+    ins.run('juice', 'l1', 'drinks', 'drinks', 1); // same name as a top-level group → merged
+    db.prepare("INSERT INTO items (space_uid, id, list_id, group_id, name, norm, pos, created_at) VALUES (1, 'i1', 'l1', 'dairy', 'Milk', 'milk', 1, 1)").run();
+    db.prepare("INSERT INTO items (space_uid, id, list_id, group_id, name, norm, pos, created_at) VALUES (1, 'i2', 'l1', 'juice', 'Juice', 'juice', 1, 1)").run();
+    db.prepare("INSERT INTO memory (space_uid, scope, norm, group_name, subgroup_name, updated_at) VALUES (1, 'l1', 'milk', 'Fridge', 'Dairy', 1)").run();
+    db.close();
+    db = openDb(dir);
+    const groups = db.prepare('SELECT id, parent_id, pos, deleted_at FROM groups ORDER BY pos').all();
+    expect(groups.every((g) => g.parent_id === null)).toBe(true);
+    expect(groups.filter((g) => !g.deleted_at).map((g) => g.id)).toEqual(['fridge', 'dairy', 'drinks']);
+    expect(db.prepare("SELECT group_id FROM items WHERE id = 'i2'").get().group_id).toBe('drinks');
+    expect(db.prepare('SELECT group_name, subgroup_name FROM memory').get()).toEqual({ group_name: 'Dairy', subgroup_name: '' });
+    db.close();
   });
 });

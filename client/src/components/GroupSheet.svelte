@@ -6,8 +6,7 @@
   import { addGroup, renameGroup, deleteGroup } from '../lib/actions.js';
   import { findGroupByName } from '../lib/model.js';
 
-  let { v, list, group = null, parentId = null, onclose, onsub, ontransfer, oncreated } = $props();
-  const parent = $derived(parentId ? v.groups[parentId] : group?.parentId ? v.groups[group.parentId] : null);
+  let { v, list, group = null, onclose, ontransfer, oncreated } = $props();
   let name = $state(untrack(() => group?.name ?? ''));
   let error = $state('');
 
@@ -15,7 +14,7 @@
     e.preventDefault();
     const n = name.trim().slice(0, 60);
     if (!n) return;
-    const existing = findGroupByName(v, list, n, group ? (group.parentId ?? null) : parentId);
+    const existing = findGroupByName(v, list, n, null);
     if (existing && existing.id !== group?.id) {
       error = t('group.exists', { name: n });
       return;
@@ -24,7 +23,7 @@
       if (n !== group.name) renameGroup(group, n);
       onclose();
     } else {
-      const id = addGroup(list, n, parentId);
+      const id = addGroup(list, n);
       onclose();
       oncreated?.(id, n);
     }
@@ -32,8 +31,8 @@
 </script>
 
 <Sheet
-  title={group ? group.name : parentId ? t('group.newSub') : t('group.new')}
-  eyebrow={parent ? parent.name : t('group.eyebrow')}
+  title={group ? group.name : t('group.new')}
+  eyebrow={t('group.eyebrow')}
   {onclose}>
   <form onsubmit={submit}>
     <label class="field">
@@ -47,9 +46,6 @@
 
   {#if group}
     <div class="more">
-      {#if !group.parentId}
-        <button class="btn block" onclick={() => onsub(group)}><Icon name="folder" />{t('group.addSub')}</button>
-      {/if}
       <button class="btn block" onclick={() => ontransfer(group)}><Icon name="send" />{t('transfer.group')}</button>
       <button class="btn danger block" onclick={() => (deleteGroup(group), onclose())}><Icon name="trash" />{t('group.delete')}</button>
       <p class="micro">{t('group.deleteHint')}</p>

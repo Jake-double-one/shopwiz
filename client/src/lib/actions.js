@@ -16,6 +16,11 @@ function baseOf(item, fields) {
 
 /** Find or create group (+ subgroup) by name in a list's group set. Returns the deepest id. */
 export function ensureGroupPath(list, groupName, subgroupName) {
+  // one level of groups only: an old "group › subgroup" placement means the subgroup
+  if (subgroupName) {
+    groupName = subgroupName;
+    subgroupName = '';
+  }
   if (!groupName) return null;
   const owner = list.groupMode === 'shared' ? null : list.id;
   let top = findGroupByName(v(), list, groupName, null);
@@ -158,11 +163,11 @@ export function deleteList(list, onUndo) {
 
 // ----- groups -----
 
-export function addGroup(list, name, parentId = null) {
+export function addGroup(list, name) {
   const id = newId();
   const owner = list.groupMode === 'shared' ? null : list.id;
-  const siblings = groupSet(v(), list).filter((g) => (g.parentId ?? null) === parentId);
-  sync.send({ k: 'group.add', id, listId: owner, parentId, name, pos: endPos(siblings) });
+  const siblings = groupSet(v(), list).filter((g) => !g.parentId);
+  sync.send({ k: 'group.add', id, listId: owner, name, pos: endPos(siblings) });
   return id;
 }
 

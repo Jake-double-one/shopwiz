@@ -6,7 +6,7 @@ const v = {
   lists: { l1: { id: 'l1', name: 'Weekly', pos: 1, groupMode: 'own', address: 'Via Roma 1, Olbia' }, l2: { id: 'l2', name: 'DIY', pos: 2, groupMode: 'own' } },
   groups: {
     g1: { id: 'g1', listId: 'l1', parentId: null, name: 'Fridge', pos: 1 },
-    g2: { id: 'g2', listId: 'l1', parentId: 'g1', name: 'Dairy', pos: 1 },
+    g2: { id: 'g2', listId: 'l1', parentId: null, name: 'Dairy', pos: 2 },
   },
   items: {
     a: { id: 'a', listId: 'l1', groupId: null, name: 'Bread', qty: '', unit: '', note: '', checked: false, parked: false, pos: 1 },
@@ -23,7 +23,7 @@ describe('backup', () => {
     expect(md).toContain('# Home');
     expect(md).toContain('## Weekly\n> 📍 Via Roma 1, Olbia\n- [ ] Bread');
     expect(md).toContain('### Fridge\n- [-] 200 g Feta');
-    expect(md).toContain('#### Dairy\n- [ ] 2 l Milk // lactose free\n- [x] Butter');
+    expect(md).toContain('### Dairy\n- [ ] 2 l Milk // lactose free\n- [x] Butter');
     expect(md).toContain('## DIY\n- [ ] "4711 Cologne"');
   });
 
@@ -35,8 +35,8 @@ describe('backup', () => {
     expect(doc.lists[0].items).toEqual([
       { name: 'Bread', qty: '', unit: '', note: '', state: 'open', group: '', subgroup: '' },
       { name: 'Feta', qty: '200', unit: 'g', note: '', state: 'parked', group: 'Fridge', subgroup: '' },
-      { name: 'Milk', qty: '2', unit: 'l', note: 'lactose free', state: 'open', group: 'Fridge', subgroup: 'Dairy' },
-      { name: 'Butter', qty: '', unit: '', note: '', state: 'checked', group: 'Fridge', subgroup: 'Dairy' },
+      { name: 'Milk', qty: '2', unit: 'l', note: 'lactose free', state: 'open', group: 'Dairy', subgroup: '' },
+      { name: 'Butter', qty: '', unit: '', note: '', state: 'checked', group: 'Dairy', subgroup: '' },
     ]);
     expect(doc.lists[1].items[0].name).toBe('4711 Cologne');
   });
@@ -57,5 +57,10 @@ describe('backup', () => {
   it('ignores comments and handles groups without a list heading', () => {
     const doc = parseMarkdown('<!-- note\nmore -->\n### Bakery\n- [ ] Rolls\n');
     expect(doc.lists[0].items[0]).toMatchObject({ name: 'Rolls', group: 'Bakery' });
+  });
+
+  it('reads #### headings of older backups as groups', () => {
+    const doc = parseMarkdown('## L\n### Fridge\n#### Dairy\n- [ ] Milk\n');
+    expect(doc.lists[0].items[0]).toMatchObject({ name: 'Milk', group: 'Dairy', subgroup: '' });
   });
 });

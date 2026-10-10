@@ -497,6 +497,11 @@ export class Store {
 
   /** Find or create a group path (by name, case-insensitive) in a list's group set. */
   _ensurePath(ctx, list, groupName, subgroupName) {
+    // there is only one level of groups: a former "group › subgroup" becomes the subgroup's name
+    if (subgroupName) {
+      groupName = subgroupName;
+      subgroupName = '';
+    }
     if (!groupName) return null;
     const scopeList = list.group_mode === 'shared' ? null : list.id;
     const find = (parentId, name) =>
@@ -652,13 +657,8 @@ const OPS = {
     if (count >= LIMITS.groupsPerSpace) throw new OpError('limit', 'too many groups');
     let listId = null;
     if (op.listId) listId = this._list(ctx.uid, eid(op.listId, 'listId')).id;
-    let parentId = null;
-    if (op.parentId) {
-      const parent = this._group(ctx.uid, eid(op.parentId, 'parentId'));
-      if (!parent || parent.parent_id) throw new OpError('invalid', 'parent must be a top-level group');
-      if (parent.list_id !== listId) throw new OpError('invalid', 'parent in other set');
-      parentId = parent.id;
-    }
+    // subgroups no longer exist; an older client asking for one gets a normal group
+    const parentId = null;
     const name = str(op.name, LIMITS.groupName, { required: true, field: 'name' });
     this.db
       .q('INSERT INTO groups (space_uid, id, list_id, parent_id, name, pos, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
@@ -681,17 +681,6 @@ const OPS = {
       for (const m of upd) ctx.changes.push({ e: 'memory', row: mapMemory(m) });
     }
     if (op.pos !== undefined) this.db.q('UPDATE groups SET pos = ? WHERE space_uid = ? AND id = ?').run(num(op.pos), ctx.uid, g.id);
-    if (op.parentId !== undefined && op.parentId !== g.parent_id) {
-      let parentId = null;
-      if (op.parentId) {
-        const parent = this._group(ctx.uid, eid(op.parentId, 'parentId'));
-        if (!parent || parent.parent_id || parent.list_id !== g.list_id || parent.id === g.id) throw new OpError('invalid', 'parent');
-        const hasChildren = this.db.q('SELECT 1 FROM groups WHERE space_uid = ? AND parent_id = ? AND deleted_at IS NULL').get(ctx.uid, g.id);
-        if (hasChildren) throw new OpError('invalid', 'group with subgroups cannot become a subgroup');
-        parentId = parent.id;
-      }
-      this.db.q('UPDATE groups SET parent_id = ? WHERE space_uid = ? AND id = ?').run(parentId, ctx.uid, g.id);
-    }
     this._pushGroup(ctx, g.id);
   },
 

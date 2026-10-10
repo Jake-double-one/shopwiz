@@ -32,7 +32,6 @@
     if (!groupId) return t.ungrouped;
     for (const n of t.groups) {
       if (n.group.id === groupId) return n.items;
-      for (const s of n.subs) if (s.group.id === groupId) return s.items;
     }
     return [];
   }
@@ -81,7 +80,6 @@
 
   const itemSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', onmove: onItemMove });
   const groupSort = $derived({ group: 'groups', draggable: '.group.top', handle: '.g-top', onmove: onGroupMove });
-  const subSort = $derived({ group: 'subgroups', draggable: '.group.sub', handle: '.g-sub', onmove: onGroupMove });
 </script>
 
 {#if empty}
@@ -106,34 +104,16 @@
     {#each tree.groups as node (node.group.id)}
       <GroupBlock
         group={node.group}
-        count={node.items.filter((i) => !i.checked).length + node.subs.reduce((n, s) => n + s.items.filter((i) => !i.checked).length, 0)}
+        count={node.items.filter((i) => !i.checked).length}
         collapsed={collapsed.has(node.group.id)}
         ontoggle={() => toggleCollapsed(node.group.id)}
         onmenu={() => ongroup(node.group)}
         onadd={() => onaddto(node.group.id)}>
-        <ul class="items" class:has-subs={node.subs.length > 0} data-group={node.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
+        <ul class="items" data-group={node.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
           {#each node.items as item (item.id)}
             <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
           {/each}
         </ul>
-        <div class="subs" data-parent={node.group.id} use:sortable={subSort}>
-          {#each node.subs as sub (sub.group.id)}
-            <GroupBlock
-              group={sub.group}
-              sub
-              count={sub.items.filter((i) => !i.checked).length}
-              collapsed={collapsed.has(sub.group.id)}
-              ontoggle={() => toggleCollapsed(sub.group.id)}
-              onmenu={() => ongroup(sub.group)}
-              onadd={() => onaddto(sub.group.id)}>
-              <ul class="items" data-group={sub.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
-                {#each sub.items as item (item.id)}
-                  <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
-                {/each}
-              </ul>
-            </GroupBlock>
-          {/each}
-        </div>
       </GroupBlock>
     {/each}
   </div>
@@ -171,26 +151,11 @@
             <Icon name="more" size={18} />
           </button>
         </header>
-        <ul class="items shadow-items" class:has-subs={node.subs.length > 0} data-parked="1" data-group={node.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
+        <ul class="items shadow-items" data-parked="1" data-group={node.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
           {#each node.items as item (item.id)}
             <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
           {/each}
         </ul>
-        {#each node.subs as sub (sub.group.id)}
-          <section class="s-group sub">
-            <header class="s-head">
-              <span class="s-name">{sub.group.name}</span>
-              <button class="icon-btn" onclick={() => ongroup(sub.group)} aria-label={t('group.menu', { name: sub.group.name })} title={t('group.menuShort')}>
-                <Icon name="more" size={18} />
-              </button>
-            </header>
-            <ul class="items shadow-items" data-parked="1" data-group={sub.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
-              {#each sub.items as item (item.id)}
-                <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
-              {/each}
-            </ul>
-          </section>
-        {/each}
       </section>
     {/each}
     {#if tree.parked.length}
@@ -235,10 +200,7 @@
     display: grid;
     place-items: center;
   }
-  .items.has-subs:empty {
-    min-height: 10px;
-  }
-  .items:not(.ungrouped):not(.has-subs):not([data-empty='']):empty::before {
+  .items:not(.ungrouped):not([data-empty='']):empty::before {
     content: attr(data-empty);
     font-family: var(--mono);
     font-size: 0.62rem;
@@ -259,8 +221,7 @@
     background: var(--surface-2);
     border-radius: 10px;
   }
-  .groups,
-  .subs {
+  .groups {
     min-height: 2px;
   }
   .empty {
@@ -339,10 +300,6 @@
     place-items: center start;
     padding: 0 12px 8px 30px;
   }
-  .s-group.sub {
-    margin-left: 18px;
-    border-left: 2px solid var(--surface-2);
-  }
   .s-head {
     display: flex;
     align-items: center;
@@ -359,9 +316,6 @@
     color: var(--muted);
     font-weight: 600;
     overflow-wrap: anywhere;
-  }
-  .s-group.sub .s-name {
-    font-weight: 500;
   }
   .shadow-foot {
     justify-content: flex-end;

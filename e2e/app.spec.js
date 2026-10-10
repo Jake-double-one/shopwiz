@@ -40,36 +40,37 @@ test('create, add, group and learn placement', async ({ page }) => {
   await expect(item(page, 'Milk').locator('.amount')).toHaveText('2×');
   await expect(item(page, 'Minced meat').locator('.amount')).toHaveText('500 g');
 
-  // group + subgroup: a new (empty) group becomes the target of the input
+  // a new (empty) group becomes the target of the input
   await page.getByRole('button', { name: 'Add group' }).last().click();
   await page.getByLabel('Name').fill('Fridge');
   await page.getByRole('button', { name: 'Create' }).click();
   await add(page, 'Butter');
-  await expect(page.locator('.group', { hasText: 'Fridge' }).getByRole('checkbox', { name: 'Butter' })).toBeVisible();
-  await page.getByRole('button', { name: 'Options for Fridge' }).first().click();
-  await page.getByRole('button', { name: 'Add subgroup' }).click();
-  await page.getByLabel('Name').fill('Dairy');
-  await page.getByRole('button', { name: 'Create' }).click();
+  const fridge = page.locator('.group', { hasText: 'Fridge' });
+  await expect(fridge.getByRole('checkbox', { name: 'Butter' })).toBeVisible();
   await page.getByRole('button', { name: 'Back to automatic group' }).click();
+  // only one level of groups: no subgroups any more
+  await page.getByRole('button', { name: 'Options for Fridge' }).first().click();
+  await expect(page.getByRole('button', { name: 'Add subgroup' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
-  // move Milk to Fridge › Dairy
+  // move Milk to Fridge
   await page.getByRole('button', { name: 'Edit Milk' }).click();
-  await page.locator('.panel').getByLabel('Group').selectOption({ label: 'Fridge › Dairy' });
+  await page.locator('.panel').getByLabel('Group').selectOption({ label: 'Fridge' });
   await page.getByRole('button', { name: 'Done' }).click();
-  await expect(page.locator('.group.sub', { hasText: 'Dairy' }).getByRole('checkbox', { name: 'Milk' })).toBeVisible();
+  await expect(fridge.getByRole('checkbox', { name: 'Milk' })).toBeVisible();
 
   // remove and add again → learned placement
   await page.getByRole('button', { name: 'Edit Milk' }).click();
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(item(page, 'Milk')).toHaveCount(0);
   await page.getByPlaceholder('Add item, e.g. 2 milk').fill('milk');
-  await expect(page.locator('#add-target option').first()).toHaveText('→ Fridge › Dairy');
+  await expect(page.locator('#add-target option').first()).toHaveText('→ Fridge');
   await page.getByPlaceholder('Add item, e.g. 2 milk').press('Enter');
-  await expect(page.locator('.group.sub', { hasText: 'Dairy' }).getByRole('checkbox', { name: 'milk' })).toBeVisible();
+  await expect(fridge.getByRole('checkbox', { name: 'milk' })).toBeVisible();
 
   // survives a reload (state comes from server)
   await page.reload();
-  await expect(page.locator('.group.sub', { hasText: 'Dairy' }).getByRole('checkbox', { name: 'milk' })).toBeVisible();
+  await expect(fridge.getByRole('checkbox', { name: 'milk' })).toBeVisible();
 });
 
 test('two devices sync, duplicates, autocomplete and history', async ({ page, browser }) => {

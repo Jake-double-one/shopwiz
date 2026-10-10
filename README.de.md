@@ -6,7 +6,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 🇬🇧 [English version](README.md) (maßgeblich)
 
 <p>
-  <img src="docs/screenshots/list.png" width="240" alt="Eine Einkaufsliste mit Gruppen, Untergruppe und Artikeln">
+  <img src="docs/screenshots/list.png" width="240" alt="Eine Einkaufsliste mit Gruppen und Artikeln">
   <img src="docs/screenshots/list-dark.png" width="240" alt="Dieselbe Liste auf einem zweiten Gerät im Dunkelmodus">
   <img src="docs/screenshots/share.png" width="240" alt="Teilen-Dialog mit QR-Code und ID">
 </p>
@@ -32,7 +32,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 |---|---|
 | **Kein Login** | Eine 10-stellige ID ist der Schlüssel zu deinen Listen. Sie wird auf dem Gerät gespeichert und lässt sich mit einem Tipp wieder entfernen. |
 | **Mehrere Listen pro ID** | Per Dropdown zwischen Listen wechseln (z. B. „Wocheneinkauf“, „Baumarkt“). |
-| **Gruppen, die mitlernen** | Zwei Ebenen (z. B. *Kühlwaren › Milchprodukte*). Milch einmal in „Kühlwaren“ – ab dann landet sie automatisch dort, bis du sie woandershin schiebst. |
+| **Gruppen, die mitlernen** | Die Liste nach Gruppen sortieren (z. B. *Bäcker*, *Kühlwaren*). Milch einmal in „Kühlwaren“ – ab dann landet sie automatisch dort, bis du sie woandershin schiebst. |
 | **Live-Synchronisation** | Änderungen erscheinen innerhalb einer Sekunde auf allen Geräten. |
 | **Offline nutzbar** | Änderungen werden auf dem Gerät gespeichert und später gesendet. Wurde dasselbe Feld gleichzeitig geändert, erscheint eine softe Meldung, in der man den richtigen Wert wählt. |
 | **Autovervollständigung** | Alles, was je hinzugefügt wurde, wird beim Tippen vorgeschlagen – inklusive gelernter Gruppe. |
@@ -113,7 +113,6 @@ Das Format lässt sich leicht von Hand schreiben:
 > 📍 Via Roma 1, Olbia           ← Adresse des Ladens (optional)
 - [ ] Brot                       ← offener Artikel ohne Gruppe
 ### Kühlwaren                    ← Gruppe
-#### Milchprodukte               ← Untergruppe
 - [ ] 2 l Milch // laktosefrei   ← Menge, Name, Notiz nach //
 - [x] Butter                     ← abgehakt
 - [-] Feta                       ← inaktiv

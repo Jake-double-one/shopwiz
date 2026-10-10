@@ -123,6 +123,44 @@ CREATE TABLE IF NOT EXISTS applied_ops (
 );
 `;
 
+/**
+ * Subgroups were removed (v0.1.5): turn every subgroup into a normal group right after its
+ * former parent. A same-named group in the same list wins – the items move there.
+ */
+function flattenSubgroups(db) {
+  const subs = db.prepare('SELECT * FROM groups WHERE parent_id IS NOT NULL ORDER BY space_uid, parent_id, pos').all();
+  if (!subs.length) return;
+  const now = Date.now();
+  db.exec('BEGIN');
+  try {
+    const counter = new Map();
+    for (const sub of subs) {
+      const parent = db.prepare('SELECT * FROM groups WHERE space_uid = ? AND id = ?').get(sub.space_uid, sub.parent_id);
+      const same = sub.deleted_at
+        ? null
+        : db
+            .prepare('SELECT * FROM groups WHERE space_uid = ? AND list_id IS ? AND parent_id IS NULL AND deleted_at IS NULL AND lower(name) = lower(?) AND id != ?')
+            .get(sub.space_uid, sub.list_id, sub.name, sub.id);
+      if (same) {
+        db.prepare('UPDATE items SET group_id = ? WHERE space_uid = ? AND group_id = ?').run(same.id, sub.space_uid, sub.id);
+        db.prepare('UPDATE groups SET parent_id = NULL, deleted_at = COALESCE(deleted_at, ?) WHERE space_uid = ? AND id = ?').run(now, sub.space_uid, sub.id);
+        continue;
+      }
+      const key = `${sub.space_uid}|${sub.parent_id}`;
+      const n = (counter.get(key) ?? 0) + 1;
+      counter.set(key, n);
+      const pos = (parent?.pos ?? sub.pos) + n / 1000;
+      db.prepare('UPDATE groups SET parent_id = NULL, pos = ? WHERE space_uid = ? AND id = ?').run(pos, sub.space_uid, sub.id);
+    }
+    // learned placements pointed at "group › subgroup" – now the subgroup is the group
+    db.exec("UPDATE memory SET group_name = subgroup_name, subgroup_name = '' WHERE subgroup_name != ''");
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
 /** Additive migrations for databases created by older versions. */
 function migrate(db) {
   const cols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
@@ -132,6 +170,7 @@ function migrate(db) {
   for (const [col, type] of [['spot_group', 'TEXT'], ['spot_item', 'TEXT'], ['spot_at', 'INTEGER']]) {
     if (!devCols.includes(col)) db.exec(`ALTER TABLE devices ADD COLUMN ${col} ${type}`);
   }
+  flattenSubgroups(db);
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
 }
 

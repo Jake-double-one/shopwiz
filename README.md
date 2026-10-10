@@ -6,7 +6,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 🇩🇪 [Deutsche Version](README.de.md)
 
 <p>
-  <img src="docs/screenshots/list.png" width="240" alt="A shopping list with groups, a subgroup and items">
+  <img src="docs/screenshots/list.png" width="240" alt="A shopping list with groups and items">
   <img src="docs/screenshots/list-dark.png" width="240" alt="The same list on a second device in dark mode">
   <img src="docs/screenshots/share.png" width="240" alt="Share dialog with QR code and ID">
 </p>
@@ -33,7 +33,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 |---|---|
 | **No login** | A 10-character ID is the key to your lists. It is stored on your device and can be removed with one tap. |
 | **Several lists per ID** | Switch between lists (e.g. “Weekly shop”, “Hardware store”) with a dropdown. |
-| **Groups that learn** | Two levels of groups (e.g. *Fridge › Dairy*). Put milk into “Fridge” once and it lands there automatically from now on – until you move it somewhere else. |
+| **Groups that learn** | Sort the list by groups (e.g. *Bakery*, *Fridge*). Put milk into “Fridge” once and it lands there automatically from now on – until you move it somewhere else. |
 | **Live sync** | Changes show up on all devices within a second. |
 | **Works offline** | Changes are saved on the device and sent later. Simultaneous edits of the same field show a gentle notice where you pick the right value. |
 | **Autocomplete** | Everything you have ever added is suggested while typing – including the learned group. |
@@ -114,7 +114,6 @@ The format is easy to write by hand:
 > 📍 Via Roma 1, Olbia          ← shop address (optional)
 - [ ] Bread                     ← open item without a group
 ### Fridge                      ← group
-#### Dairy                      ← subgroup
 - [ ] 2 l Milk // lactose free  ← amount, name, note after //
 - [x] Butter                    ← checked
 - [-] Feta                      ← inactive

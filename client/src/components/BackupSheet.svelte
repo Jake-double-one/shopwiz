@@ -134,7 +134,6 @@
 ## ${t('backup.fmtList')}
 - [ ] Bread
 ### ${t('backup.fmtGroup')}
-#### ${t('backup.fmtSubgroup')}
 - [ ] 2 l Milk // ${t('backup.fmtNote')}
 - [x] Butter      ← ${t('backup.fmtChecked')}
 - [-] Feta        ← ${t('backup.fmtInactive')}`}</pre>
