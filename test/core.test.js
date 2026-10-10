@@ -1,0 +1,256 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import { openDb } from '../server/db.js';
+import { Store, hashToken, OpError } from '../server/core.js';
+import { loadConfig } from '../server/config.js';
+
+const DAY = 86_400_000;
+const T1 = 'token-aaaaaaaaaaaaaaaaaaaaaa';
+const T2 = 'token-bbbbbbbbbbbbbbbbbbbbbb';
+let n = 0;
+const opId = () => `op${++n}`;
+
+function setup() {
+  const db = openDb(':memory:');
+  const store = new Store(db, loadConfig({}));
+  const id = store.createSpace({ name: 'Home', token: T1, deviceName: 'Phone A' });
+  const { space } = store.resolve(id, null);
+  const uid = space.uid;
+  const devA = store.device(uid, hashToken(T1));
+  const devB = store.joinDevice(uid, hashToken(T2), 'Phone B');
+  const listId = store.snapshot(uid).lists[0].id;
+  const op = (dev, o, at = Date.now()) => store.applyOp(uid, dev, opId(), o, at);
+  const item = (itemId) => store.snapshot(uid).items.find((i) => i.id === itemId);
+  return { db, store, id, uid, devA, devB, listId, op, item };
+}
+
+describe('spaces', () => {
+  it('creates a space with one list and the creator as member', () => {
+    const { store, uid } = setup();
+    const snap = store.snapshot(uid);
+    expect(snap.lists).toHaveLength(1);
+    expect(snap.devices.map((d) => d.name)).toEqual(['Phone A', 'Phone B']);
+    expect(snap.space.ttlDays).toBe(181);
+  });
+
+  it('renews ids and moves members only', () => {
+    const { store, id, uid } = setup();
+    const newId = store.renew(uid);
+    expect(newId).not.toBe(id);
+    expect(store.resolve(id, hashToken(T1))).toEqual({ status: 'moved', id: newId });
+    expect(store.resolve(id, hashToken('stranger-xxxxxxxxxxxxxxx'))).toEqual({ status: 'notfound' });
+    expect(store.resolve(id, null)).toEqual({ status: 'notfound' });
+    expect(store.resolve(newId, null).status).toBe('ok');
+  });
+
+  it('deleted spaces can be continued by members into one shared new space', () => {
+    const { store, id, uid, listId, op, devA } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk' });
+    store.deleteSpace(uid, 'Phone A');
+    expect(store.resolve(id, hashToken(T2)).status).toBe('deleted');
+    expect(store.resolve(id, null).status).toBe('notfound');
+    const c1 = store.continueSpace(uid, hashToken(T1), 'Phone A');
+    const c2 = store.continueSpace(uid, hashToken(T2), 'Phone B');
+    expect(c1).toBe(c2);
+    const res = store.resolve(c1, null);
+    const snap = store.snapshot(res.space.uid);
+    expect(snap.items.map((i) => i.name)).toEqual(['Milk']);
+    expect(snap.items[0].id).toBe('item00001'); // pending offline ops keep working
+  });
+
+  it('cleans up inactive devices and expired spaces', () => {
+    const { store, db, uid, id } = setup();
+    const now = Date.now();
+    db.q('UPDATE devices SET last_seen_at = ?').run(now - 31 * DAY);
+    expect(store.cleanup(now).devices).toBe(2);
+    db.q('UPDATE spaces SET last_active_at = ? WHERE uid = ?').run(now - 182 * DAY, uid);
+    expect(store.cleanup(now).spaces).toBe(1);
+    expect(store.resolve(id, null).status).toBe('notfound');
+  });
+
+  it('hard-deletes a deleted space once no member device is left', () => {
+    const { store, db, uid } = setup();
+    store.deleteSpace(uid, 'x');
+    expect(store.cleanup().spaces).toBe(0);
+    db.q('DELETE FROM devices').run();
+    expect(store.cleanup().spaces).toBe(1);
+  });
+
+  it('validates ttl range', () => {
+    const { op, devA } = setup();
+    expect(() => op(devA, { k: 'space.update', ttlDays: 368 })).toThrow(OpError);
+    op(devA, { k: 'space.update', ttlDays: 367 });
+  });
+});
+
+describe('items', () => {
+  it('learns group placement and follows moves', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'group.add', id: 'grpcool01', listId, name: 'Kühlwaren' });
+    op(devA, { k: 'group.add', id: 'grpdairy1', listId, parentId: 'grpcool01', name: 'Milchprodukte' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milch', groupId: 'grpdairy1' });
+    let mem = store.snapshot(uid).memory;
+    expect(mem).toContainEqual({ scope: listId, norm: 'milch', group: 'Kühlwaren', subgroup: 'Milchprodukte' });
+    op(devA, { k: 'group.add', id: 'grpdrink1', listId, name: 'Getränke' });
+    op(devA, { k: 'item.set', id: 'item00001', fields: { groupId: 'grpdrink1' }, base: { groupId: 999 } });
+    mem = store.snapshot(uid).memory;
+    expect(mem).toContainEqual({ scope: listId, norm: 'milch', group: 'Getränke', subgroup: '' });
+  });
+
+  it('merges duplicate unchecked items unless forced', () => {
+    const { store, uid, listId, op, devA, devB } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Eggs', qty: '6' });
+    const r = op(devB, { k: 'item.add', id: 'item00002', listId, name: 'eggs', qty: '4' });
+    expect(r.result).toEqual({ merged: 'item00001' });
+    const items = store.snapshot(uid).items;
+    expect(items).toHaveLength(1);
+    expect(items[0].qty).toBe('10');
+    op(devB, { k: 'item.add', id: 'item00003', listId, name: 'Eggs', force: true });
+    expect(store.snapshot(uid).items).toHaveLength(2);
+  });
+
+  it('is idempotent per op id', () => {
+    const { store, uid, listId, devA } = setup();
+    const o = { k: 'item.add', id: 'item00001', listId, name: 'Bread' };
+    store.applyOp(uid, devA, 'same-op', o, Date.now());
+    const again = store.applyOp(uid, devA, 'same-op', o, Date.now());
+    expect(again.duplicate).toBe(true);
+  });
+
+  it('suggestions count uses', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Bread' });
+    op(devA, { k: 'item.delete', ids: ['item00001'] });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'bread' });
+    const s = store.snapshot(uid).suggestions;
+    expect(s).toHaveLength(1);
+    expect(s[0]).toMatchObject({ norm: 'bread', name: 'bread', uses: 2 });
+  });
+
+  it('clear checked + restore', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'A' });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'B' });
+    op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
+    const r = op(devA, { k: 'list.clearChecked', listId });
+    expect(r.result.ids).toEqual(['item00001']);
+    expect(store.snapshot(uid).items.map((i) => i.name)).toEqual(['B']);
+    op(devA, { k: 'item.restore', ids: r.result.ids });
+    expect(store.snapshot(uid).items).toHaveLength(2);
+  });
+
+  it('deleting a group ungroups its items; restore puts them back', () => {
+    const { listId, op, devA, item } = setup();
+    op(devA, { k: 'group.add', id: 'grp000001', listId, name: 'G' });
+    op(devA, { k: 'group.add', id: 'grp000002', listId, parentId: 'grp000001', name: 'S' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'A', groupId: 'grp000002' });
+    const r = op(devA, { k: 'group.delete', id: 'grp000001' });
+    expect(item('item00001').groupId).toBeNull();
+    op(devA, { k: 'group.restore', ids: r.result.groupIds, moves: r.result.moves });
+    expect(item('item00001').groupId).toBe('grp000002');
+  });
+});
+
+describe('conflicts', () => {
+  it('flags concurrent edits of the same field and lets anyone choose', () => {
+    const { store, uid, listId, op, devA, devB, item } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Eggs', qty: '6' });
+    const v = item('item00001').meta.amount.v;
+    const t = Date.now();
+    // B edits offline at t-1000 based on v, A edits online at t based on v
+    op(devA, { k: 'item.set', id: 'item00001', fields: { amount: { qty: '10', unit: '' } }, base: { amount: v } }, t);
+    const r = op(devB, { k: 'item.set', id: 'item00001', fields: { amount: { qty: '12', unit: '' } }, base: { amount: v } }, t - 1000);
+    expect(r.result.conflicts).toBe(1);
+    // A's change is newer → stays
+    expect(item('item00001').qty).toBe('10');
+    const [c] = store.snapshot(uid).conflicts;
+    expect(c.field).toBe('amount');
+    expect(c.options.map((o) => o.value.qty)).toEqual(['12', '10']);
+    const pick = c.options.findIndex((o) => o.value.qty === '12');
+    op(devA, { k: 'conflict.resolve', id: c.id, index: pick });
+    expect(item('item00001').qty).toBe('12');
+    expect(store.snapshot(uid).conflicts).toHaveLength(0);
+  });
+
+  it('later-made change wins even if it arrives first', () => {
+    const { listId, op, devA, devB, item } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Eggs' });
+    const v = item('item00001').meta.name.v;
+    const t = Date.now();
+    op(devA, { k: 'item.set', id: 'item00001', fields: { name: 'Brown eggs' }, base: { name: v } }, t - 5000);
+    op(devB, { k: 'item.set', id: 'item00001', fields: { name: 'Free range eggs' }, base: { name: v } }, t);
+    expect(item('item00001').name).toBe('Free range eggs');
+  });
+
+  it('no conflict for own consecutive edits or different fields', () => {
+    const { store, uid, listId, op, devA, devB, item } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Eggs' });
+    const m = item('item00001').meta;
+    op(devA, { k: 'item.set', id: 'item00001', fields: { amount: { qty: '2', unit: '' } }, base: { amount: m.amount.v } });
+    op(devA, { k: 'item.set', id: 'item00001', fields: { amount: { qty: '3', unit: '' } }, base: { amount: m.amount.v } });
+    op(devB, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: { checked: m.checked.v } });
+    expect(store.snapshot(uid).conflicts).toHaveLength(0);
+    expect(item('item00001')).toMatchObject({ qty: '3', checked: true, checkedBy: 'Phone B' });
+  });
+
+  it('edit of a deleted item is rejected and logged', () => {
+    const { store, uid, listId, op, devA, devB } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Eggs' });
+    op(devA, { k: 'item.delete', ids: ['item00001'] });
+    const r = op(devB, { k: 'item.set', id: 'item00001', fields: { note: 'x' }, base: {} });
+    expect(r.result).toEqual({ rejected: 'deleted', name: 'Eggs' });
+    expect(store.activity(uid, listId).some((a) => a.action === 'item.editDeleted')).toBe(true);
+  });
+});
+
+describe('group modes and transfer', () => {
+  it('switching to shared groups merges by name and shares learning', () => {
+    const { store, uid, listId, op, devA, item } = setup();
+    op(devA, { k: 'list.add', id: 'list00002', name: 'Second', groupMode: 'shared' });
+    op(devA, { k: 'group.add', id: 'grpshrd01', listId: null, name: 'Cooling' });
+    op(devA, { k: 'group.add', id: 'grpown001', listId, name: 'cooling' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk', groupId: 'grpown001' });
+    op(devA, { k: 'list.update', id: listId, groupMode: 'shared' });
+    expect(item('item00001').groupId).toBe('grpshrd01');
+    const mem = store.snapshot(uid).memory;
+    expect(mem.find((m) => m.scope === '' && m.norm === 'milk').group.toLowerCase()).toBe('cooling');
+    // learning now applies across lists in shared mode
+    op(devA, { k: 'item.add', id: 'item00002', listId: 'list00002', name: 'Butter', groupId: 'grpshrd01' });
+    expect(store.snapshot(uid).memory).toContainEqual({ scope: '', norm: 'butter', group: 'Cooling', subgroup: '' });
+  });
+
+  it('copies and moves items into another space, creating groups', () => {
+    const { store, uid, listId, op, devA } = setup();
+    const otherId = store.createSpace({ name: 'Office', token: T2, deviceName: 'B' });
+    const other = store.resolve(otherId, null).space;
+    const otherList = store.snapshot(other.uid).lists[0].id;
+    op(devA, { k: 'group.add', id: 'grp000001', listId, name: 'Snacks' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Chips', groupId: 'grp000001' });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'Nuts', groupId: 'grp000001' });
+    store.transfer(uid, devA, { targetUid: other.uid, targetListId: otherList, itemIds: ['item00001'], mode: 'copy' });
+    expect(store.snapshot(uid).items).toHaveLength(2);
+    store.transfer(uid, devA, { targetUid: other.uid, targetListId: otherList, groupId: 'grp000001', mode: 'move' });
+    expect(store.snapshot(uid).items).toHaveLength(0);
+    const target = store.snapshot(other.uid);
+    expect(target.items.map((i) => i.name).sort()).toEqual(['Chips', 'Chips', 'Nuts']);
+    expect(target.groups.map((g) => g.name)).toEqual(['Snacks']);
+  });
+});
+
+describe('devices', () => {
+  it('kick removes membership but rejoining works', () => {
+    const { store, uid, op, devA, devB } = setup();
+    const r = op(devA, { k: 'device.kick', devId: devB.dev_id });
+    expect(r.kickedHash).toBe(hashToken(T2));
+    expect(store.isMember(uid, hashToken(T2))).toBe(false);
+    store.joinDevice(uid, hashToken(T2), 'Phone B');
+    expect(store.isMember(uid, hashToken(T2))).toBe(true);
+  });
+
+  it('shopping mode expires', () => {
+    const { store, uid, db, op, devA } = setup();
+    op(devA, { k: 'device.shopping', on: true });
+    expect(store.devices(uid)[0].shoppingUntil).toBeGreaterThan(Date.now());
+    db.q('UPDATE devices SET shopping_until = ?').run(Date.now() - 1);
+    expect(store.devices(uid)[0].shoppingUntil).toBeNull();
+  });
+});
