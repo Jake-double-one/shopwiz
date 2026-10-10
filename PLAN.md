@@ -72,7 +72,7 @@ Jede Aktion trägt den Zeitpunkt, an dem sie **auf dem Gerät** gemacht wurde (d
 | Fall | Ergebnis |
 |---|---|
 | Hinzufügen auf zwei Geräten | Beide Artikel kommen dazu. Gleicher Name in derselben Liste → werden zu einem Artikel zusammengeführt (Mengen addiert), mit Hinweis. |
-| Gleiches Feld geändert (z. B. Menge, Name, Abhaken) | Die **zuletzt gemachte** Änderung gewinnt, nicht die zuletzt angekommene. Wer 2 h offline war, überschreibt also keine neueren Änderungen der anderen. |
+| Gleiches Feld geändert (z. B. Menge, Name, Abhaken, Gruppe) | Vorläufig gilt die **zuletzt gemachte** Änderung (nicht die zuletzt angekommene). Zusätzlich erscheint eine **softe Meldung** „1 Konflikt“: Pro Kollision werden beide Werte mit Gerät und Uhrzeit gezeigt, und jeder Teilnehmer kann den richtigen Wert wählen (oder den aktuellen behalten). Reihenfolge-Änderungen (Sortierung) lösen keine Meldung aus. |
 | Verschiedene Felder geändert (A hakt ab, B ändert Menge) | Beides wird übernommen. |
 | Artikel gelöscht, anderes Gerät hat ihn offline geändert | Löschen gewinnt; die Änderung landet in der Historie und kann dort mit einem Tipp wiederhergestellt werden. |
 | Gruppe gelöscht, offline wurde etwas hineingelegt | Artikel landet in „Ohne Gruppe“. |
