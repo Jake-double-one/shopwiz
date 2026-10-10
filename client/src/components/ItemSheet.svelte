@@ -30,7 +30,8 @@
     translating = true;
     trError = '';
     const n = name.trim() || item.name;
-    const r = await translateNames([n], travel.lang);
+    // always ask again – the remembered one may be the reason to tap
+    const r = await translateNames([n], travel.lang, { force: true });
     translating = false;
     const text = Object.values(r.translations)[0];
     if (text) tr = text;

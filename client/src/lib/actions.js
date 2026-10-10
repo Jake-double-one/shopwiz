@@ -170,15 +170,27 @@ export function missingTranslations(list) {
   return [...names.values()];
 }
 
+/** Names on the list whose translation came from a machine (can be renewed). */
+export function machineTranslated(list) {
+  const lang = list.travel?.lang;
+  if (!lang) return [];
+  const names = new Map();
+  for (const it of Object.values(v().items)) {
+    const tr = it.listId === list.id && v().translations[`${normalizeName(it.name)}|${lang}`];
+    if (tr?.auto) names.set(tr.norm, it.name);
+  }
+  return [...names.values()];
+}
+
 /**
  * Machine-translate names via the server (remembered translations are reused there).
  * → { translations: {name: text}, failed, error }
  */
-export async function translateNames(names, lang) {
+export async function translateNames(names, lang, { force = false } = {}) {
   const out = { translations: {}, failed: 0, error: null };
   for (let i = 0; i < names.length; i += 50) {
     try {
-      const r = await api.translate(sync.spaceId, { lang, from: i18n.lang, names: names.slice(i, i + 50) });
+      const r = await api.translate(sync.spaceId, { lang, from: i18n.lang, names: names.slice(i, i + 50), force });
       Object.assign(out.translations, r.translations);
       out.failed += r.failed ?? 0;
     } catch (e) {

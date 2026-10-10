@@ -33,6 +33,17 @@ const decode = (s) =>
     .trim();
 
 /**
+ * MyMemory is a translation *memory*: for single words its top answer is often some
+ * user-contributed segment ("Eier" → "Panna liquida"). Its own machine translation
+ * (created-by "MT…") is far more reliable for item names – prefer it when it's there.
+ */
+function pickMyMemory(data, fallback) {
+  const matches = Array.isArray(data?.matches) ? data.matches : [];
+  const mt = matches.find((m) => /^MT/i.test(String(m?.['created-by'] ?? m?.createdBy ?? '')) && m?.translation);
+  return mt ? mt.translation : fallback;
+}
+
+/**
  * createTranslator(config, fetch) → { provider, available, translate(texts, from, to) → string[] }
  * texts: short item names; the result has the same order ('' when a single text failed).
  */
@@ -68,7 +79,7 @@ export function createTranslator(config, fetchImpl = globalThis.fetch) {
         if (status === 429 || /MYMEMORY WARNING|USED ALL AVAILABLE FREE TRANSLATIONS/i.test(`${data?.responseDetails ?? ''} ${text}`)) {
           throw new TranslateError('quota');
         }
-        out.push(status === 200 ? decode(text) : '');
+        out.push(status === 200 ? decode(pickMyMemory(data, text)) : '');
       }
       return out;
     },

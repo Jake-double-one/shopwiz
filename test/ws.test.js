@@ -205,6 +205,9 @@ describe('websocket sync', () => {
     const r2 = await (await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Brot'] }, TA)).json();
     expect(r2.translations).toEqual({ Brot: 'Brot (it)' });
     expect(providerCalls.length).toBe(before);
+    // force: ask the provider again
+    await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Brot'], force: true }, TA);
+    expect(providerCalls.length).toBe(before + 1);
 
     // members only, valid languages only
     expect((await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['X'] })).status).toBe(403);

@@ -583,6 +583,7 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await page.getByRole('button', { name: 'Translate 3 items' }).click();
   await expect(page.locator('.toast', { hasText: '3 items translated.' })).toBeVisible();
   await expect(page.getByText('Every item has a translation.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Translate 3 machine translations again' })).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).first().click();
 
   // under each item: flag + translation

@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import Flag from './Flag.svelte';
-  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setTravel, missingTranslations, translateNames } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setTravel, missingTranslations, machineTranslated, translateNames } from '../lib/actions.js';
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -27,6 +27,7 @@
     return [...own, ...LANGS.filter((l) => !own.includes(l))].map((l) => ({ code: l, name: langName(l, i18n.lang), own: own.includes(l) }));
   };
   const missing = $derived(travel ? missingTranslations(list) : []);
+  const machine = $derived(travel ? machineTranslated(list) : []);
   let translating = $state(false);
 
   function toggleTravel(on) {
@@ -43,11 +44,11 @@
     picking = false;
     setTravel(list, { country, lang: COUNTRY_LANGS[country][0] });
   }
-  async function translateAll() {
+  async function translateAll(renew = false) {
     translating = true;
     const lang = travel.lang;
-    const names = missing;
-    const r = await translateNames(names, lang);
+    const names = renew ? machine : missing;
+    const r = await translateNames(names, lang, { force: renew });
     translating = false;
     const done = Object.keys(r.translations).length;
     if (r.error) {
@@ -122,12 +123,17 @@
       </div>
       {#if sync.features.translate}
         {#if missing.length}
-          <button class="btn block main" onclick={translateAll} disabled={translating || !online}>
+          <button class="btn block main" onclick={() => translateAll()} disabled={translating || !online}>
             <Icon name="swap" />{translating ? t('travel.translating') : t('travel.translateAll', { count: missing.length })}
           </button>
           {#if !online}<p class="micro">{t('travel.needsOnline')}</p>{/if}
         {:else}
           <p class="micro">{t('travel.allDone')}</p>
+        {/if}
+        {#if machine.length}
+          <button class="btn block" onclick={() => translateAll(true)} disabled={translating || !online}>
+            <Icon name="history" />{t('travel.renew', { count: machine.length })}
+          </button>
         {/if}
         <p class="micro">{t('travel.autoNote')}</p>
       {:else}

@@ -418,5 +418,7 @@
   "travel.machine": "Maschinell übersetzt – im Zweifel prüfen.",
   "help.travel.title": "Reisemodus",
   "help.travel.body": "Einkaufen im Ausland? Im Listenmenü (⋯ neben dem Listennamen) den „Reisemodus“ einschalten. Das Land kommt aus der Ladenadresse, oder du wählst es.\nUnter jedem Artikel erscheint die Übersetzung mit Landesflagge. Antippen zeigt sie groß fürs Personal – wischen geht zum nächsten Artikel.\n„N Artikel übersetzen“ übersetzt alles auf einmal; einzelne Artikel lassen sich in den Artikeldetails übersetzen oder korrigieren. Übersetzungen werden für die ganze ID gemerkt.",
-  "help.licenses": "Lizenzen von Drittanbietern (Flaggen)"
+  "help.licenses": "Lizenzen von Drittanbietern (Flaggen)",
+  "travel.renew_one": "1 maschinelle Übersetzung neu holen",
+  "travel.renew_other": "{count} maschinelle Übersetzungen neu holen"
 }

@@ -203,7 +203,9 @@ export async function buildApp(config) {
       byNorm.set(normalizeName(name), name);
     }
     const uid = r.space.uid;
-    const known = store.knownTranslations(uid, lang, [...byNorm.keys()]);
+    // force: ask the provider again (a typed translation is still never overwritten)
+    const force = req.body?.force === true;
+    const known = force ? new Map() : store.knownTranslations(uid, lang, [...byNorm.keys()]);
     const todo = [...byNorm].filter(([norm]) => !known.has(norm));
     const out = Object.fromEntries([...known].map(([norm, text]) => [byNorm.get(norm), text]));
     if (!todo.length) return { translations: out };

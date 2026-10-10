@@ -25,6 +25,20 @@ describe('translation providers', () => {
     expect(u.searchParams.get('de')).toBe('me@example.org');
   });
 
+  it("MyMemory: prefers its machine translation over odd memory matches", async () => {
+    const f = fakeFetch(() => ({
+      json: {
+        responseStatus: 200,
+        responseData: { translatedText: 'Panna liquida', match: 1 },
+        matches: [
+          { translation: 'Panna liquida', 'created-by': 'Someone', quality: '74' },
+          { translation: 'Uova', 'created-by': 'MT!', quality: '70' },
+        ],
+      },
+    }));
+    expect(await createTranslator({ translateProvider: 'mymemory' }, f).translate(['Eier'], 'de', 'it')).toEqual(['Uova']);
+  });
+
   it('MyMemory: a used-up quota is reported as such', async () => {
     const f = fakeFetch(() => ({ json: { responseStatus: 429, responseDetails: 'MYMEMORY WARNING: YOU USED ALL AVAILABLE FREE TRANSLATIONS FOR TODAY' } }));
     const tr = createTranslator({ translateProvider: 'mymemory' }, f);

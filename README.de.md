@@ -156,7 +156,7 @@ Die maschinelle Übersetzung läuft über den ShopWiz-Server – der Übersetzun
 | `google` | Google Cloud Translation, ca. 500.000 Zeichen pro Monat über das Monatsguthaben | `TRANSLATE_API_KEY` |
 | `none` | – | Übersetzungen nur von Hand |
 
-Artikelnamen sind kurz – ein kostenloses Kontingent reicht weit, und gemerkte Übersetzungen zählen nicht.
+Artikelnamen sind kurz – ein kostenloses Kontingent reicht weit, und gemerkte Übersetzungen zählen nicht. MyMemory ist kostenlos, liegt bei einzelnen Wörtern aber öfter daneben; **DeepL API Free** liefert für eine kostenlose Anmeldung deutlich bessere Ergebnisse. Maschinelle Übersetzungen lassen sich jederzeit neu holen (Listenmenü: „N maschinelle Übersetzungen neu holen“ oder „Übersetzen“ in den Artikeldetails).
 
 ### Synchronisation und Konflikte
 

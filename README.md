@@ -157,7 +157,7 @@ Machine translation runs on the ShopWiz server – the translation service only 
 | `google` | Google Cloud Translation, about 500,000 characters a month covered by the monthly credit | `TRANSLATE_API_KEY` |
 | `none` | – | translations are only typed in by hand |
 
-Item names are short – a free quota goes a long way, and remembered translations don't count.
+Item names are short – a free quota goes a long way, and remembered translations don't count. MyMemory is free but its quality for single words varies; **DeepL API Free** gives clearly better results for the price of a free sign-up. Machine translations can be fetched again at any time (list menu: “Translate N machine translations again”, or “Translate” in the item details).
 
 ### Sync and conflicts
 
