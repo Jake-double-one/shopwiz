@@ -16,6 +16,7 @@
   import TransferSheet from './TransferSheet.svelte';
   import BackupSheet from './BackupSheet.svelte';
   import CallSheet from './CallSheet.svelte';
+  import HelpSheet from './HelpSheet.svelte';
   import SignalCard from './SignalCard.svelte';
   import { spotPlace } from '../lib/signals.js';
   import { sync } from '../lib/sync.svelte.js';
@@ -116,6 +117,18 @@
   const open = (kind, extra = {}) => (sheet = { kind, ...extra });
   const closeSheet = () => (sheet = null);
 
+  // one-time "new here?" hint, per device
+  let helpHint = $state(!load('helpSeen', false));
+  function openHelp() {
+    helpHint = false;
+    save('helpSeen', true);
+    open('help');
+  }
+  function dismissHint() {
+    helpHint = false;
+    save('helpSeen', true);
+  }
+
   // where the add bar puts new items (null = learned placement)
   let addTarget = $state(null);
   let addBar = $state();
@@ -204,9 +217,19 @@
         <span class="dot" class:on={sync.status === 'online' && !sync.pendingCount} class:warn={sync.status !== 'online' || sync.pendingCount}></span>
         <span class="sr-only">{statusLabel}</span>
       </span>
+      <button class="icon-btn" onclick={openHelp} aria-label={t('help.title')} title={t('help.button')}><Icon name="help" /></button>
       <button class="icon-btn" onclick={() => open('share')} aria-label={t('share.title')} title={t('share.title')}><Icon name="share" /></button>
       <button class="icon-btn" onclick={() => open('settings')} aria-label={t('settings.title')} title={t('settings.title')}><Icon name="settings" /></button>
     </header>
+
+    {#if helpHint}
+      <div class="hint dusk help-hint">
+        <Icon name="help" size={18} />
+        <span class="grow">{t('help.hint')}</span>
+        <button class="link" onclick={openHelp}>{t('help.hintOpen')}</button>
+        <button class="icon-btn small-x" onclick={dismissHint} aria-label={t('help.hintClose')} title={t('help.hintClose')}><Icon name="x" size={16} /></button>
+      </div>
+    {/if}
 
     <section class="list-head">
       <div class="row title-row">
@@ -348,6 +371,8 @@
     <ConflictSheet {v} {conflicts} onclose={closeSheet} />
   {:else if sheet?.kind === 'history'}
     <HistorySheet spaceId={sync.spaceId} {list} onclose={closeSheet} />
+  {:else if sheet?.kind === 'help'}
+    <HelpSheet onclose={closeSheet} />
   {:else if sheet?.kind === 'call'}
     <CallSheet {v} {list} {shoppers} {mySpot} onclose={closeSheet} />
   {:else if sheet?.kind === 'backup'}
@@ -513,6 +538,13 @@
   }
   .people:hover .person {
     color: var(--ink);
+  }
+  .help-hint {
+    flex-wrap: wrap;
+  }
+  .small-x {
+    width: 30px;
+    height: 30px;
   }
   /* incoming signals stay visible while scrolling */
   .signals {

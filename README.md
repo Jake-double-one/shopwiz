@@ -56,6 +56,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
 | **Languages** | English and German, per device. Your entries are never translated. |
 | **Light & dark** | Follows the system or can be set per device. Design: *Feierabend design system v2*. |
+| **Built-in help** | A (?) in the header (and “How ShopWiz works” on the start screen) explains every feature in short topics – offline and in the device's language. New users get a one-time hint. |
 | **Installable** | Works as an app on the home screen (PWA). |
 
 ## How it works

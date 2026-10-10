@@ -3,6 +3,8 @@
   import Scanner from './Scanner.svelte';
   import Prefs from './Prefs.svelte';
   import BackupSheet from './BackupSheet.svelte';
+  import HelpSheet from './HelpSheet.svelte';
+  import Sheet from './Sheet.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import { api } from '../lib/api.js';
   import { knownSpaces, forgetSpace, deviceName, setDeviceName, suggestDeviceName } from '../lib/device.js';
@@ -19,11 +21,32 @@
   let joinError = $state('');
   let scanning = $state(false);
   let importing = $state(false);
+  let helping = $state(false);
+
+  // a first-time user who keeps the suggested device name is asked once whether that's fine
+  const suggested = suggestDeviceName();
+  let nameConfirmed = false;
+  let confirmName = $state(null); // the action waiting for the answer
+  let nameInput = $state();
+  function withName(action) {
+    const n = myName.trim();
+    if (askName && !nameConfirmed && (!n || n === suggested)) {
+      if (!n) myName = suggested;
+      confirmName = action;
+      return;
+    }
+    action();
+  }
   let known = $state(knownSpaces());
   const canScan = typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 
-  async function create(e) {
-    e.preventDefault();
+  function create(e) {
+    e?.preventDefault();
+    if (!listName.trim() || busy) return;
+    withName(doCreate);
+  }
+
+  async function doCreate() {
     const name = listName.trim();
     if (!name || busy) return;
     busy = true;
@@ -46,8 +69,10 @@
       joinError = t('start.invalidId');
       return;
     }
-    if (askName && myName.trim()) setDeviceName(myName.trim().slice(0, 40));
-    onopen(id);
+    withName(() => {
+      if (askName && myName.trim()) setDeviceName(myName.trim().slice(0, 40));
+      onopen(id);
+    });
   }
 
   function onJoinInput(e) {
@@ -73,6 +98,7 @@
   <section class="lede">
     <h1 class="hero">{t('start.title')}</h1>
     <p class="muted">{t('start.lede')}</p>
+    <button class="chip help" onclick={() => (helping = true)}><Icon name="help" size={16} />{t('help.title')}</button>
   </section>
 
   {#if known.length}
@@ -105,7 +131,7 @@
       {#if askName}
         <label class="field">
           <span>{t('name.label')}</span>
-          <input class="input" bind:value={myName} maxlength="40" autocomplete="nickname" />
+          <input class="input" bind:this={nameInput} bind:value={myName} maxlength="40" autocomplete="nickname" />
         </label>
       {/if}
       {#if error}<p class="hint alert">{error}</p>{/if}
@@ -114,7 +140,13 @@
         {t('start.create')}
       </button>
     </form>
-    <button class="link import" onclick={() => (askName && myName.trim() && setDeviceName(myName.trim().slice(0, 40)), (importing = true))}>{t('start.import')}</button>
+    <button
+      class="link import"
+      onclick={() =>
+        withName(() => {
+          if (askName && myName.trim()) setDeviceName(myName.trim().slice(0, 40));
+          importing = true;
+        })}>{t('start.import')}</button>
   </section>
 
   <section class="card">
@@ -157,6 +189,35 @@
   <p class="micro privacy">{t('start.privacy')}</p>
 </main>
 
+{#if helping}
+  <HelpSheet onclose={() => (helping = false)} />
+{/if}
+
+{#if confirmName}
+  <Sheet title={t('name.confirmTitle', { name: myName.trim() })} eyebrow={t('name.eyebrow')} onclose={() => (confirmName = null)}>
+    <p class="note">{t('name.confirmText')}</p>
+    <div class="row wrap-row">
+      <button
+        class="btn main"
+        onclick={() => {
+          const action = confirmName;
+          nameConfirmed = true;
+          confirmName = null;
+          action();
+        }}>{t('name.confirmYes')}</button>
+      <button
+        class="btn"
+        onclick={() => {
+          confirmName = null;
+          setTimeout(() => {
+            nameInput?.focus();
+            nameInput?.select();
+          }, 50);
+        }}>{t('name.confirmChange')}</button>
+    </div>
+  </Sheet>
+{/if}
+
 {#if importing}
   <BackupSheet onclose={() => (importing = false)} {onopen} />
 {/if}
@@ -183,6 +244,14 @@
   }
   .top .brand {
     margin-right: auto;
+  }
+  .help {
+    margin-top: 14px;
+    border-color: var(--dusk);
+    color: var(--dusk);
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 8px 14px;
   }
   .lede {
     margin-bottom: 26px;

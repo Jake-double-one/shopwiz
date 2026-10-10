@@ -55,6 +55,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
 | **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nie übersetzt. |
 | **Hell & Dunkel** | Folgt dem System oder pro Gerät einstellbar. Design: *Feierabend-Designsystem v2*. |
+| **Eingebaute Hilfe** | Ein (?) in der Kopfzeile (und „So funktioniert ShopWiz“ auf der Startseite) erklärt alle Funktionen in kurzen Themen – offline und in der Sprache des Geräts. Neue Nutzer bekommen einmalig einen Hinweis. |
 | **Installierbar** | Läuft als App auf dem Homescreen (PWA). |
 
 ## So funktioniert es

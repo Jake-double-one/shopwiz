@@ -322,6 +322,7 @@ test('export as Markdown and import with duplicate check', async ({ page }) => {
 test('import a plain text file as a new ID from the start screen', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Import a file as a new list' }).click();
+  await page.getByRole('button', { name: 'Yes, continue' }).click(); // suggested device name kept
   await page.locator('input[type=file]').setInputFiles({ name: 'party.txt', mimeType: 'text/plain', buffer: Buffer.from('Chips\n2 Cola\nNapkins // white\n') });
   await expect(page.locator('.hint', { hasText: 'Found 3 items' })).toBeVisible();
   await page.getByRole('button', { name: 'Import 3 items' }).click();
@@ -438,4 +439,51 @@ test('find each other in the shop: spot, call, answer, all done', async ({ page,
   await b.getByRole('checkbox', { name: 'Milk' }).click();
   await expect(page.locator('.signal')).toContainText('Everything is in the cart');
   await ctx.close();
+});
+
+test('help: visible on the start screen and in the header, one-time hint', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'How ShopWiz works' }).click();
+  await page.getByRole('button', { name: 'Adding items' }).click();
+  await expect(page.locator('.panel')).toContainText('Amounts are recognised');
+  await page.keyboard.press('Escape');
+
+  await createList(page);
+  const hint = page.locator('.help-hint');
+  await expect(hint).toContainText('New here?');
+  await hint.getByRole('button', { name: 'Open guide' }).click();
+  await expect(page.getByRole('dialog', { name: 'How ShopWiz works' })).toBeVisible();
+  await page.getByRole('button', { name: 'Shopping together' }).click();
+  await expect(page.locator('.panel')).toContainText('Call');
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(page.locator('.list-title')).toBeVisible();
+  await expect(hint).toHaveCount(0); // only once
+  await page.getByRole('button', { name: 'How ShopWiz works' }).click();
+  await expect(page.getByRole('button', { name: 'Privacy' })).toBeVisible();
+});
+
+test('keeping the suggested device name asks once before creating', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Name of the list').fill('Weekly');
+  const suggested = await page.getByLabel('Your device name').inputValue();
+  await page.getByRole('button', { name: 'Create list' }).click();
+  await expect(page.getByRole('dialog', { name: `Continue as “${suggested}”?` })).toBeVisible();
+  // change it → no further question
+  await page.getByRole('button', { name: 'Change name' }).click();
+  await expect(page.getByLabel('Your device name')).toBeFocused();
+  await page.getByLabel('Your device name').fill('Kim');
+  await page.getByRole('button', { name: 'Create list' }).click();
+  await page.waitForURL(ID_URL);
+  await page.getByRole('button', { name: 'Participants' }).click();
+  await expect(page.locator('.panel input')).toHaveValue('Kim');
+});
+
+test('the suggested device name can be confirmed', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Name of the list').fill('Weekly');
+  await page.getByRole('button', { name: 'Create list' }).click();
+  await page.getByRole('button', { name: 'Yes, continue' }).click();
+  await page.waitForURL(ID_URL);
+  await expect(page.locator('.list-title')).toContainText('Weekly');
 });
