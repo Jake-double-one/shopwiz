@@ -145,7 +145,6 @@ There is deliberately no free text, so it never becomes a chat. Signals are not 
 | Button | What happens |
 |---|---|
 | **Your ID** | Shown hidden; the eye reveals it, tapping it copies it. |
-| **Save ID in password manager** | Offers the ID to your password manager (name of the ID as user name, ID as password). With the 1Password extension installed, 1Password’s own “Save in 1Password” button appears instead. The ID field on the start page can be filled by password managers, too. |
 | **Forget ID on this device** | The “reset button”: removes the ID and its cached data from this device only. Nothing is deleted on the server. |
 | **Renew ID** | New ID, old ID invalid. Participating devices move along; people who only have the old link lose access. |
 | **Delete ID for everyone** | Asks twice (you type the name). Participants then see “This list was deleted” and can continue with a copy under a new ID. Once the last device has expired, everything is gone for good. |

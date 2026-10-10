@@ -10,8 +10,6 @@
   import { toast } from '../lib/toast.svelte.js';
   import { knownSpaces, forgetSpace } from '../lib/device.js';
   import { formatSpaceId } from '../../../shared/ids.js';
-  import { activateOPButton, encodeOPSaveRequest } from '@1password/save-button';
-  import { i18n } from '../lib/i18n.svelte.js';
 
   let { space, spaceId, onclose, onleave, onopen, onshare, onbackup } = $props();
 
@@ -22,35 +20,6 @@
   let typed = $state('');
   let busy = $state(false);
   let showId = $state(false);
-
-  // 1Password ignores forms it didn't see typed into, but it has its own "Save in 1Password"
-  // button: the extension enables it when present – then we show it instead of ours.
-  let opWrap = $state();
-  let hasOP = $state(false);
-  const opDark = () =>
-    document.documentElement.dataset.theme === 'dark' ||
-    (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-  const opValue = $derived(
-    encodeOPSaveRequest({
-      title: `ShopWiz · ${space.name}`,
-      fields: [
-        { autocomplete: 'username', value: space.name },
-        { autocomplete: 'new-password', value: formatSpaceId(spaceId) },
-      ],
-      notes: `${location.origin}/${spaceId}`,
-    }),
-  );
-  $effect(() => {
-    const btn = opWrap?.querySelector('onepassword-save-button')?.shadowRoot?.querySelector('button[data-onepassword-save-button]');
-    if (!btn) return;
-    btn.setAttribute('value', opValue);
-    const check = () => (hasOP = !btn.disabled);
-    const mo = new MutationObserver(check);
-    mo.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
-    activateOPButton();
-    check();
-    return () => mo.disconnect();
-  });
   const online = $derived(sync.status === 'online');
   const others = knownSpaces().filter((s) => s.id !== spaceId);
 
@@ -104,15 +73,6 @@
     }
   }
 
-  // a tiny login form: submitting it makes password managers offer to save the ID
-  function savePm(e) {
-    e.preventDefault();
-    if (window.PasswordCredential) {
-      navigator.credentials.store(new window.PasswordCredential({ id: space.name, password: formatSpaceId(spaceId), name: `ShopWiz · ${space.name}` })).catch(() => {});
-    }
-    toast({ text: t('settings.pmSaved') });
-  }
-
   function forget() {
     forgetSpace(spaceId);
     onleave();
@@ -146,27 +106,15 @@
 
   <section>
     <p class="eyebrow">{t('settings.idTitle')}</p>
-    <!-- a tiny login form: submitting it makes password managers offer to save the ID -->
-    <form class="pm" onsubmit={savePm} action="#">
-      <input class="sr-only" type="text" name="username" autocomplete="username" value={space.name} readonly tabindex="-1" aria-hidden="true" />
-      <input class="sr-only" type="password" name="password" autocomplete="new-password" value={formatSpaceId(spaceId)} readonly tabindex="-1" aria-hidden="true" />
-      <div class="id-row">
-        <button type="button" class="id-chip mono" onclick={copyId} title={t('share.copyId')} aria-label={t('share.copyId')}>
-          <span class:masked={!showId}>{showId ? formatSpaceId(spaceId) : '••••-••••-••'}</span>
-          <Icon name="copy" />
-        </button>
-        <button type="button" class="btn" onclick={() => (showId = !showId)} aria-pressed={showId} aria-label={t(showId ? 'start.hideId' : 'start.showId')} title={t(showId ? 'start.hideId' : 'start.showId')}>
-          <Icon name={showId ? 'eyeOff' : 'eye'} />
-        </button>
-      </div>
-      <div class="op" class:waiting={!hasOP} bind:this={opWrap} aria-hidden={!hasOP}>
-        <onepassword-save-button data-onepassword-type="login" value={opValue} lang={i18n.lang} data-theme={opDark() ? 'dark' : 'light'} padding="none"></onepassword-save-button>
-      </div>
-      {#if !hasOP}
-        <button class="btn block" type="submit"><Icon name="key" />{t('settings.pmSave')}</button>
-      {/if}
-      <p class="note">{t('settings.pmHint')}</p>
-    </form>
+    <div class="id-row">
+      <button type="button" class="id-chip mono" onclick={copyId} title={t('share.copyId')} aria-label={t('share.copyId')}>
+        <span class:masked={!showId}>{showId ? formatSpaceId(spaceId) : '••••-••••-••'}</span>
+        <Icon name="copy" />
+      </button>
+      <button type="button" class="btn" onclick={() => (showId = !showId)} aria-pressed={showId} aria-label={t(showId ? 'start.hideId' : 'start.showId')} title={t(showId ? 'start.hideId' : 'start.showId')}>
+        <Icon name={showId ? 'eyeOff' : 'eye'} />
+      </button>
+    </div>
   </section>
 
   <section>
@@ -239,24 +187,6 @@
   .list {
     display: grid;
     gap: 8px;
-  }
-  .pm {
-    display: grid;
-    gap: 8px;
-  }
-  .op.waiting {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    pointer-events: none;
-  }
-  .pm .note {
-    margin: 0;
-  }
-  .pm .btn.block {
-    justify-content: flex-start;
   }
   .id-row {
     display: flex;

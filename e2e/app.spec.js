@@ -511,7 +511,7 @@ test('the ID field is a password field that password managers can fill', async (
   await ctx.close();
 });
 
-test('settings show the ID masked, reveal and copy it, and offer it to password managers', async ({ browser }) => {
+test('settings show the ID masked, reveal and copy it', async ({ browser }) => {
   const ctx = await browser.newContext({ locale: 'en-US', permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await ctx.newPage();
   const id = await createList(page);
@@ -524,21 +524,5 @@ test('settings show the ID masked, reveal and copy it, and offer it to password 
   await chip.click();
   await expect(page.locator('.toast', { hasText: 'ID copied' })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(formatted);
-  await expect(page.locator('form.pm input[autocomplete="username"]')).toHaveValue('Weekly');
-  await expect(page.locator('form.pm input[type="password"]')).toHaveValue(formatted);
-  await page.getByRole('button', { name: 'Save ID in password manager' }).click();
-  await expect(page.locator('.toast').last()).toContainText('add the ID by hand');
-
-  // with the 1Password extension its own button gets enabled and replaces ours
-  const op = page.locator('onepassword-save-button');
-  await expect(op).toHaveAttribute('data-onepassword-type', 'login');
-  const request = await op.evaluate((el) => JSON.parse(atob(el.shadowRoot.querySelector('button[data-onepassword-save-button]').getAttribute('value'))));
-  expect(request.fields).toEqual([
-    { autocomplete: 'username', value: 'Weekly' },
-    { autocomplete: 'new-password', value: formatted },
-  ]);
-  await op.evaluate((el) => el.shadowRoot.querySelector('button[data-onepassword-save-button]').removeAttribute('disabled'));
-  await expect(page.getByRole('button', { name: 'Save ID in password manager' })).toHaveCount(0);
-  await expect(op).toBeVisible();
   await ctx.close();
 });
