@@ -3,7 +3,7 @@
   import ItemRow from './ItemRow.svelte';
   import GroupBlock from './GroupBlock.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree, posBetween, groupSet } from '../lib/model.js';
+  import { listTree, posBetween } from '../lib/model.js';
   import { moveItem, moveGroup, clearChecked, clearParked, editItem, addEntry } from '../lib/actions.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sortable } from '../lib/sortable.js';
@@ -66,16 +66,13 @@
     editItem(item, fields);
   }
 
-  function onGroupMove({ id, to, newIndex }) {
+  function onGroupMove({ id, newIndex }) {
     const g = sync.data.groups[id];
     if (!g) return;
-    const parentId = to.parent || null;
-    const siblings = groupSet(sync.data, list)
-      .filter((x) => (x.parentId ?? null) === parentId && x.id !== id)
-      .sort((a, b) => a.pos - b.pos);
+    // newIndex counts the groups shown here – empty ones wait under "inactive" and must not shift it
+    const siblings = tree.groups.map((n) => n.group).filter((x) => x.id !== id);
     const pos = posBetween(siblings[newIndex - 1]?.pos, siblings[newIndex]?.pos);
-    if ((g.parentId ?? null) !== parentId) sync.send({ k: 'group.update', id, pos, parentId });
-    else moveGroup(g, pos);
+    moveGroup(g, pos);
   }
 
   const itemSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', onmove: onItemMove });

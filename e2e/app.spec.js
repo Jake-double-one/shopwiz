@@ -536,3 +536,36 @@ test('settings show the ID masked, reveal and copy it', async ({ browser }) => {
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(formatted);
   await ctx.close();
 });
+
+test('dragging a group drops it where it is let go, also past empty groups', async ({ page }) => {
+  await createList(page);
+  const group = async (name, itemName) => {
+    await page.getByRole('button', { name: 'Add group' }).last().click();
+    await page.getByLabel('Name').fill(name);
+    await page.getByRole('button', { name: 'Create' }).click();
+    if (itemName) await add(page, itemName);
+  };
+  await group('Bakery', 'Bread');
+  await group('Empty'); // no items → waits under "inactive", not shown above
+  await group('Fridge', 'Milk');
+  await group('Drinks', 'Water');
+  const names = () => page.locator('.groups .group.top > header .name').allTextContents();
+  await expect.poll(names).toEqual(['Bakery', 'Fridge', 'Drinks']);
+
+  // Bakery to between Fridge and Drinks
+  const fridge = await page.locator('.group.top', { hasText: 'Fridge' }).boundingBox();
+  const h = await page.locator('.group.top', { hasText: 'Bakery' }).locator('.g-handle').boundingBox();
+  const x = h.x + h.width / 2;
+  await page.mouse.move(x, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+  // SortableJS needs real, gradual pointer moves
+  for (let y = h.y + h.height / 2; y < fridge.y + fridge.height + 6; y += 8) {
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(16);
+  }
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  await expect.poll(names).toEqual(['Fridge', 'Bakery', 'Drinks']);
+});
