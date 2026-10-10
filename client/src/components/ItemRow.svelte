@@ -3,10 +3,9 @@
   import { t } from '../lib/i18n.svelte.js';
   import { toggleItem, setParked, editItem } from '../lib/actions.js';
   import { formatAmount, stepAmount } from '../../../shared/parse.js';
-  import { sync } from '../lib/sync.svelte.js';
 
   /** inactive: row of the shadow list – tapping puts it back on the list */
-  let { item, fresh = false, conflict = false, inactive = false, label = '', onedit } = $props();
+  let { item, fresh = false, conflict = false, inactive = false, onedit } = $props();
   const activate = () => setParked(item, false);
   // +/- next to the amount (only shown on wide screens, see CSS)
   const stepper = $derived(!inactive && !item.checked);
@@ -16,8 +15,6 @@
     if (next) editItem(item, { amount: next });
   };
   const amount = $derived(formatAmount(item.qty, item.unit));
-  const myName = $derived(sync.me?.name);
-  const by = $derived(item.checked ? (item.checkedBy && item.checkedBy !== myName ? `✓ ${item.checkedBy}` : '') : item.addedBy && item.addedBy !== myName ? t('item.by', { name: item.addedBy }) : '');
 </script>
 
 <li class="item" class:checked={item.checked} class:inactive class:fresh data-id={item.id}>
@@ -37,12 +34,8 @@
       {#if fresh}<span class="badge">{t('item.new')}</span>{/if}
       {#if conflict}<span class="badge warn" title={t('conflict.title')}>!</span>{/if}
     </span>
-    {#if inactive ? label || item.note : item.note || by}
-      <span class="meta">
-        {#if inactive && label}<span class="by">{label}</span>{/if}
-        {#if item.note}<span class="note-text">{item.note}</span>{/if}
-        {#if by && !inactive}<span class="by">{by}</span>{/if}
-      </span>
+    {#if item.note}
+      <span class="meta"><span class="note-text">{item.note}</span></span>
     {/if}
   </button>
   {#if stepper}
@@ -78,7 +71,7 @@
     place-items: center;
     width: 26px;
     align-self: stretch;
-    color: var(--line);
+    color: var(--control);
     cursor: grab;
     touch-action: none;
     flex: 0 0 auto;
@@ -102,7 +95,7 @@
     width: 24px;
     height: 24px;
     border-radius: 8px;
-    border: 2px solid var(--line);
+    border: 2px solid var(--control);
     color: #fff;
     transition: all 0.15s ease;
   }
@@ -141,6 +134,7 @@
     color: var(--ink);
   }
   .name {
+    font-size: 1.08rem;
     font-weight: 500;
     overflow-wrap: anywhere;
   }
@@ -160,11 +154,6 @@
   .note-text {
     white-space: pre-line;
     overflow-wrap: anywhere;
-  }
-  .by {
-    font-family: var(--mono);
-    font-size: 0.68rem;
-    letter-spacing: 0.04em;
   }
   .amount {
     font-size: 0.85rem;
@@ -188,9 +177,9 @@
     width: 28px;
     height: 28px;
     border-radius: 999px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--control);
     background: var(--surface);
-    color: var(--muted);
+    color: var(--control-ink);
     font-family: var(--mono);
     font-size: 1rem;
     line-height: 1;

@@ -80,7 +80,10 @@ test('two devices sync, duplicates, autocomplete and history', async ({ page, br
 
   await b.getByRole('checkbox', { name: 'Bread' }).click();
   await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
-  await expect(item(page, 'Bread')).toContainText('✓ Jana');
+  await expect(item(page, 'Bread')).not.toContainText('Jana'); // who did what lives in the details
+  await page.getByRole('button', { name: 'Edit Bread' }).click();
+  await expect(page.locator('.panel')).toContainText('checked by Jana');
+  await page.keyboard.press('Escape');
   await expect(page.locator('.count')).toHaveText('1 / 1');
 
   // adding a checked item again re-activates it

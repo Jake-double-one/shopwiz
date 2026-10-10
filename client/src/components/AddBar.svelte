@@ -184,7 +184,7 @@
     position: fixed;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--kb, 0px);
     z-index: 40;
     pointer-events: none;
   }

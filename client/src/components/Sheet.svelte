@@ -12,12 +12,20 @@
     const first = panel.querySelector('[autofocus]') ?? panel.querySelector('input, select, textarea, button:not(.close)');
     (first ?? panel).focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
+    // when the keyboard opens, keep the focused field visible
+    const vv = window.visualViewport;
+    const keepVisible = () => {
+      const el = document.activeElement;
+      if (el && panel.contains(el) && /INPUT|TEXTAREA|SELECT/.test(el.tagName)) el.scrollIntoView({ block: 'nearest' });
+    };
+    vv?.addEventListener('resize', keepVisible);
     // everything behind the dialog is unreachable for keyboard and screen readers (toasts stay usable)
     const root = document.getElementById('app');
     const overlay = panel.parentElement;
     const hidden = [...(root?.children ?? [])].filter((el) => el !== overlay && !el.contains(overlay) && !el.classList.contains('toasts') && !el.inert);
     for (const el of hidden) el.inert = true;
     return () => {
+      vv?.removeEventListener('resize', keepVisible);
       for (const el of hidden) el.inert = false;
       document.body.style.overflow = '';
       previous?.focus?.({ preventScroll: true });
@@ -62,7 +70,8 @@
 <style>
   .overlay {
     position: fixed;
-    inset: 0;
+    /* keep the dialog above an on-screen keyboard (see --kb in main.js) */
+    inset: 0 0 var(--kb, 0px) 0;
     z-index: 50;
     background: color-mix(in srgb, var(--ink) 35%, transparent);
     display: flex;
@@ -74,7 +83,7 @@
     background: var(--surface);
     width: 100%;
     max-width: 560px;
-    max-height: min(88dvh, 760px);
+    max-height: min(760px, calc(100% - 16px));
     display: flex;
     flex-direction: column;
     border-radius: 22px 22px 0 0;

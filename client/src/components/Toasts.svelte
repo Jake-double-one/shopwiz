@@ -24,7 +24,7 @@
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    bottom: calc(var(--bar-h) + 18px + env(safe-area-inset-bottom));
+    bottom: calc(var(--bar-h) + 18px + env(safe-area-inset-bottom) + var(--kb, 0px));
     z-index: 60;
     display: flex;
     flex-direction: column;

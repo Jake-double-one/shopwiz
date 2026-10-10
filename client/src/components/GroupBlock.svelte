@@ -45,7 +45,7 @@
     place-items: center;
     width: 26px;
     align-self: stretch;
-    color: var(--line);
+    color: var(--control);
     cursor: grab;
     touch-action: none;
   }

@@ -14,6 +14,9 @@
   --sun-soft: #f6e4be;
   --alert: #a33a22;
   --ok: #2f7d4f;
+  /* drag handles, checkboxes, small buttons – more contrast than --line */
+  --control: #8e9d92;
+  --control-ink: #3f4e44;
   --shadow: 0 1px 2px rgba(22, 33, 27, 0.06), 0 12px 32px -18px rgba(22, 33, 27, 0.35);
   --radius: 18px;
   --bar-h: 76px;
@@ -32,6 +35,8 @@
   --sun-soft: #46351a;
   --alert: #f08a6b;
   --ok: #6fcf97;
+  --control: #71857a;
+  --control-ink: #c3d0c6;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -22px rgba(0, 0, 0, 0.9);
   color-scheme: dark;
 }
@@ -49,6 +54,10 @@
     --sun-soft: #46351a;
     --alert: #f08a6b;
     --ok: #6fcf97;
+    --control: #71857a;
+    --control-ink: #c3d0c6;
+  --control: #71857a;
+  --control-ink: #c3d0c6;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -22px rgba(0, 0, 0, 0.9);
     color-scheme: dark;
   }
@@ -266,7 +275,7 @@ h2 {
   border-radius: 12px;
   border: 1px solid transparent;
   background: none;
-  color: var(--muted);
+  color: var(--control-ink);
   padding: 0;
   flex: 0 0 auto;
 }

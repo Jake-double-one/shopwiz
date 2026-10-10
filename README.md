@@ -44,7 +44,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Inactive items** | A collapsed “shadow list” at the bottom of every list, with the same groups as the list: things you don't need right now and groups without items. Clearing checked items moves them there; one tap puts them back on the list. |
 | **Shop address** | Optionally give a list the address of its shop – a “Start navigation” button appears next to the list name (just an arrow on phones). |
 | **Backup & import** | Download your lists as a Markdown file, edit it in any text editor and import it again – into the same ID (no duplicates) or as a new ID. |
-| **Participants** | Every device chooses its own name. Items show who added or checked them. Devices can be removed. |
+| **Participants** | Every device chooses its own name. An item's details show who added or checked it. Devices can be removed. |
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
