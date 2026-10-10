@@ -66,7 +66,14 @@ function reduce(v, op, at, me) {
       break;
     case 'list.update': {
       const l = v.lists[op.id];
-      if (l) v.lists[op.id] = { ...l, ...(op.name !== undefined && { name: op.name }), ...(op.pos !== undefined && { pos: op.pos }) };
+      if (l) {
+        v.lists[op.id] = {
+          ...l,
+          ...(op.name !== undefined && { name: op.name }),
+          ...(op.pos !== undefined && { pos: op.pos }),
+          ...(op.address !== undefined && { address: op.address }),
+        };
+      }
       break;
     }
     case 'list.delete':

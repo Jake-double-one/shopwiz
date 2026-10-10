@@ -40,14 +40,17 @@ test('create, add, group and learn placement', async ({ page }) => {
   await expect(item(page, 'Milk').locator('.amount')).toHaveText('2×');
   await expect(item(page, 'Minced meat').locator('.amount')).toHaveText('500 g');
 
-  // group + subgroup
+  // group + subgroup: a new (empty) group becomes the target of the input
   await page.getByRole('button', { name: 'Add group' }).last().click();
   await page.getByLabel('Name').fill('Fridge');
   await page.getByRole('button', { name: 'Create' }).click();
-  await page.getByRole('button', { name: 'Options for Fridge' }).click();
+  await add(page, 'Butter');
+  await expect(page.locator('.group', { hasText: 'Fridge' }).getByRole('checkbox', { name: 'Butter' })).toBeVisible();
+  await page.getByRole('button', { name: 'Options for Fridge' }).first().click();
   await page.getByRole('button', { name: 'Add subgroup' }).click();
   await page.getByLabel('Name').fill('Dairy');
   await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Back to automatic group' }).click();
 
   // move Milk to Fridge › Dairy
   await page.getByRole('button', { name: 'Edit Milk' }).click();
@@ -343,4 +346,48 @@ test('+/- next to the amount on wide screens only', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'One more Eggs' })).toBeHidden();
   await expect(item(page, 'Eggs').locator('.amount')).toHaveText('2×');
+});
+
+test('groups without items move to the inactive part and come back with their items', async ({ page }) => {
+  await createList(page);
+  await page.getByRole('button', { name: 'Add group' }).last().click();
+  await page.getByLabel('Name').fill('Bakery');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await add(page, 'Bread');
+  const active = page.locator('.sheet .group', { hasText: 'Bakery' });
+  await expect(active).toBeVisible();
+  // checked items stay on the list, so the group stays
+  await page.getByRole('checkbox', { name: 'Bread' }).click();
+  await expect(active).toBeVisible();
+  // clearing moves the last item to inactive → the group follows
+  await page.getByRole('button', { name: 'Move 1 checked item to inactive' }).click();
+  await expect(active).toHaveCount(0);
+  await page.getByRole('button', { name: /Inactive items/ }).click();
+  const shadowGroup = page.locator('.shadow .s-group', { hasText: 'Bakery' });
+  await expect(shadowGroup.locator('.item', { hasText: 'Bread' })).toBeVisible();
+  // an empty group shows up in the inactive part, too
+  await page.getByRole('button', { name: 'Add group' }).last().click();
+  await page.getByLabel('Name').fill('Drinks');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Back to automatic group' }).click();
+  const drinks = page.locator('.shadow .s-group', { hasText: 'Drinks' });
+  await expect(drinks.locator('ul.items')).toHaveAttribute('data-empty', /^Empty/);
+  await expect(drinks.locator('.item')).toHaveCount(0);
+  // bringing Bread back re-activates Bakery
+  await page.getByRole('button', { name: 'Put Bread back on the list' }).click();
+  await expect(active.getByRole('checkbox', { name: 'Bread' })).toBeVisible();
+  await expect(page.locator('.shadow .s-group', { hasText: 'Bakery' })).toHaveCount(0);
+});
+
+test('a list address shows a navigation button', async ({ page }) => {
+  await createList(page, 'Conad');
+  await expect(page.locator('.nav-btn')).toHaveCount(0);
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByLabel('Shop address (optional)').fill('Conad, Via Roma 1, Olbia');
+  await page.getByRole('button', { name: 'Close' }).click();
+  const nav = page.getByRole('link', { name: /Start navigation/ });
+  await expect(nav).toHaveAttribute('href', /destination=Conad%2C%20Via%20Roma%201%2C%20Olbia/);
+  await expect(nav.locator('.nav-label')).toBeHidden(); // phone width: arrow only
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await expect(nav.locator('.nav-label')).toBeVisible();
 });

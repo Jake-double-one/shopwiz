@@ -40,7 +40,8 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
 | **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. |
-| **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste: Dinge, die gerade nicht gebraucht werden. „Erledigte entfernen“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
+| **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste, mit denselben Gruppen wie die Liste: Dinge, die gerade nicht gebraucht werden, und Gruppen ohne Artikel. „Erledigte entfernen“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
+| **Adresse des Ladens** | Optional bekommt eine Liste die Adresse ihres Ladens – neben dem Listennamen erscheint dann „Navigation starten“ (auf dem Handy nur als Pfeil). |
 | **Backup & Import** | Listen als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Artikel zeigen, wer sie hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
@@ -86,7 +87,12 @@ Am Ende jeder Liste gibt es den eingeklappten Bereich **Inaktive Artikel**:
 - Ein Tipp auf einen inaktiven Artikel (oder sein **+**) holt ihn unabgehakt zurück auf die Liste.
 - Dinge, die noch nicht gebraucht werden, direkt dort hinzufügen – oder Artikel am Griff hinein- und herausziehen.
 - Wer den Namen eines inaktiven Artikels normal eintippt, holt ihn zurück, statt ein Duplikat anzulegen.
+- Die Liste selbst zeigt nur Gruppen, in denen Artikel stehen. Wird der letzte Artikel einer Gruppe inaktiv, wandert die Gruppe mit nach unten (weiter unter ihrem Namen) und kommt zurück, sobald einer ihrer Artikel wieder auf der Liste steht. Leere Gruppen warten dort ebenfalls – einen Artikel schiebt man über seine Details hinein. Eine neu angelegte Gruppe ist leer, deshalb zielt die Eingabezeile direkt auf sie: Der nächste getippte Artikel landet dort.
 - Inaktive Artikel zählen nicht zum Fortschritt. **Alle inaktiven löschen** löscht sie wirklich (14 Tage über den Verlauf wiederherstellbar).
+
+### Adresse und Navigation
+
+In den **Listen-Optionen** kann die Adresse des Ladens eingetragen werden (oder ein Karten-Link). Neben dem Listennamen erscheint dann **Navigation starten** – auf Tablet und Computer ausgeschrieben, auf dem Handy als Pfeil. Er öffnet die Karten-App des Geräts: Android bietet die installierten Navi-Apps an, iPhone/Mac nutzen Apple Karten, andere Geräte Google Maps im Browser. Erst beim Antippen wird ein Kartendienst geöffnet.
 
 ### Backup und Import als Datei
 
@@ -102,6 +108,7 @@ Das Format lässt sich leicht von Hand schreiben:
 ```markdown
 # Zuhause                        ← Name der ID (optional)
 ## Wocheneinkauf                 ← Liste
+> 📍 Via Roma 1, Olbia           ← Adresse des Ladens (optional)
 - [ ] Brot                       ← offener Artikel ohne Gruppe
 ### Kühlwaren                    ← Gruppe
 #### Milchprodukte               ← Untergruppe

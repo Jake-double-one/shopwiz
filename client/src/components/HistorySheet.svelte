@@ -75,6 +75,8 @@
       case 'list.delete':
       case 'list.restore':
         return t(`history.${e.action}`, { name: p.name });
+      case 'list.address':
+        return p.address ? t('history.address', { address: p.address }) : t('history.addressRemoved');
       case 'list.groupMode':
         return t(p.mode === 'shared' ? 'history.modeShared' : 'history.modeOwn');
       case 'group.delete':

@@ -264,7 +264,7 @@
   "toast.pasted_one": "1 item added",
   "toast.pasted_other": "{count} items added",
   "inactive.title": "Inactive items",
-  "inactive.hint": "Not needed right now. Tap an item to put it back on the list. Checked items land here when you clear them.",
+  "inactive.hint": "Not needed right now, and groups without items. Tap an item to put it back on the list – its group comes along.",
   "inactive.add": "Add inactive item",
   "inactive.addPh": "Add for later, e.g. Baking powder",
   "inactive.empty": "Nothing here – drag items here or clear checked ones",
@@ -313,5 +313,13 @@
   "item.more": "One more {name}",
   "item.less": "One less {name}",
   "item.moreShort": "More",
-  "item.lessShort": "Less"
+  "item.lessShort": "Less",
+  "inactive.emptyGroup": "Empty – move an item here via its details",
+  "toast.groupCreated": "Group {name} created – the next item you type goes there",
+  "list.address": "Shop address (optional)",
+  "list.addressPh": "e.g. Conad, Via Roma 1, Olbia",
+  "list.addressHint": "Shows a “Start navigation” button next to the list name. A map link works too.",
+  "list.navigate": "Start navigation",
+  "history.address": "set the address to {address}",
+  "history.addressRemoved": "removed the address"
 }

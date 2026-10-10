@@ -20,6 +20,7 @@
   import { load, save } from '../lib/storage.js';
   import { sortedLists, progress, isShopping, listItems } from '../lib/model.js';
   import { setShopping, restoreItems, addList } from '../lib/actions.js';
+  import { navUrl } from '../lib/nav.js';
   import { toast } from '../lib/toast.svelte.js';
 
   let { id, onleave, onopen } = $props();
@@ -198,6 +199,19 @@
           <span class="name">{list.name}</span>
           <Icon name="down" size={22} />
         </button>
+        {#if list.address}
+          {@const href = navUrl(list.address)}
+          <a
+            class="nav-btn"
+            {href}
+            target={href.startsWith('http') ? '_blank' : undefined}
+            rel="noopener noreferrer"
+            title={`${t('list.navigate')}: ${list.address}`}
+            aria-label={`${t('list.navigate')}: ${list.address}`}>
+            <Icon name="nav" size={18} />
+            <span class="nav-label">{t('list.navigate')}</span>
+          </a>
+        {/if}
         <button class="icon-btn" onclick={() => open('listMenu')} aria-label={t('list.menu')} title={t('list.menu')}><Icon name="more" /></button>
       </div>
       <div class="progress">
@@ -282,7 +296,13 @@
       parentId={sheet.parentId ?? null}
       onclose={closeSheet}
       onsub={(g) => open('group', { create: true, parentId: g.id })}
-      ontransfer={(g) => open('transfer', { groupId: g.id, label: g.name })} />
+      ontransfer={(g) => open('transfer', { groupId: g.id, label: g.name })}
+      oncreated={(gid, name) => {
+        // a new group is empty, so it would sit in the inactive part – aim the input at it instead
+        addTarget = gid;
+        toast(t('toast.groupCreated', { name }));
+        setTimeout(() => addBar?.focus(), 50);
+      }} />
   {:else if sheet?.kind === 'share'}
     <ShareSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} />
   {:else if sheet?.kind === 'settings'}
@@ -372,6 +392,36 @@
   .list-title :global(svg) {
     flex: 0 0 auto;
     color: var(--muted);
+  }
+  .nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 0 0 auto;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 10px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--dusk);
+    font-weight: 500;
+    font-size: 0.9rem;
+    text-decoration: none;
+  }
+  .nav-btn:hover {
+    border-color: var(--dusk);
+  }
+  /* phones: arrow only */
+  @media (max-width: 639px) {
+    .nav-btn {
+      padding: 0;
+      width: 40px;
+    }
+    .nav-label {
+      display: none;
+    }
   }
   .progress {
     display: flex;

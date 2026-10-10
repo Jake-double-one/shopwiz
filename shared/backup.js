@@ -2,6 +2,7 @@
 //
 //   # Home                      ← name of the ID (optional)
 //   ## Weekly shop              ← list
+//   > 📍 Via Roma 1, Olbia      ← optional shop address of the list
 //   - [ ] Bread                 ← open item without group
 //   ### Fridge                  ← group
 //   #### Dairy                  ← subgroup
@@ -42,6 +43,7 @@ export function toMarkdown(v, { listIds = null, date = new Date() } = {}) {
   const items = Object.values(v.items);
   for (const list of lists) {
     out.push('', `## ${list.name}`);
+    if (list.address) out.push(`> 📍 ${list.address.replace(/\s*\n\s*/g, ' ')}`);
     const owner = list.groupMode === 'shared' ? null : list.id;
     const groups = Object.values(v.groups).filter((g) => g.listId === owner);
     const ids = new Set(groups.map((g) => g.id));
@@ -88,6 +90,11 @@ export function parseMarkdown(text) {
     }
     if (line.startsWith('<!--')) {
       if (!line.includes('-->')) inComment = true;
+      continue;
+    }
+    const addr = line.match(/^>\s*📍\s*(.+)$/u);
+    if (addr) {
+      if (list) list.address = addr[1].trim();
       continue;
     }
     if (!line || /^(-{3,}|\*{3,}|_{3,})$/.test(line) || line.startsWith('>')) continue;

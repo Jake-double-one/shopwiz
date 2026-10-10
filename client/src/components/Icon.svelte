@@ -26,6 +26,7 @@
     swap: '<path d="M7 7h12l-3-3M17 17H5l3 3"/>',
     key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3"/>',
     logout: '<path d="M10 4H5a1 1 0 00-1 1v14a1 1 0 001 1h5M15 8l4 4-4 4M19 12H9"/>',
+    nav: '<path d="M3.5 10.5L20 4l-6.5 16.5-2.2-7.8-7.8-2.2z"/>',
     qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h3M21 18v3h-1"/>',
   };
 </script>

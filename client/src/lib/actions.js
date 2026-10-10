@@ -145,6 +145,7 @@ export function addList(name, groupMode = 'own') {
 
 export const renameList = (list, name) => sync.send({ k: 'list.update', id: list.id, name });
 export const setGroupMode = (list, groupMode) => sync.send({ k: 'list.update', id: list.id, groupMode });
+export const setAddress = (list, address) => sync.send({ k: 'list.update', id: list.id, address });
 
 export function deleteList(list, onUndo) {
   const row = { ...list };

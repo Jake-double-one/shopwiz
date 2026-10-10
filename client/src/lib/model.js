@@ -15,45 +15,50 @@ export function groupSet(v, list) {
 }
 
 /**
- * Tree for rendering: { ungrouped: Item[], groups: [{group, items, subs: [{group, items}]}] }
- * Unchecked items first (by position), checked ones at the end of each block.
+ * Two trees with the same structure:
+ * - the active list: only groups that contain items on the list (open or checked),
+ * - the inactive part ("shadow list"): inactive items under the same groups, plus empty groups.
+ * Shape: { ungrouped: Item[], groups: [{ group, items, subs: [{ group, items }] }] }.
+ * In the active tree unchecked items come first, checked ones at the end of each block.
  */
 export function listTree(v, list) {
   const groups = groupSet(v, list);
   const ids = new Set(groups.map((g) => g.id));
-  const itemsBy = new Map();
-  const parked = [];
+  const active = new Map();
+  const parked = new Map();
+  const all = [];
   for (const it of Object.values(v.items)) {
     if (it.listId !== list.id) continue;
-    if (it.parked) {
-      parked.push(it);
-      continue;
-    }
     const key = it.groupId && ids.has(it.groupId) ? it.groupId : '';
-    if (!itemsBy.has(key)) itemsBy.set(key, []);
-    itemsBy.get(key).push(it);
+    const target = it.parked ? parked : active;
+    if (!target.has(key)) target.set(key, []);
+    target.get(key).push(it);
+    if (it.parked) all.push(it);
   }
-  const sortItems = (arr = []) => arr.sort((a, b) => (a.checked - b.checked) || byPos(a, b));
+  const sortActive = (arr = []) => arr.sort((a, b) => a.checked - b.checked || byPos(a, b));
+  const sortParked = (arr = []) => arr.sort(byPos);
   const top = groups.filter((g) => !g.parentId || !ids.has(g.parentId)).sort(byPos);
-  // inactive items: sorted by their group (in list order), then by position
-  const order = new Map();
-  top.forEach((g, i) => {
-    order.set(g.id, i * 1000);
-    groups.filter((s) => s.parentId === g.id).sort(byPos).forEach((s, j) => order.set(s.id, i * 1000 + j + 1));
-  });
-  const rank = (it) => (it.groupId && order.has(it.groupId) ? order.get(it.groupId) : -1);
-  parked.sort((a, b) => rank(a) - rank(b) || byPos(a, b));
+  const subsOf = (g) => groups.filter((s) => s.parentId === g.id).sort(byPos);
+  const hasAny = (id) => active.has(id) || parked.has(id);
+
+  const activeGroups = [];
+  const shadowGroups = [];
+  for (const g of top) {
+    const subs = subsOf(g);
+    const aSubs = subs.filter((s) => active.has(s.id)).map((s) => ({ group: s, items: sortActive(active.get(s.id)) }));
+    if (active.has(g.id) || aSubs.length) activeGroups.push({ group: g, items: sortActive(active.get(g.id)), subs: aSubs });
+    // inactive side: subgroups with inactive items, or completely empty ones
+    const sSubs = subs.filter((s) => parked.has(s.id) || !hasAny(s.id)).map((s) => ({ group: s, items: sortParked(parked.get(s.id)) }));
+    const visibleActive = active.has(g.id) || aSubs.length;
+    if (parked.has(g.id) || sSubs.length || !visibleActive) {
+      shadowGroups.push({ group: g, items: sortParked(parked.get(g.id)), subs: sSubs });
+    }
+  }
   return {
-    parked,
-    ungrouped: sortItems(itemsBy.get('')),
-    groups: top.map((g) => ({
-      group: g,
-      items: sortItems(itemsBy.get(g.id)),
-      subs: groups
-        .filter((s) => s.parentId === g.id)
-        .sort(byPos)
-        .map((s) => ({ group: s, items: sortItems(itemsBy.get(s.id)) })),
-    })),
+    ungrouped: sortActive(active.get('')),
+    groups: activeGroups,
+    shadow: { ungrouped: sortParked(parked.get('')), groups: shadowGroups },
+    parked: all,
   };
 }
 

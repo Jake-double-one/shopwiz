@@ -3,7 +3,7 @@
   import ItemRow from './ItemRow.svelte';
   import GroupBlock from './GroupBlock.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree, posBetween, groupSet, groupLabel } from '../lib/model.js';
+  import { listTree, posBetween, groupSet } from '../lib/model.js';
   import { moveItem, moveGroup, clearChecked, clearParked, editItem, addEntry } from '../lib/actions.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sortable } from '../lib/sortable.js';
@@ -13,6 +13,7 @@
   let { v, list, freshIds, onedit, ongroup, onaddto, onaddgroup } = $props();
 
   const tree = $derived(listTree(v, list));
+  const shadowEmpty = $derived(!tree.shadow.ungrouped.length && !tree.shadow.groups.length);
   const checkedCount = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked).length);
   const conflictIds = $derived(new Set(Object.values(v.conflicts).map((c) => c.itemId)));
   const empty = $derived(!tree.ungrouped.length && !tree.groups.length);
@@ -26,9 +27,10 @@
     save('collapsed', [...next].slice(-500));
   }
 
-  function itemsIn(groupId) {
-    if (!groupId) return tree.ungrouped;
-    for (const n of tree.groups) {
+  function itemsIn(groupId, parked = false) {
+    const t = parked ? tree.shadow : tree;
+    if (!groupId) return t.ungrouped;
+    for (const n of t.groups) {
       if (n.group.id === groupId) return n.items;
       for (const s of n.subs) if (s.group.id === groupId) return s.items;
     }
@@ -55,15 +57,14 @@
   function onItemMove({ id, from, to, newIndex }) {
     const item = sync.data.items[id];
     if (!item) return;
-    if (to.parked) {
-      if (!item.parked) editItem(item, { parked: true, checked: false });
-      return;
-    }
     const groupId = to.group || null;
-    const target = itemsIn(groupId).filter((i) => i.id !== id);
+    const toParked = !!to.parked;
+    const target = itemsIn(groupId, toParked).filter((i) => i.id !== id);
     const pos = posBetween(target[newIndex - 1]?.pos, target[newIndex]?.pos);
-    if (from.parked) editItem(item, { parked: false, groupId, pos });
-    else moveItem(item, groupId, pos);
+    const fields = { pos };
+    if ((item.groupId ?? null) !== groupId) fields.groupId = groupId;
+    if (toParked !== !!item.parked) Object.assign(fields, toParked ? { parked: true, checked: false } : { parked: false });
+    editItem(item, fields);
   }
 
   function onGroupMove({ id, to, newIndex }) {
@@ -78,7 +79,6 @@
     else moveGroup(g, pos);
   }
 
-  const shadowSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', sort: false, onmove: onItemMove });
   const itemSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', onmove: onItemMove });
   const groupSort = $derived({ group: 'groups', draggable: '.group.top', handle: '.g-top', onmove: onGroupMove });
   const subSort = $derived({ group: 'subgroups', draggable: '.group.sub', handle: '.g-sub', onmove: onGroupMove });
@@ -93,7 +93,7 @@
 {/if}
 
 <div class="sheet card" class:hidden={empty}>
-  <ul class="items ungrouped" data-group="" use:sortable={itemSort} class:empty-drop={!tree.ungrouped.length}>
+  <ul class="items ungrouped" data-group="" data-empty="" use:sortable={itemSort} class:empty-drop={!tree.ungrouped.length}>
     {#each tree.ungrouped as item (item.id)}
       <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
     {/each}
@@ -151,11 +151,41 @@
       <input class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
       <button class="btn" type="submit" disabled={!shadowText.trim()} aria-label={t('inactive.add')}><Icon name="plus" /></button>
     </form>
-    <ul class="items shadow-items" data-parked="1" data-empty={t('inactive.empty')} use:sortable={shadowSort}>
-      {#each tree.parked as item (item.id)}
-        <ItemRow {item} inactive label={groupLabel(v, item.groupId)} conflict={conflictIds.has(item.id)} {onedit} />
+    <ul class="items shadow-items" data-parked="1" data-group="" data-empty={shadowEmpty ? t('inactive.empty') : ''} use:sortable={itemSort}>
+      {#each tree.shadow.ungrouped as item (item.id)}
+        <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
       {/each}
     </ul>
+    {#each tree.shadow.groups as node (node.group.id)}
+      <section class="s-group">
+        <header class="s-head">
+          <span class="s-name">{node.group.name}</span>
+          <button class="icon-btn" onclick={() => ongroup(node.group)} aria-label={t('group.menu', { name: node.group.name })} title={t('group.menuShort')}>
+            <Icon name="more" size={18} />
+          </button>
+        </header>
+        <ul class="items shadow-items" class:has-subs={node.subs.length > 0} data-parked="1" data-group={node.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
+          {#each node.items as item (item.id)}
+            <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
+          {/each}
+        </ul>
+        {#each node.subs as sub (sub.group.id)}
+          <section class="s-group sub">
+            <header class="s-head">
+              <span class="s-name">{sub.group.name}</span>
+              <button class="icon-btn" onclick={() => ongroup(sub.group)} aria-label={t('group.menu', { name: sub.group.name })} title={t('group.menuShort')}>
+                <Icon name="more" size={18} />
+              </button>
+            </header>
+            <ul class="items shadow-items" data-parked="1" data-group={sub.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
+              {#each sub.items as item (item.id)}
+                <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
+              {/each}
+            </ul>
+          </section>
+        {/each}
+      </section>
+    {/each}
     {#if tree.parked.length}
       <div class="row shadow-foot">
         <button class="btn small danger" onclick={() => clearParked(list.id)}><Icon name="trash" size={16} />{t('inactive.clear')}</button>
@@ -199,7 +229,7 @@
     display: block;
   }
   /* empty groups stay a visible drop target */
-  .items:empty {
+  .items:not([data-empty='']):empty {
     min-height: 40px;
     display: grid;
     place-items: center;
@@ -207,7 +237,7 @@
   .items.has-subs:empty {
     min-height: 10px;
   }
-  .items:not(.ungrouped):not(.has-subs):empty::before {
+  .items:not(.ungrouped):not(.has-subs):not([data-empty='']):empty::before {
     content: attr(data-empty);
     font-family: var(--mono);
     font-size: 0.62rem;
@@ -291,6 +321,42 @@
     width: 44px;
     padding: 0;
     flex: 0 0 auto;
+  }
+  :global(body.dragging) .shadow-items:empty {
+    min-height: 36px;
+    background: var(--surface-2);
+    border-radius: 10px;
+  }
+  .s-group {
+    border-top: 1px solid var(--line);
+  }
+  .s-group .items:empty {
+    place-items: center start;
+    padding: 0 12px 8px 30px;
+  }
+  .s-group.sub {
+    margin-left: 18px;
+    border-left: 2px solid var(--surface-2);
+  }
+  .s-head {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding-left: 30px;
+  }
+  .s-name {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .s-group.sub .s-name {
+    font-weight: 500;
   }
   .shadow-foot {
     justify-content: flex-end;

@@ -264,7 +264,7 @@
   "toast.pasted_one": "1 Artikel hinzugefügt",
   "toast.pasted_other": "{count} Artikel hinzugefügt",
   "inactive.title": "Inaktive Artikel",
-  "inactive.hint": "Gerade nicht gebraucht. Antippen holt einen Artikel zurück auf die Liste. Erledigtes landet hier, wenn du es entfernst.",
+  "inactive.hint": "Gerade nicht gebraucht – und Gruppen ohne Artikel. Antippen holt einen Artikel zurück auf die Liste, seine Gruppe kommt mit.",
   "inactive.add": "Inaktiven Artikel hinzufügen",
   "inactive.addPh": "Für später, z. B. Backpulver",
   "inactive.empty": "Leer – Artikel hierher ziehen oder Erledigtes entfernen",
@@ -313,5 +313,13 @@
   "item.more": "{name}: eins mehr",
   "item.less": "{name}: eins weniger",
   "item.moreShort": "Mehr",
-  "item.lessShort": "Weniger"
+  "item.lessShort": "Weniger",
+  "inactive.emptyGroup": "Leer – Artikel über seine Details hierher verschieben",
+  "toast.groupCreated": "Gruppe {name} angelegt – der nächste Artikel landet dort",
+  "list.address": "Adresse des Ladens (optional)",
+  "list.addressPh": "z. B. Conad, Via Roma 1, Olbia",
+  "list.addressHint": "Zeigt neben dem Listennamen einen Knopf „Navigation starten“. Ein Karten-Link funktioniert auch.",
+  "list.navigate": "Navigation starten",
+  "history.address": "hat die Adresse auf {address} gesetzt",
+  "history.addressRemoved": "hat die Adresse entfernt"
 }

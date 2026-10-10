@@ -3,14 +3,20 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { renameList, setGroupMode, deleteList, clearChecked } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, setAddress } from '../lib/actions.js';
   import { sync } from '../lib/sync.svelte.js';
 
   let { v, list, lists, onclose, onopen, onswitch } = $props();
   let name = $state(untrack(() => list.name));
+  let address = $state(untrack(() => list.address ?? ''));
   let confirmDelete = $state(false);
   const checked = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked).length);
   const online = $derived(sync.status === 'online');
+
+  function saveAddress() {
+    const a = address.trim().slice(0, 300);
+    if (a !== (list.address ?? '')) setAddress(list, a);
+  }
 
   function saveName() {
     const n = name.trim();
@@ -26,11 +32,16 @@
 </script>
 
 <Sheet title={list.name} eyebrow={t('list.menu')} {onclose}>
-  <form onsubmit={(e) => (e.preventDefault(), saveName(), onclose())}>
+  <form onsubmit={(e) => (e.preventDefault(), saveName(), saveAddress(), onclose())}>
     <label class="field">
       <span>{t('list.name')}</span>
       <input class="input" bind:value={name} onblur={saveName} maxlength="80" required />
     </label>
+    <label class="field">
+      <span>{t('list.address')}</span>
+      <input class="input" bind:value={address} onblur={saveAddress} maxlength="300" placeholder={t('list.addressPh')} autocomplete="street-address" />
+    </label>
+    <p class="micro addr-hint">{t('list.addressHint')}</p>
   </form>
 
   <div class="actions">
@@ -73,6 +84,11 @@
 </Sheet>
 
 <style>
+  .addr-hint {
+    margin: -6px 0 16px;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
   .actions {
     display: grid;
     gap: 8px;

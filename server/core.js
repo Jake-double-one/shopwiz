@@ -12,6 +12,7 @@ export const LIMITS = {
   spaceName: 80,
   listName: 80,
   groupName: 60,
+  address: 300,
   itemName: 120,
   note: 500,
   deviceName: 40,
@@ -77,7 +78,7 @@ function idList(v) {
 
 // ---------- row mappers ----------
 
-export const mapList = (r) => ({ id: r.id, name: r.name, pos: r.pos, groupMode: r.group_mode, createdAt: r.created_at });
+export const mapList = (r) => ({ id: r.id, name: r.name, pos: r.pos, groupMode: r.group_mode, address: r.address ?? '', createdAt: r.created_at });
 export const mapGroup = (r) => ({ id: r.id, listId: r.list_id, parentId: r.parent_id, name: r.name, pos: r.pos });
 export const mapItem = (r) => ({
   id: r.id,
@@ -315,7 +316,7 @@ export class Store {
           }`,
         ).run(uid, oldUid);
       };
-      copy('lists', 'id, name, pos, group_mode, created_at');
+      copy('lists', 'id, name, pos, group_mode, address, created_at');
       copy('groups', 'id, list_id, parent_id, name, pos, created_at');
       copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, checked_by, added_by, pos, meta, created_at');
       copy('memory', 'scope, norm, group_name, subgroup_name, updated_at');
@@ -558,6 +559,11 @@ const OPS = {
       this._act(ctx, list.id, 'list.rename', { from: list.name, to: name });
     }
     if (op.pos !== undefined) this.db.q('UPDATE lists SET pos = ? WHERE space_uid = ? AND id = ?').run(num(op.pos), ctx.uid, list.id);
+    if (op.address !== undefined) {
+      const address = str(op.address, LIMITS.address);
+      this.db.q('UPDATE lists SET address = ? WHERE space_uid = ? AND id = ?').run(address, ctx.uid, list.id);
+      this._act(ctx, list.id, 'list.address', { address });
+    }
     if (op.groupMode !== undefined && op.groupMode !== list.group_mode) {
       if (!['own', 'shared'].includes(op.groupMode)) throw new OpError('invalid', 'groupMode');
       switchGroupMode.call(this, ctx, list, op.groupMode);
@@ -1108,6 +1114,11 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
         this._pushList(ctx, id);
         list = db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(uid, id);
         stats.lists++;
+      }
+      const address = str(l.address, LIMITS.address);
+      if (address && !list.address) {
+        db.q('UPDATE lists SET address = ? WHERE space_uid = ? AND id = ?').run(address, uid, list.id);
+        this._pushList(ctx, list.id);
       }
       let pos = db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ?').get(uid, list.id).m;
       for (const raw of Array.isArray(l.items) ? l.items : []) {

@@ -41,7 +41,8 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
 | **Checked items stay** | They move to the end of their group and can be unchecked again. |
-| **Inactive items** | A collapsed “shadow list” at the bottom of every list: things you don't need right now. Clearing checked items moves them there; one tap puts them back on the list. |
+| **Inactive items** | A collapsed “shadow list” at the bottom of every list, with the same groups as the list: things you don't need right now and groups without items. Clearing checked items moves them there; one tap puts them back on the list. |
+| **Shop address** | Optionally give a list the address of its shop – a “Start navigation” button appears next to the list name (just an arrow on phones). |
 | **Backup & import** | Download your lists as a Markdown file, edit it in any text editor and import it again – into the same ID (no duplicates) or as a new ID. |
 | **Participants** | Every device chooses its own name. Items show who added or checked them. Devices can be removed. |
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
@@ -87,7 +88,12 @@ At the bottom of every list there is a collapsed section **Inactive items**:
 - Tap an inactive item (or its **+**) to put it back on the list, unchecked.
 - Add things you don't need yet directly there, or drag items in and out by the handle.
 - Typing the name of an inactive item in the normal input brings it back instead of creating a duplicate.
+- The list itself only shows groups that contain items. A group whose last item becomes inactive moves down there with it (still under its name), and comes back as soon as one of its items is back on the list. Empty groups wait there, too – move an item into one via the item's details. A newly created group is empty, so the input is aimed at it right away: the next item you type lands there.
 - Inactive items don't count towards the progress bar. **Delete all inactive** really deletes them (restorable from the history for 14 days).
+
+### Shop address and navigation
+
+In **List options** you can enter the address of the shop (or paste a map link). A **Start navigation** button then appears next to the list name – written out on tablets and computers, just an arrow on phones. It opens the device's map app: Android lets you choose your navigation app, iPhone/Mac use Apple Maps, other devices Google Maps in the browser. Nothing is loaded from a map service until you tap it.
 
 ### Backup and import as a file
 
@@ -103,6 +109,7 @@ The format is easy to write by hand:
 ```markdown
 # Home                          ← name of the ID (optional)
 ## Weekly shop                  ← list
+> 📍 Via Roma 1, Olbia          ← shop address (optional)
 - [ ] Bread                     ← open item without a group
 ### Fridge                      ← group
 #### Dairy                      ← subgroup

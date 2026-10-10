@@ -332,3 +332,13 @@ describe('migration', () => {
     db.close();
   });
 });
+
+describe('list address', () => {
+  it('is stored, validated and imported', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'list.update', id: listId, address: '  Conad, Via Roma 1, Olbia ' });
+    expect(store.snapshot(uid).lists[0].address).toBe('Conad, Via Roma 1, Olbia');
+    store.importDoc(uid, devA, { lists: [{ name: 'Beach', address: 'Spiaggia 2', items: [{ name: 'Water', state: 'open' }] }] });
+    expect(store.snapshot(uid).lists.find((l) => l.name === 'Beach').address).toBe('Spiaggia 2');
+  });
+});

@@ -6,7 +6,7 @@
   import { addGroup, renameGroup, deleteGroup } from '../lib/actions.js';
   import { findGroupByName } from '../lib/model.js';
 
-  let { v, list, group = null, parentId = null, onclose, onsub, ontransfer } = $props();
+  let { v, list, group = null, parentId = null, onclose, onsub, ontransfer, oncreated } = $props();
   const parent = $derived(parentId ? v.groups[parentId] : group?.parentId ? v.groups[group.parentId] : null);
   let name = $state(untrack(() => group?.name ?? ''));
   let error = $state('');
@@ -22,8 +22,12 @@
     }
     if (group) {
       if (n !== group.name) renameGroup(group, n);
-    } else addGroup(list, n, parentId);
-    onclose();
+      onclose();
+    } else {
+      const id = addGroup(list, n, parentId);
+      onclose();
+      oncreated?.(id, n);
+    }
   }
 </script>
 

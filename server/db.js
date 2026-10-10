@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS lists (
   name       TEXT NOT NULL,
   pos        REAL NOT NULL,
   group_mode TEXT NOT NULL DEFAULT 'own',
+  address    TEXT NOT NULL DEFAULT '',     -- optional shop address for navigation
   created_at INTEGER NOT NULL,
   deleted_at INTEGER,
   PRIMARY KEY (space_uid, id)
@@ -123,6 +124,8 @@ CREATE TABLE IF NOT EXISTS applied_ops (
 function migrate(db) {
   const cols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   if (!cols.includes('parked')) db.exec('ALTER TABLE items ADD COLUMN parked INTEGER NOT NULL DEFAULT 0');
+  const listCols = db.prepare('PRAGMA table_info(lists)').all().map((c) => c.name);
+  if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
 }
 
 export function openDb(dataDir) {
