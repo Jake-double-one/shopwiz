@@ -1,7 +1,7 @@
 # ShopWiz – Planung
 
 Gemeinsame Einkaufsliste für mehrere Personen. Kein Login, kein Tracking, Feierabend-Design.
-Dieses Dokument ist der Plan vor der Umsetzung. Offene Fragen stehen am Ende.
+Dieses Dokument ist der Plan vor der Umsetzung. Getroffene Entscheidungen stehen am Ende.
 
 ---
 
@@ -39,12 +39,16 @@ Dieses Dokument ist der Plan vor der Umsetzung. Offene Fragen stehen am Ende.
 - Zwei Ebenen: **Gruppe** und **Untergruppe**, beide optional. Wer keine Gruppen will, bekommt eine flache Liste.
 - Gruppen auf- und zuklappbar, Reihenfolge per Drag & Drop (so kann man die Liste nach dem Weg durch den Laden sortieren).
 - Artikel per Drag & Drop (Handy: lange drücken) oder über ein Menü „Verschieben nach…“ in andere (Unter-)Gruppen.
-- **Mitlernen:** Pro Space gibt es ein „Gedächtnis“: *normalisierter Artikelname → Gruppe/Untergruppe*.
+- **Gruppen-Modus pro Liste** (Einstellung der Liste):
+  - **Eigene Gruppen** (Standard): Die Liste hat ihre eigenen Gruppen und lernt nur für sich.
+  - **Gemeinsame Gruppen der ID**: Die Liste nutzt den gemeinsamen Gruppensatz des Space und dessen gemeinsames Gedächtnis. Alle Listen in diesem Modus teilen Gruppen und Gelerntes.
+  - Beim Umschalten werden die vorhandenen Gruppen per Name übernommen bzw. zusammengeführt.
+- **Mitlernen:** Jedes Gruppen-Set (Liste oder gemeinsam) hat ein „Gedächtnis“: *normalisierter Artikelname → Gruppe/Untergruppe*.
   - Wird „Milch“ zu „Kühlwaren“ hinzugefügt oder dorthin verschoben, merkt sich der Space das.
   - Beim nächsten Hinzufügen landet „Milch“ automatisch in „Kühlwaren“.
   - Wird „Milch“ verschoben, überschreibt die neue Position das Gedächtnis – sie bleibt dann dort.
   - Normalisierung: Kleinschreibung, Leerzeichen getrimmt, Mengenangaben am Anfang ignoriert („2 Milch“ → „milch“).
-  - Das Gedächtnis gilt für alle Listen eines Space und nutzt den Gruppen-*Namen*, nicht die interne ID – so funktioniert es auch in einer neuen Liste mit gleich benannten Gruppen (fehlende Gruppe wird bei Bedarf angelegt).
+  - Das Gedächtnis speichert Gruppen-*Namen*, nicht interne IDs. Wird eine gelernte Gruppe gelöscht, wird sie beim nächsten Bedarf neu angelegt.
 
 ### 3.4 Artikel
 - Schnelleingabe unten (am Handy daumenfreundlich), Enter fügt hinzu.
@@ -52,35 +56,74 @@ Dieses Dokument ist der Plan vor der Umsetzung. Offene Fragen stehen am Ende.
 - **Autovervollständigung** aus allen jemals im Space genutzten Artikeln, sortiert nach Häufigkeit und Aktualität; zeigt die gelernte Gruppe als kleinen Hinweis mit an.
 - Mehrere Zeilen einfügen (z. B. aus WhatsApp kopiert) → jede Zeile wird ein Artikel.
 - **Abgehakt** = durchgestrichen, wandert ans Ende der Gruppe (oder in einen zuklappbaren Bereich „Erledigt“). Bleibt verfügbar, Antippen hakt wieder ab.
+- **Hinweis bei Doppelten** (nur innerhalb derselben Liste): „Milch steht schon drauf“ mit Optionen *Menge erhöhen* / *trotzdem hinzufügen*. Ist das Doppelte abgehakt, wird es stattdessen wieder aktiviert.
 - „Erledigte entfernen“ räumt die Liste auf; die Artikel bleiben im Verlauf und damit in der Autovervollständigung.
 - Jede Änderung zeigt eine kurze **Rückgängig**-Meldung.
 
 ### 3.5 Synchronisation
 - **WebSocket** pro Space. Jede Änderung wird sofort optimistisch angezeigt, an den Server geschickt und an alle anderen Geräte verteilt (Ziel: < 1 s).
-- Konflikte: pro Feld „letzte Änderung gewinnt“ mit Server-Zeitstempel – für Einkaufslisten ausreichend und gut nachvollziehbar.
-- **Offline:** Änderungen werden lokal gepuffert (IndexedDB) und beim Wiederverbinden nachgesendet; danach holt sich das Gerät den aktuellen Stand. Wichtig für Funklöcher im Supermarkt.
+- **Offline:** Die App ist eine PWA und startet auch ohne Netz. Änderungen werden lokal gepuffert (IndexedDB) und beim Wiederverbinden nachgesendet; danach holt sich das Gerät den aktuellen Stand. Wichtig für Funklöcher im Supermarkt. Oben zeigt ein `hint` „Offline – 3 Änderungen warten“.
+
+#### Konflikte (gleichzeitige Änderungen, auch nach Offline-Phasen)
+Gesendet werden **einzelne Aktionen** („Milch abgehakt“, „Menge von Eiern = 10“), nie die ganze Liste. Dadurch kollidiert fast nichts: Wer offline Brot abhakt, während jemand anderes online Käse hinzufügt, bekommt am Ende beides.
+
+Jede Aktion trägt den Zeitpunkt, an dem sie **auf dem Gerät** gemacht wurde (die Uhrzeit des Geräts wird beim Verbinden mit der Server-Uhr abgeglichen). Regeln:
+
+| Fall | Ergebnis |
+|---|---|
+| Hinzufügen auf zwei Geräten | Beide Artikel kommen dazu. Gleicher Name in derselben Liste → werden zu einem Artikel zusammengeführt (Mengen addiert), mit Hinweis. |
+| Gleiches Feld geändert (z. B. Menge, Name, Abhaken) | Die **zuletzt gemachte** Änderung gewinnt, nicht die zuletzt angekommene. Wer 2 h offline war, überschreibt also keine neueren Änderungen der anderen. |
+| Verschiedene Felder geändert (A hakt ab, B ändert Menge) | Beides wird übernommen. |
+| Artikel gelöscht, anderes Gerät hat ihn offline geändert | Löschen gewinnt; die Änderung landet in der Historie und kann dort mit einem Tipp wiederhergestellt werden. |
+| Gruppe gelöscht, offline wurde etwas hineingelegt | Artikel landet in „Ohne Gruppe“. |
+| ID wurde inzwischen erneuert | Das Gerät zieht automatisch auf die neue ID um und sendet danach seine Änderungen. |
+| Space wurde inzwischen gelöscht | Ausstehende Änderungen werden nicht verworfen, sondern in die Fortsetzungs-Liste übernommen (siehe 3.10). |
+
+Nach dem Nachsenden zeigt die App kurz: „5 Änderungen synchronisiert, 1 überschrieben – Details“. Die Details stehen in der Historie.
 - Fallback, falls WebSocket blockiert ist: periodisches Abfragen.
 
 ### 3.6 Teilnehmer / Geräte
 - Jedes Gerät erzeugt einmalig ein zufälliges Geräte-Token (im `localStorage`) und vergibt sich einen Namen.
 - Teilnehmerliste (z. B. als Leiste mit Kürzeln oben, aufklappbar) mit „zuletzt aktiv“ und einem grünen Punkt für „gerade online“.
-- **Entfernen** möglich. Ehrlicher Hinweis: Ohne Login kann ein entferntes Gerät mit Link/ID jederzeit wieder beitreten – das Entfernen räumt also die Liste auf, ist aber keine Zugriffssperre. Wer jemanden wirklich aussperren will, braucht eine neue ID (siehe Ideen: „ID neu erzeugen“).
+- **Entfernen (Kick)** durch jeden Teilnehmer möglich. Die ID bleibt dabei gleich; das entfernte Gerät verliert seine Mitgliedschaft (und zieht bei „ID erneuern“ nicht mit um), kann aber mit Link/ID wieder beitreten. Wer jemanden wirklich aussperren will, nutzt danach „ID erneuern“.
 - Geräte ohne Aktivität seit **30 Tagen** werden automatisch entfernt; mit Link/ID kann man jederzeit wieder teilnehmen.
-- Kleines Extra: Bei Artikeln steht dezent, wer sie hinzugefügt / abgehakt hat („von Jana“).
+- **„Ich bin im Laden“** (Schalter pro Gerät):
+  - Die anderen sehen oben ein Banner „Jana kauft gerade ein“ – so weiß man, dass Nachträge *jetzt* noch mitgenommen werden, und zwei Leute kaufen nicht dasselbe.
+  - Auf dem Gerät im Laden werden Artikel, die währenddessen hinzukommen, als **„neu“** hervorgehoben (plus kurzes Vibrieren, falls erlaubt).
+  - Endet per Knopf, automatisch nach 2 Stunden oder wenn alles abgehakt ist.
+  - Lässt sich mit dem **Bildschirm-an-Knopf** kombinieren, ist aber unabhängig davon.
+- **Bildschirm bleibt an:** eigener Knopf (Wake-Lock), standardmäßig aus, nur sichtbar, wenn der Browser es unterstützt.
+
+### 3.6a Historie
+- Pro Liste ein **zugeklappter** Bereich „Verlauf“: wer hat wann was hinzugefügt, abgehakt, geändert, gelöscht – mit „Wiederherstellen“ bei gelöschten Artikeln.
+- Wird automatisch geleert: Einträge älter als **14 Tage** (einstellbar per Umgebungsvariable) werden gelöscht.
+- Unabhängig davon die **Rückgängig**-Meldung direkt nach jeder Aktion.
 
 ### 3.7 Teilen
 - **QR-Code** (wird im Browser erzeugt, kein externer Dienst) – großflächig zum Abscannen am Handy.
 - **Teilen-Knopf** über die Web-Share-API (öffnet das native Teilen-Menü → WhatsApp, Signal, Mail …) mit Titel = Name des Space/der Liste. Fallback: Link kopieren.
 - **Link-Vorschau** für Messenger: Der Server liefert für `/<ID>` passende Open-Graph-Tags (`og:title` = Name der Liste, Beschreibung z. B. „Gemeinsame Einkaufsliste · 12 Artikel“, eigenes Vorschaubild).
 - ID zusätzlich groß zum Abschreiben/Vorlesen.
-- **Kamera-Knopf zum QR-Scannen** (Startseite und „Space wechseln“). Nutzt die eingebaute `BarcodeDetector`-API und fällt auf eine lokal gebündelte Bibliothek (`jsQR`) zurück, weil iOS-Safari und Firefox die API nicht haben. Die Kamera funktioniert im Browser nur über **HTTPS**.
+- **Kamera-Knopf zum QR-Scannen** (Startseite und „Space wechseln“). Nutzt die eingebaute `BarcodeDetector`-API und fällt auf eine lokal gebündelte Bibliothek (`jsQR`) zurück, weil iOS-Safari und Firefox die API nicht haben. **Der Knopf erscheint nur unter HTTPS**; ohne HTTPS wird er ausgeblendet (ebenso das native Teilen-Menü → dann „Link kopieren“).
 
 ### 3.8 Startseite ohne gespeicherte ID
 - Es gibt nur zwei Aktionen: **„Neue Liste erzeugen“** und **„ID einfügen“** (mit Kamera-Knopf). Die App braucht keine weitere Zugangssperre, die ID ist der Schutz.
 
 ### 3.9 ID erneuern & Übertragen
-- **ID erneuern:** Es wird eine neue ID erzeugt, die alte wird sofort ungültig und alle Inhalte bleiben erhalten.
+- **ID erneuern:** Es wird eine neue ID erzeugt, die alte wird sofort ungültig und alle Inhalte bleiben erhalten. **Alle Mitglieds-Geräte ziehen automatisch um** (live über WebSocket, oder beim nächsten Öffnen über ihr Geräte-Token). Wer nur den alten Link hat, aber kein Mitglied ist, erhält „ID ungültig“.
 - **In andere ID übertragen:** Artikel oder ganze Gruppen lassen sich in eine andere bekannte ID verschieben oder kopieren. Ziel-ID eingeben oder aus den gemerkten IDs wählen, dann die Ziel-Liste auswählen. Fehlende Gruppen werden im Ziel angelegt.
+
+### 3.10 ID löschen
+- Knopf in den Einstellungen mit **doppelter Bestätigung** (zweiter Schritt: Namen des Space eintippen).
+- Danach ist der Space gesperrt. Öffnet ein **Mitglieds-Gerät** ihn, erscheint: „Diese Liste wurde von *Jake* gelöscht“ mit dem Angebot **„Mit neuer ID fortsetzen“** – das legt einen neuen Space mit einer Kopie der Inhalte an. Ein bloßer Link-Besitzer ohne Mitgliedschaft sieht nur „ID existiert nicht“.
+- Sobald das letzte Mitglieds-Gerät abgelaufen ist (spätestens nach 30 Tagen), werden die Daten endgültig gelöscht. Dann ist nichts mehr fortsetzbar oder übertragbar.
+
+### 3.11 Sprachen
+- Hauptsprache **Englisch**, zusätzlich **Deutsch** von Anfang an.
+- Alle Texte liegen in Sprachdateien (`locales/en.json`, `locales/de.json`); eine neue Sprache = eine neue Datei.
+- Jedes Gerät wählt seine Sprache selbst (Startwert: Browsersprache, sonst Englisch). Gespeichert lokal im Gerät.
+- Inhalte (Artikel-, Gruppen-, Listen-, Gerätenamen) bleiben genau so, wie sie eingegeben wurden – es wird nichts übersetzt.
+- Auch die Link-Vorschau (Open Graph) hat Englisch als Standard.
 
 ## 4. Datenschutz / „ohne Tracking“
 
@@ -113,40 +156,34 @@ Dieses Dokument ist der Plan vor der Umsetzung. Offene Fragen stehen am Ende.
 ### Datenmodell (Entwurf)
 
 ```
-spaces        id(PK, 10) · name · created_at · last_active_at · expires_at
-lists         id · space_id · name · position · created_at
-groups        id · list_id · parent_id(NULL = Ebene 1) · name · position · collapsed
-items         id · list_id · group_id(NULL) · name · qty · unit · note · checked
-              · checked_at · checked_by · added_by · position · updated_at · deleted_at
-memory        space_id · norm_name · group_name · subgroup_name · updated_at   (PK: space_id+norm_name)
-history       space_id · norm_name · display_name · use_count · last_used_at   (Autovervollständigung)
-devices       token_hash · space_id · name · last_seen_at · created_at
+spaces        uid(PK, intern) · public_id(UNIQUE, 10) · name · ttl_days(≤367) · last_active_at
+              · created_at · deleted_at · deleted_by
+retired_ids   public_id(PK) · space_uid · reason(renewed|deleted)   (alte IDs nie neu vergeben)
+lists         id · space_uid · name · position · group_mode(own|shared) · created_at · deleted_at
+groups        id · space_uid · list_id(NULL = gemeinsames Set) · parent_id(NULL = Ebene 1)
+              · name · position
+items         id · list_id · group_id(NULL) · name · norm_name · qty · unit · note · checked
+              · checked_by · added_by · position · deleted_at
+              · field_ts (JSON: Zeitpunkt der letzten Änderung je Feld, für Konfliktregeln)
+memory        space_uid · list_id(NULL = gemeinsam) · norm_name · group_name · subgroup_name · updated_at
+suggestions   space_uid · norm_name · display_name · use_count · last_used_at   (Autovervollständigung)
+activity      id · list_id · device_name · action · payload · created_at     (Verlauf, 14 Tage)
+devices       token_hash · space_uid · name · last_seen_at · shopping_until · created_at
 ```
+Interne `uid` statt der öffentlichen ID als Schlüssel → „ID erneuern“ ändert nur ein Feld.
 
 ### Docker
 - Ein Image (mehrstufiger Build), läuft als unprivilegierter Benutzer.
-- `docker-compose.yml` fertig für **Portainer-Stacks**: ein Service, ein benanntes Volume für `/data`, Healthcheck, Umgebungsvariablen (`PUBLIC_URL`, `SPACE_TTL_DAYS=181` (Standard für neue Spaces, max. 367), `DEVICE_TTL_DAYS=30`, `PORT`). Der Port wird direkt veröffentlicht, ein Reverse Proxy ist optional (für HTTPS/Kamera aber empfohlen).
+- `docker-compose.yml` fertig für **Portainer-Stacks**: ein Service, ein benanntes Volume für `/data`, Healthcheck, Umgebungsvariablen (`PUBLIC_URL`, `SPACE_TTL_DAYS=181` (Standard für neue Spaces, max. 367), `DEVICE_TTL_DAYS=30`, `ACTIVITY_TTL_DAYS=14`, `PORT`). Der Port wird direkt veröffentlicht, ein Reverse Proxy ist optional (für HTTPS/Kamera aber empfohlen).
 - Ohne Docker startbar mit `npm install && npm run build && npm start`.
 
-## 7. Weitere Ideen (Vorschläge – bitte aussuchen)
+## 7. Umfang Version 1 / später
 
-**Empfohlen für Version 1 (klein, aber großer Nutzen):**
-1. **Offline-Modus** – im Laden ist oft kein Netz.
-2. **„Wer kauft gerade?“** – Gerät tippt „Ich bin im Laden“, die anderen sehen es und wissen, dass Nachträge jetzt noch ankommen.
-3. **Wer hat was hinzugefügt/abgehakt** – dezent am Artikel.
-4. **Rückgängig** für jede Aktion.
-5. **Mehrzeiliges Einfügen** aus Chats.
-6. **Bildschirm bleibt an** beim Einkaufen (Wake-Lock-Schalter).
-7. **ID neu erzeugen** – falls ein Link in falsche Hände geraten ist: neue ID, alte wird ungültig, Inhalte bleiben.
+**Version 1:** Offline-Modus mit Konfliktregeln, „Ich bin im Laden“, Bildschirm-an-Knopf, Verlauf (zugeklappt, 14 Tage), Rückgängig, mehrzeiliges Einfügen, Hinweis bei Doppelten (pro Liste), ID erneuern, ID löschen mit Fortsetzen, Übertragen in andere ID (verschieben/kopieren), Englisch + Deutsch.
 
-**Später möglich:**
-8. **Stammliste / Vorlagen** – „Wocheneinkauf“ mit einem Tipp in die aktuelle Liste übernehmen.
-9. **Laden-Reihenfolge** – pro Liste gespeicherte Gruppenreihenfolge (z. B. für Rewe vs. Aldi).
-10. **Export / Import** als Text (zum Weiterleiten oder als Sicherung).
-11. **Mengen-Schnelltasten** (+/–) direkt am Artikel.
-12. **Hinweis bei Doppelten** – „Milch steht schon drauf“ statt zweitem Eintrag.
+**Später möglich:** Stammliste/Vorlagen, Laden-Reihenfolge pro Laden, Export/Import als Text, Mengen-Schnelltasten (+/–).
 
-Bewusst **nicht** geplant, um es einfach zu halten: Preise/Budget, Rezepte, Benutzerkonten, Push-Benachrichtigungen (bräuchten externe Push-Dienste → widerspricht „ohne Tracking“).
+Bewusst **nicht** geplant: Preise/Budget, Rezepte, Benutzerkonten, Push-Benachrichtigungen (bräuchten externe Push-Dienste → widerspricht „ohne Tracking“).
 
 ## 8. Umsetzungsschritte
 
@@ -157,12 +194,17 @@ Bewusst **nicht** geplant, um es einfach zu halten: Preise/Budget, Rezepte, Benu
 5. Echtzeit-Sync per WebSocket, Offline-Puffer.
 6. Geräte & Teilnehmer: Namen, Anzeige, Entfernen, 30-Tage-Aufräumen.
 7. Teilen: QR-Code, Web Share, Open-Graph-Vorschau.
-8. Design-Feinschliff, Hell/Dunkel, PWA-Manifest, Tests, README.
+8. ID erneuern / löschen / fortsetzen, Übertragen in andere ID.
+9. Historie, „Ich bin im Laden“, Wake-Lock.
+10. Sprachen (en/de), Design-Feinschliff, Hell/Dunkel, PWA-Manifest, Tests, README.
 
 ## 9. Entscheidungen
 
 1. Eine ID = ein Space mit mehreren Listen.
-2. Gruppen gelten pro Liste. Übertragen von Artikeln/Gruppen in andere IDs ist möglich (3.9).
+2. Gruppen gelten pro Liste; pro Liste einstellbar, ob sie stattdessen die gemeinsamen Gruppen der ID nutzt. Übertragen in andere IDs: verschieben und kopieren (3.9).
 3. Ablauf nach 181 Tagen ohne aktives Gerät, pro Space einstellbar bis 367 Tage.
-4. „ID erneuern“ kommt in Version 1.
+4. Jeder Teilnehmer darf alles (Einstellungen, Ablauf, Kick, Erneuern, Löschen). Kick ändert die ID nicht; „ID erneuern“ zieht alle Mitglieds-Geräte automatisch um.
 5. Die App bleibt offen, ohne vorgeschaltete Zugangssperre. Ohne gespeicherte ID gibt es nur „Neue Liste erzeugen“ und „ID einfügen“, dazu einen Kamera-Knopf zum QR-Scannen.
+6. Löschen mit doppelter Bestätigung; Mitglieder können mit neuer ID fortsetzen, bis das letzte Gerät abgelaufen ist.
+7. Englisch als Hauptsprache, Deutsch dazu, Sprache pro Gerät, Texte in Sprachdateien.
+8. Kamera-Knopf nur unter HTTPS.
