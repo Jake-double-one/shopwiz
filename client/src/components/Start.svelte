@@ -19,6 +19,7 @@
   let busy = $state(false);
   let error = $state('');
   let joinError = $state('');
+  let showId = $state(false);
   let scanning = $state(false);
   let importing = $state(false);
   let helping = $state(false);
@@ -79,7 +80,7 @@
     joinError = '';
     // live formatting: XXXX-XXXX-XX
     const raw = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '');
-    if (e.target.value.includes('/') || raw.length > 10) return;
+    if (e.target.value.includes('/') || raw.length > 10) return void (joinInput = e.target.value);
     joinInput = [raw.slice(0, 4), raw.slice(4, 8), raw.slice(8, 10)].filter(Boolean).join('-');
   }
 
@@ -153,11 +154,16 @@
     <p class="eyebrow">{t('start.joinEyebrow')}</p>
     <h2>{t('start.joinTitle')}</h2>
     <form onsubmit={join}>
+      <!-- the ID works like a password: let password managers save and fill it -->
+      <input class="sr-only" type="text" name="username" autocomplete="username" value="ShopWiz" readonly tabindex="-1" aria-hidden="true" />
       <label class="field">
         <span>{t('start.idLabel')}</span>
         <div class="row">
-          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+          <input
             class="input mono id-input"
+            type={showId ? 'text' : 'password'}
+            name="password"
+            aria-label={t('start.idLabel')}
             value={joinInput}
             oninput={onJoinInput}
             onpaste={(e) => {
@@ -169,11 +175,14 @@
               }
             }}
             placeholder="XXXX-XXXX-XX"
-            autocomplete="off"
+            autocomplete="current-password"
             autocapitalize="characters"
             spellcheck="false"
             inputmode="text"
             aria-invalid={!!joinError} />
+          <button type="button" class="btn" onclick={() => (showId = !showId)} aria-pressed={showId} aria-label={t(showId ? 'start.hideId' : 'start.showId')} title={t(showId ? 'start.hideId' : 'start.showId')}>
+            <Icon name={showId ? 'eyeOff' : 'eye'} />
+          </button>
           {#if canScan}
             <button type="button" class="btn" onclick={() => (scanning = true)} aria-label={t('scan.title')} title={t('scan.title')}>
               <Icon name="camera" />

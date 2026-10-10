@@ -27,6 +27,8 @@
   "start.joinEyebrow": "Join",
   "start.joinTitle": "Enter an ID",
   "start.idLabel": "10-character ID",
+  "start.showId": "Show ID",
+  "start.hideId": "Hide ID",
   "start.join": "Open list",
   "start.invalidId": "That doesn't look like a valid ID (10 characters, e.g. K7QM-2XPA-9F).",
   "start.privacy": "No login · no cookies · no tracking · your ID is your key",

@@ -27,6 +27,8 @@
   "start.joinEyebrow": "Beitreten",
   "start.joinTitle": "ID einfügen",
   "start.idLabel": "10-stellige ID",
+  "start.showId": "ID anzeigen",
+  "start.hideId": "ID verbergen",
   "start.join": "Liste öffnen",
   "start.invalidId": "Das sieht nicht nach einer gültigen ID aus (10 Zeichen, z. B. K7QM-2XPA-9F).",
   "start.privacy": "Kein Login · keine Cookies · kein Tracking · deine ID ist dein Schlüssel",
