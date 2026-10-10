@@ -3,8 +3,12 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { renameList, setGroupMode, deleteList, clearChecked, setAddress } from '../lib/actions.js';
+  import Flag from './Flag.svelte';
+  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setTravel, missingTranslations, translateNames } from '../lib/actions.js';
   import { sync } from '../lib/sync.svelte.js';
+  import { i18n } from '../lib/i18n.svelte.js';
+  import { toast } from '../lib/toast.svelte.js';
+  import { COUNTRIES, COUNTRY_LANGS, LANGS, detectCountry, countryName, langName } from '../../../shared/countries.js';
 
   let { v, list, lists, onclose, onopen, onswitch } = $props();
   let name = $state(untrack(() => list.name));
@@ -12,6 +16,45 @@
   let confirmDelete = $state(false);
   const checked = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked).length);
   const online = $derived(sync.status === 'online');
+
+  // ----- travel mode: show items in the language of the shop's country -----
+  const travel = $derived(list.travel);
+  let picking = $state(false); // turned on, but the country couldn't be read from the address
+  let pickCountry = $state('');
+  const countries = $derived(COUNTRIES.map((c) => ({ code: c, name: countryName(c, i18n.lang) })).sort((a, b) => a.name.localeCompare(b.name, i18n.lang)));
+  const langsFor = (country) => {
+    const own = COUNTRY_LANGS[country] ?? [];
+    return [...own, ...LANGS.filter((l) => !own.includes(l))].map((l) => ({ code: l, name: langName(l, i18n.lang), own: own.includes(l) }));
+  };
+  const missing = $derived(travel ? missingTranslations(list) : []);
+  let translating = $state(false);
+
+  function toggleTravel(on) {
+    if (!on) {
+      picking = false;
+      return setTravel(list, null);
+    }
+    const country = detectCountry(address);
+    if (country) setTravel(list, { country, lang: COUNTRY_LANGS[country][0] });
+    else picking = true;
+  }
+  function chooseCountry(country) {
+    if (!country) return;
+    picking = false;
+    setTravel(list, { country, lang: COUNTRY_LANGS[country][0] });
+  }
+  async function translateAll() {
+    translating = true;
+    const lang = travel.lang;
+    const names = missing;
+    const r = await translateNames(names, lang);
+    translating = false;
+    const done = Object.keys(r.translations).length;
+    if (r.error) {
+      const key = { quota: 'travel.errQuota', translate_limit: 'travel.errLimit', not_configured: 'travel.errOff', offline: 'travel.errOffline' }[r.error] ?? 'travel.errFailed';
+      toast({ text: `${done ? t('travel.translated', { count: done }) + ' ' : ''}${t(key)}`, kind: 'alert' });
+    } else toast(t('travel.translated', { count: done }));
+  }
 
   function saveAddress() {
     const a = address.trim().slice(0, 300);
@@ -43,6 +86,55 @@
     </label>
     <p class="micro addr-hint">{t('list.addressHint')}</p>
   </form>
+
+  <fieldset class="mode travel">
+    <legend class="eyebrow">{t('travel.title')}</legend>
+    <label class="switch-row">
+      <input type="checkbox" checked={!!travel || picking} onchange={(e) => toggleTravel(e.currentTarget.checked)} />
+      <span><b>{t('travel.toggle')}</b><br /><small class="muted">{t('travel.hint')}</small></span>
+    </label>
+    {#if picking && !travel}
+      <label class="field">
+        <span>{t('travel.noCountry')}</span>
+        <select class="select" bind:value={pickCountry} onchange={() => chooseCountry(pickCountry)}>
+          <option value="">{t('travel.chooseCountry')}</option>
+          {#each countries as c (c.code)}<option value={c.code}>{c.name}</option>{/each}
+        </select>
+      </label>
+    {:else if travel}
+      <div class="travel-now">
+        <Flag country={travel.country} size={20} />
+        <span><b>{countryName(travel.country, i18n.lang)}</b> · {langName(travel.lang, i18n.lang)}</span>
+      </div>
+      <div class="row wrap-row pickers">
+        <label class="field grow">
+          <span>{t('travel.country')}</span>
+          <select class="select" value={travel.country} onchange={(e) => chooseCountry(e.currentTarget.value)}>
+            {#each countries as c (c.code)}<option value={c.code}>{c.name}</option>{/each}
+          </select>
+        </label>
+        <label class="field grow">
+          <span>{t('travel.lang')}</span>
+          <select class="select" value={travel.lang} onchange={(e) => setTravel(list, { country: travel.country, lang: e.currentTarget.value })}>
+            {#each langsFor(travel.country) as l (l.code)}<option value={l.code}>{l.name}{l.own ? ' ★' : ''}</option>{/each}
+          </select>
+        </label>
+      </div>
+      {#if sync.features.translate}
+        {#if missing.length}
+          <button class="btn block main" onclick={translateAll} disabled={translating || !online}>
+            <Icon name="swap" />{translating ? t('travel.translating') : t('travel.translateAll', { count: missing.length })}
+          </button>
+          {#if !online}<p class="micro">{t('travel.needsOnline')}</p>{/if}
+        {:else}
+          <p class="micro">{t('travel.allDone')}</p>
+        {/if}
+        <p class="micro">{t('travel.autoNote')}</p>
+      {:else}
+        <p class="micro">{t('travel.manualOnly')}</p>
+      {/if}
+    {/if}
+  </fieldset>
 
   <div class="actions">
     <button class="btn block" onclick={() => onopen('group', { create: true })}><Icon name="folder" />{t('group.add')}</button>
@@ -108,6 +200,32 @@
     gap: 10px;
     align-items: flex-start;
     padding: 6px 0;
+  }
+  .travel {
+    display: grid;
+    gap: 10px;
+  }
+  .travel label.field {
+    display: block;
+    margin: 0;
+    padding: 0;
+  }
+  .travel-now {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pickers {
+    gap: 10px;
+  }
+  .pickers .grow {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+  .travel .micro {
+    margin: 0;
+    text-transform: none;
+    letter-spacing: 0.02em;
   }
   .mode input {
     margin-top: 4px;

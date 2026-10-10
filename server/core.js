@@ -2,6 +2,7 @@ import { createHash, webcrypto } from 'node:crypto';
 import { randomSpaceId, randomEntityId, ENTITY_ID_RE } from '../shared/ids.js';
 import { normalizeName, addAmounts } from '../shared/parse.js';
 import { MAX_SPACE_TTL_DAYS } from './config.js';
+import { COUNTRY_LANGS, LANG_RE } from '../shared/countries.js';
 
 const DAY = 86_400_000;
 const MIN_SPACE_TTL_DAYS = 7;
@@ -12,6 +13,7 @@ export const LIMITS = {
   listName: 80,
   groupName: 60,
   address: 300,
+  translation: 120,
   itemName: 120,
   note: 500,
   deviceName: 40,
@@ -77,7 +79,15 @@ function idList(v) {
 
 // ---------- row mappers ----------
 
-export const mapList = (r) => ({ id: r.id, name: r.name, pos: r.pos, groupMode: r.group_mode, address: r.address ?? '', createdAt: r.created_at });
+export const mapList = (r) => ({
+  id: r.id,
+  name: r.name,
+  pos: r.pos,
+  groupMode: r.group_mode,
+  address: r.address ?? '',
+  travel: r.travel_country && r.travel_lang ? { country: r.travel_country, lang: r.travel_lang } : null,
+  createdAt: r.created_at,
+});
 export const mapGroup = (r) => ({ id: r.id, listId: r.list_id, parentId: r.parent_id, name: r.name, pos: r.pos });
 export const mapItem = (r) => ({
   id: r.id,
@@ -96,6 +106,7 @@ export const mapItem = (r) => ({
   createdAt: r.created_at,
 });
 export const mapMemory = (r) => ({ scope: r.scope, norm: r.norm, group: r.group_name, subgroup: r.subgroup_name });
+export const mapTranslation = (r) => ({ norm: r.norm, lang: r.lang, text: r.text, auto: !!r.auto, at: r.updated_at });
 export const mapSuggestion = (r) => ({ norm: r.norm, name: r.name, uses: r.uses, lastUsedAt: r.last_used_at });
 export const mapConflict = (r) => ({
   id: r.id,
@@ -288,6 +299,7 @@ export class Store {
         .all(uid, SUGGESTION_LIMIT)
         .map(mapSuggestion),
       conflicts: db.q('SELECT * FROM conflicts WHERE space_uid = ? ORDER BY created_at').all(uid).map(mapConflict),
+      translations: db.q('SELECT * FROM translations WHERE space_uid = ?').all(uid).map(mapTranslation),
       devices: this.devices(uid),
     };
   }
@@ -337,15 +349,43 @@ export class Store {
           }`,
         ).run(uid, oldUid);
       };
-      copy('lists', 'id, name, pos, group_mode, address, created_at');
+      copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, created_at');
       copy('groups', 'id, list_id, parent_id, name, pos, created_at');
       copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, checked_by, added_by, pos, meta, created_at');
       copy('memory', 'scope, norm, group_name, subgroup_name, updated_at');
       copy('suggestions', 'norm, name, uses, last_used_at');
+      copy('translations', 'norm, lang, text, auto, updated_at');
       db.q('INSERT OR REPLACE INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, ?, ?, ?)').run(`c:${oldUid}`, uid, 'continued', now);
       this.joinDevice(uid, tokenHash, deviceName);
       return publicId;
     });
+  }
+
+  /** Remembered translations for these names → Map(norm → text). */
+  knownTranslations(uid, lang, norms) {
+    const out = new Map();
+    const q = this.db.q('SELECT text FROM translations WHERE space_uid = ? AND norm = ? AND lang = ?');
+    for (const n of norms) {
+      const r = q.get(uid, n, lang);
+      if (r) out.set(n, r.text);
+    }
+    return out;
+  }
+
+  /** Store machine translations (never over one a person wrote) → patch changes. */
+  saveAutoTranslations(uid, lang, pairs) {
+    const changes = [];
+    const now = Date.now();
+    const q = this.db.q(`INSERT INTO translations (space_uid, norm, lang, text, auto, updated_at) VALUES (?, ?, ?, ?, 1, ?)
+      ON CONFLICT(space_uid, norm, lang) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at WHERE auto = 1 RETURNING *`);
+    this.db.tx(() => {
+      for (const [norm, text] of pairs) {
+        if (!text) continue;
+        const r = q.get(uid, norm, lang, text.slice(0, LIMITS.translation), now);
+        if (r) changes.push({ e: 'translation', row: mapTranslation(r) });
+      }
+    });
+    return changes;
   }
 
   activity(uid, listId, limit = 200) {
@@ -589,6 +629,14 @@ const OPS = {
       const address = str(op.address, LIMITS.address);
       this.db.q('UPDATE lists SET address = ? WHERE space_uid = ? AND id = ?').run(address, ctx.uid, list.id);
       this._act(ctx, list.id, 'list.address', { address });
+    }
+    if (op.travel !== undefined) {
+      const t = op.travel;
+      const on = t && COUNTRY_LANGS[t.country] && LANG_RE.test(t.lang ?? '');
+      if (t && !on) throw new OpError('invalid', 'travel');
+      this.db
+        .q('UPDATE lists SET travel_country = ?, travel_lang = ? WHERE space_uid = ? AND id = ?')
+        .run(on ? t.country : null, on ? t.lang : null, ctx.uid, list.id);
     }
     if (op.groupMode !== undefined && op.groupMode !== list.group_mode) {
       if (!['own', 'shared'].includes(op.groupMode)) throw new OpError('invalid', 'groupMode');
@@ -892,6 +940,24 @@ const OPS = {
     }
     if (restored.length) this._act(ctx, restored[0].list_id, 'item.restore', { names: restored.slice(0, 20).map((r) => r.name), count: restored.length });
     return { ids: restored.map((r) => r.id) };
+  },
+
+  /** A person sets (or clears, text '') the translation of an item name. */
+  'translation.set'(ctx, op) {
+    const norm = normalizeName(str(op.name, LIMITS.itemName, { required: true, field: 'name' }));
+    const lang = String(op.lang ?? '');
+    if (!LANG_RE.test(lang)) throw new OpError('invalid', 'lang');
+    const text = str(op.text, LIMITS.translation);
+    if (!text) {
+      this.db.q('DELETE FROM translations WHERE space_uid = ? AND norm = ? AND lang = ?').run(ctx.uid, norm, lang);
+      ctx.changes.push({ e: 'translation', del: `${norm}|${lang}` });
+      return;
+    }
+    const row = this.db
+      .q(`INSERT INTO translations (space_uid, norm, lang, text, auto, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(space_uid, norm, lang) DO UPDATE SET text = excluded.text, auto = excluded.auto, updated_at = excluded.updated_at RETURNING *`)
+      .get(ctx.uid, norm, lang, text, op.auto ? 1 : 0, ctx.now);
+    ctx.changes.push({ e: 'translation', row: mapTranslation(row) });
   },
 
   'suggestion.delete'(ctx, op) {

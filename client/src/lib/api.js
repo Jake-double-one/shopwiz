@@ -25,4 +25,5 @@ export const api = {
   remove: (id) => call('POST', `/api/spaces/${id}/delete`, {}),
   continueSpace: (id, deviceName) => call('POST', `/api/spaces/${id}/continue`, { deviceName }),
   transfer: (id, body) => call('POST', `/api/spaces/${id}/transfer`, body),
+  translate: (id, body) => call('POST', `/api/spaces/${id}/translate`, body),
 };

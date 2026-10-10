@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS lists (
   pos        REAL NOT NULL,
   group_mode TEXT NOT NULL DEFAULT 'own',
   address    TEXT NOT NULL DEFAULT '',     -- optional shop address for navigation
+  travel_country TEXT,                     -- travel mode: ISO country (flag), NULL = off
+  travel_lang    TEXT,                     -- travel mode: language items are translated to
   created_at INTEGER NOT NULL,
   deleted_at INTEGER,
   PRIMARY KEY (space_uid, id)
@@ -93,6 +95,15 @@ CREATE TABLE IF NOT EXISTS suggestions (
   uses         INTEGER NOT NULL DEFAULT 1,
   last_used_at INTEGER NOT NULL,
   PRIMARY KEY (space_uid, norm)
+);
+CREATE TABLE IF NOT EXISTS translations (
+  space_uid  INTEGER NOT NULL REFERENCES spaces(uid) ON DELETE CASCADE,
+  norm       TEXT NOT NULL,     -- normalized item name
+  lang       TEXT NOT NULL,
+  text       TEXT NOT NULL,
+  auto       INTEGER NOT NULL DEFAULT 0,   -- 1 = machine translation, not checked by a person
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (space_uid, norm, lang)
 );
 CREATE TABLE IF NOT EXISTS conflicts (
   space_uid  INTEGER NOT NULL REFERENCES spaces(uid) ON DELETE CASCADE,
@@ -172,6 +183,8 @@ function migrate(db) {
   }
   flattenSubgroups(db);
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
+  if (!listCols.includes('travel_country')) db.exec('ALTER TABLE lists ADD COLUMN travel_country TEXT');
+  if (!listCols.includes('travel_lang')) db.exec('ALTER TABLE lists ADD COLUMN travel_lang TEXT');
 }
 
 export function openDb(dataDir) {

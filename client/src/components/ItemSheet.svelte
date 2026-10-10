@@ -2,9 +2,13 @@
   import { untrack } from 'svelte';
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
-  import { t, clock } from '../lib/i18n.svelte.js';
-  import { editItem, deleteItems, setParked } from '../lib/actions.js';
-  import { groupOptions } from '../lib/model.js';
+  import Flag from './Flag.svelte';
+  import { t, clock, i18n } from '../lib/i18n.svelte.js';
+  import { editItem, deleteItems, setParked, setTranslation, translateNames } from '../lib/actions.js';
+  import { groupOptions, translationOf } from '../lib/model.js';
+  import { sync } from '../lib/sync.svelte.js';
+  import { langName } from '../../../shared/countries.js';
+  import { normalizeName } from '../../../shared/parse.js';
 
   let { v, list, item, onclose, ontransfer } = $props();
 
@@ -16,6 +20,23 @@
   let note = $state(initial.note);
   const options = $derived(groupOptions(v, list));
 
+  // travel mode: translation of this name (shared by every item with the same name)
+  const travel = $derived(list.travel);
+  let tr = $state(untrack(() => (list.travel ? translationOf(v, initial.name, list.travel.lang) : '')));
+  const stored = $derived(travel ? v.translations?.[`${normalizeName(name.trim() || item.name)}|${travel.lang}`] : null);
+  let translating = $state(false);
+  let trError = $state('');
+  async function autoTranslate() {
+    translating = true;
+    trError = '';
+    const n = name.trim() || item.name;
+    const r = await translateNames([n], travel.lang);
+    translating = false;
+    const text = Object.values(r.translations)[0];
+    if (text) tr = text;
+    else trError = t({ quota: 'travel.errQuota', translate_limit: 'travel.errLimit', not_configured: 'travel.errOff', offline: 'travel.errOffline' }[r.error] ?? 'travel.errFailed');
+  }
+
   function save() {
     const fields = {};
     const n = name.trim();
@@ -25,6 +46,11 @@
     if (validQty && (q !== item.qty || unit.trim() !== item.unit)) fields.amount = { qty: q, unit: unit.trim().slice(0, 16) };
     if (note.trim() !== item.note) fields.note = note.trim();
     if (Object.keys(fields).length) editItem(item, fields);
+    if (travel) {
+      const finalName = fields.name ?? item.name;
+      const text = tr.trim().slice(0, 120);
+      if (text !== translationOf(v, finalName, travel.lang)) setTranslation(finalName, travel.lang, text);
+    }
   }
 
   function close() {
@@ -45,6 +71,21 @@
       <span>{t('item.name')}</span>
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} maxlength="120" required />
     </label>
+    {#if travel}
+      <div class="field tr-field">
+        <label for="tr-input"><Flag country={travel.country} size={13} /> {t('travel.field', { lang: langName(travel.lang, i18n.lang) })}</label>
+        <div class="row">
+          <input id="tr-input" lang={travel.lang} data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input tr-input" bind:value={tr} maxlength="120" placeholder={t('travel.fieldPh')} />
+          {#if sync.features.translate}
+            <button type="button" class="btn" onclick={autoTranslate} disabled={translating || sync.status !== 'online'} title={t('travel.auto')}>
+              <Icon name="swap" size={18} /><span class="auto-label">{translating ? '…' : t('travel.auto')}</span>
+            </button>
+          {/if}
+        </div>
+        {#if trError}<p class="micro tr-note alert-text">{trError}</p>
+        {:else if stored?.auto && tr === stored.text}<p class="micro tr-note">{t('travel.machine')}</p>{/if}
+      </div>
+    {/if}
     <div class="amount">
       <label class="field qty">
         <span>{t('item.qty')}</span>
@@ -108,6 +149,38 @@
   }
   textarea {
     resize: vertical;
+  }
+  .tr-field {
+    margin-bottom: 14px;
+  }
+  .tr-field label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .tr-input {
+    font-style: italic;
+    min-width: 0;
+    flex: 1;
+  }
+  .tr-note {
+    margin: 6px 0 0;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+  .alert-text {
+    color: var(--alert);
+  }
+  @media (max-width: 400px) {
+    .auto-label {
+      display: none;
+    }
   }
   .meta {
     margin: 0 0 14px;

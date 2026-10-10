@@ -5,7 +5,7 @@
   import { build, versionUrl } from '../lib/build.js';
 
   let { onclose } = $props();
-  const TOPICS = ['start', 'add', 'check', 'groups', 'shop', 'lists', 'offline', 'backup', 'privacy'];
+  const TOPICS = ['start', 'add', 'check', 'groups', 'shop', 'travel', 'lists', 'offline', 'backup', 'privacy'];
   let open = $state(null);
   const builtAt = $derived(
     build.time && !Number.isNaN(Date.parse(build.time))
@@ -42,6 +42,7 @@
     </p>
     <p class="muted small">{[versionNote, builtAt && t('help.built', { date: builtAt })].filter(Boolean).join(' · ')}</p>
     <a class="btn small" href={build.repo} target="_blank" rel="noopener noreferrer"><Icon name="code" size={16} />{t('help.source')}</a>
+    <p class="muted small"><a href="/licenses.txt" target="_blank" rel="noopener">{t('help.licenses')}</a></p>
   </footer>
 </Sheet>
 

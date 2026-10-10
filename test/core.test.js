@@ -422,3 +422,30 @@ describe('subgroup migration', () => {
     db.close();
   });
 });
+
+describe('travel mode', () => {
+  it('sets a country and language per list and remembers translations per name', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'list.update', id: listId, travel: { country: 'IT', lang: 'it' } });
+    expect(store.snapshot(uid).lists[0].travel).toEqual({ country: 'IT', lang: 'it' });
+    expect(() => op(devA, { k: 'list.update', id: listId, travel: { country: 'XX', lang: 'it' } })).toThrow(OpError);
+
+    // a machine translation, then a person corrects it – machines never overwrite people
+    const changes = store.saveAutoTranslations(uid, 'it', [['milch', 'Latte'], ['brot', 'Pane']]);
+    expect(changes).toHaveLength(2);
+    op(devA, { k: 'translation.set', name: 'Milch', lang: 'it', text: 'Latte intero' });
+    expect(store.saveAutoTranslations(uid, 'it', [['milch', 'Latte']])).toHaveLength(0);
+    const tr = store.snapshot(uid).translations;
+    expect(tr).toContainEqual(expect.objectContaining({ norm: 'milch', lang: 'it', text: 'Latte intero', auto: false }));
+    expect(tr).toContainEqual(expect.objectContaining({ norm: 'brot', text: 'Pane', auto: true }));
+    expect(store.knownTranslations(uid, 'it', ['milch', 'eier'])).toEqual(new Map([['milch', 'Latte intero']]));
+
+    // clearing removes it; switching travel mode off keeps the translations
+    op(devA, { k: 'translation.set', name: 'Brot', lang: 'it', text: '' });
+    op(devA, { k: 'list.update', id: listId, travel: null });
+    const snap = store.snapshot(uid);
+    expect(snap.lists[0].travel).toBeNull();
+    expect(snap.translations.map((t) => t.norm)).toEqual(['milch']);
+  });
+});
+

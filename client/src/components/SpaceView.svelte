@@ -2,6 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import ListBody from './ListBody.svelte';
+  import ShowCard from './ShowCard.svelte';
   import AddBar from './AddBar.svelte';
   import StatusScreen from './StatusScreen.svelte';
   import ListPicker from './ListPicker.svelte';
@@ -22,7 +23,7 @@
   import { sync } from '../lib/sync.svelte.js';
   import { t, relTime } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
-  import { sortedLists, progress, isShopping, listItems } from '../lib/model.js';
+  import { sortedLists, progress, isShopping, listItems, listTree, translationOf } from '../lib/model.js';
   import { setShopping, restoreItems, addList } from '../lib/actions.js';
   import { navUrl } from '../lib/nav.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -133,6 +134,19 @@
   function dismissHint() {
     helpHint = false;
     save('helpSeen', true);
+  }
+
+  // travel mode: show a translation big to shop staff, swipe through the others
+  let showing = $state(null); // { entries, start }
+  function showTranslation(item) {
+    const lang = list?.travel?.lang;
+    if (!lang) return;
+    const tree = listTree(v, list);
+    const entries = [...tree.ungrouped, ...tree.groups.flatMap((n) => n.items)]
+      .map((it) => ({ item: it, text: translationOf(v, it.name, lang) }))
+      .filter((e) => e.text);
+    const start = Math.max(0, entries.findIndex((e) => e.item.id === item.id));
+    showing = { entries, start };
   }
 
   // where the add bar puts new items (null = learned placement)
@@ -336,6 +350,7 @@
       {list}
       {freshIds}
       onedit={(item) => open('item', { itemId: item.id })}
+      onshow={showTranslation}
       ongroup={(group) => open('group', { groupId: group.id })}
       onaddto={(groupId) => {
         addTarget = groupId;
@@ -346,6 +361,9 @@
 
   <AddBar bind:this={addBar} {v} {list} bind:target={addTarget} />
 
+  {#if showing && list?.travel}
+    <ShowCard entries={showing.entries} start={showing.start} country={list.travel.country} lang={list.travel.lang} onclose={() => (showing = null)} />
+  {/if}
   {#if sheet?.kind === 'lists'}
     <ListPicker {v} current={list} onpick={(lid) => ((listId = lid), closeSheet())} onclose={closeSheet} />
   {:else if sheet?.kind === 'listMenu'}

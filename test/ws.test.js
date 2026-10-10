@@ -7,8 +7,16 @@ const T2 = 'token-bbbbbbbbbbbbbbbbbbbbbb';
 let app;
 let base;
 
+// stands in for MyMemory – tests never reach the internet
+const providerCalls = [];
+const fakeFetch = async (url) => {
+  const q = new URL(url).searchParams.get('q');
+  providerCalls.push(q);
+  return { ok: true, status: 200, json: async () => ({ responseStatus: 200, responseData: { translatedText: `${q} (it)` } }) };
+};
+
 beforeAll(async () => {
-  app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', lookupLimit: 5 });
+  app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', lookupLimit: 5, fetch: fakeFetch });
   await app.listen({ port: 0, host: '127.0.0.1' });
   base = `127.0.0.1:${app.server.address().port}`;
 });
@@ -178,6 +186,30 @@ describe('websocket sync', () => {
     expect(b.c.inbox.some((m) => m.t === 'signal')).toBe(false);
     a.c.ws.close();
     b.c.ws.close();
+  });
+
+  it('translates item names for travel mode and remembers them', async () => {
+    const TA = 'token-hhhhhhhhhhhhhhhhhhhhhh';
+    const { id } = await (await post('/api/spaces', { name: 'Trip', token: TA, deviceName: 'A' })).json();
+    const a = client();
+    await a.send({ t: 'hello', space: id, token: TA, name: 'A' });
+    expect((await a.wait((m) => m.t === 'welcome')).features).toEqual({ translate: true });
+
+    const r1 = await (await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Milch', 'Brot', 'milch'] }, TA)).json();
+    expect(r1.translations).toEqual({ milch: 'milch (it)', Brot: 'Brot (it)' });
+    const patch = await a.wait((m) => m.t === 'patch' && m.changes.some((c) => c.e === 'translation'));
+    expect(patch.changes.map((c) => c.row.norm).sort()).toEqual(['brot', 'milch']);
+
+    // remembered: no second request to the provider
+    const before = providerCalls.length;
+    const r2 = await (await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Brot'] }, TA)).json();
+    expect(r2.translations).toEqual({ Brot: 'Brot (it)' });
+    expect(providerCalls.length).toBe(before);
+
+    // members only, valid languages only
+    expect((await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['X'] })).status).toBe(403);
+    expect((await post(`/api/spaces/${id}/translate`, { lang: 'italian', from: 'de', names: ['X'] }, TA)).status).toBe(400);
+    a.ws.close();
   });
 
   it('rate-limits unknown ids', async () => {

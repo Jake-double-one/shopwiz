@@ -7,6 +7,9 @@ import { openDb } from './db.js';
 import { Store, OpError, hashToken, mapDevice, LIMITS, newEntityId } from './core.js';
 import { Hub } from './hub.js';
 import { Limiter } from './limiter.js';
+import { createTranslator, TranslateError } from './translate.js';
+import { LANG_RE } from '../shared/countries.js';
+import { normalizeName } from '../shared/parse.js';
 import { parseSpaceId, formatSpaceId } from '../shared/ids.js';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,100}$/;
@@ -32,6 +35,9 @@ export async function buildApp(config) {
   const limiter = new Limiter({ limit: config.lookupLimit, windowMs: config.lookupWindowMin * 60_000 });
   // creating ids is cheap for clients – cap it per address to keep spam out of the database
   const createLimiter = new Limiter({ limit: config.createLimit, windowMs: 3_600_000 });
+  const translator = createTranslator(config, config.fetch);
+  // names sent to the translation provider per ID and hour – remembered ones are free
+  const trUsage = new Map();
   app.decorate('store', store);
   app.decorate('hub', hub);
 
@@ -179,6 +185,49 @@ export async function buildApp(config) {
     } catch (e) {
       return sendError(reply, e);
     }
+  });
+
+  // Travel mode: translate item names (remembered translations first, the provider for the rest)
+  app.post('/api/spaces/:id/translate', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    if (!translator.available) return reply.code(501).send({ error: 'not_configured' });
+    const { lang, from } = req.body ?? {};
+    if (!LANG_RE.test(lang ?? '') || !LANG_RE.test(from ?? '')) return reply.code(400).send({ error: 'invalid', message: 'lang' });
+    const raw = Array.isArray(req.body?.names) ? req.body.names : [];
+    const byNorm = new Map();
+    for (const n of raw.slice(0, 50)) {
+      if (typeof n !== 'string' || !n.trim()) continue;
+      const name = n.trim().slice(0, 120);
+      byNorm.set(normalizeName(name), name);
+    }
+    const uid = r.space.uid;
+    const known = store.knownTranslations(uid, lang, [...byNorm.keys()]);
+    const todo = [...byNorm].filter(([norm]) => !known.has(norm));
+    const out = Object.fromEntries([...known].map(([norm, text]) => [byNorm.get(norm), text]));
+    if (!todo.length) return { translations: out };
+
+    const now = Date.now();
+    let use = trUsage.get(uid);
+    if (!use || use.reset <= now) trUsage.set(uid, (use = { count: 0, reset: now + 3_600_000 }));
+    if (use.count + todo.length > config.translateLimit) return reply.code(429).send({ error: 'translate_limit', translations: out });
+    use.count += todo.length;
+
+    let texts;
+    try {
+      texts = await translator.translate(todo.map(([, name]) => name), from, lang);
+    } catch (e) {
+      if (!(e instanceof TranslateError)) throw e;
+      if (e.code !== 'quota') app.log.warn({ provider: translator.provider, err: e.message }, 'translation failed');
+      const code = e.code === 'config' ? 501 : 503;
+      return reply.code(code).send({ error: e.code === 'config' ? 'not_configured' : e.code, translations: out });
+    }
+    const pairs = todo.map(([norm], i) => [norm, texts[i]]);
+    const changes = store.saveAutoTranslations(uid, lang, pairs);
+    if (changes.length) hub.broadcast(uid, { t: 'patch', changes });
+    todo.forEach(([, name], i) => texts[i] && (out[name] = texts[i]));
+    return { translations: out, failed: texts.filter((t) => !t).length };
   });
 
   app.post('/api/spaces/:id/transfer', async (req, reply) => {
@@ -337,6 +386,7 @@ export async function buildApp(config) {
         serverTime: Date.now(),
         me: { devId: dev.dev_id, name: dev.name },
         online: hub.online(conn.uid),
+        features: { translate: translator.available },
         snapshot: store.snapshot(conn.uid),
       });
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);

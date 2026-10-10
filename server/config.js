@@ -24,6 +24,13 @@ export function loadConfig(env = process.env) {
     shoppingIdleMin: Math.max(int(env.SHOPPING_IDLE_MIN, 60), 1),
     // undelivered "find each other" signals wait this long for a device to come back
     signalTtlMin: Math.max(int(env.SIGNAL_TTL_MIN, 30), 1),
+    // travel mode: machine translation of item names (mymemory | libretranslate | deepl | google | none)
+    translateProvider: (env.TRANSLATE_PROVIDER || 'mymemory').toLowerCase(),
+    translateApiKey: env.TRANSLATE_API_KEY || '',
+    translateUrl: env.TRANSLATE_URL || '',
+    translateEmail: env.TRANSLATE_EMAIL || '',
+    // item names per ID and hour sent to the provider (remembered translations don't count)
+    translateLimit: Math.max(int(env.TRANSLATE_LIMIT, 300), 1),
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
   };

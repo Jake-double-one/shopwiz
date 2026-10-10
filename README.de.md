@@ -45,6 +45,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Backup & Import** | Listen als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Die Details eines Artikels zeigen, wer ihn hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
+| **Reisemodus** | Einkaufen im Ausland? Pro Liste steht unter jedem Artikel die Übersetzung – mit der Flagge des Landes, das aus der Ladenadresse kommt. Antippen zeigt sie groß fürs Personal. Alles auf einmal übersetzen oder einzelne Artikel korrigieren. |
 | **Sich im Laden finden** | In großen Läden sieht jeder Eingecheckte, wo die anderen sind (die Gruppe ihres zuletzt abgehakten Artikels). Ein **Rufen**-Knopf schickt eines von vier festen Signalen – „Wo bist du?“, „Komm zu mir“, „Treffen an der Kasse“, „Ich bin fertig“ – kein Chat. |
 | **Bildschirm anlassen** | Optionaler Knopf, damit das Handy beim Einkaufen nicht sperrt. |
 | **Verlauf** | Wer hat was gemacht, mit „Wiederherstellen“ für gelöschte Artikel. Wird nach 14 Tagen automatisch geleert. |
@@ -53,7 +54,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Kopieren / Verschieben** | Artikel und ganze Gruppen in eine andere Liste oder eine andere ID übertragen. |
 | **ID erneuern** | Neue ID, die alte funktioniert nicht mehr. Alle teilnehmenden Geräte ziehen automatisch mit um. |
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
-| **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nie übersetzt. |
+| **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nur übersetzt, wenn du für eine Liste den Reisemodus einschaltest. |
 | **Hell & Dunkel** | Folgt dem System oder pro Gerät einstellbar. Design: *Feierabend-Designsystem v2*. |
 | **Eingebaute Hilfe** | Ein (?) in der Kopfzeile (und „So funktioniert ShopWiz“ auf der Startseite) erklärt alle Funktionen in kurzen Themen – offline und in der Sprache des Geräts. Neue Nutzer bekommen einmalig einen Hinweis. |
 | **Installierbar** | Läuft als App auf dem Homescreen (PWA). |
@@ -134,6 +135,28 @@ Läden können groß sein, und wer sich aufteilt, verliert sich. Solange man ein
 Freitext gibt es bewusst nicht, damit es nie ein Chat wird. Signale landen nie in der Datenbank. Ist ein Handy gerade offline oder das Display aus, hält der Server das Signal bis zu 30 Minuten im Arbeitsspeicher und liefert es nach, sobald ShopWiz dort wieder offen ist. Wer ohne Empfang ruft, dessen Signal geht raus, sobald die Verbindung wieder da ist.
 
 Der Check-in endet per Knopf, sobald alles abgehakt ist, oder automatisch nach **60 Minuten ohne Aktivität** (Abhaken, Hinzufügen, Rufen oder ShopWiz öffnen verlängern ihn).
+
+### Reisemodus
+
+Für Läden, in denen das Personal deine Sprache nicht spricht. Im Listenmenü (⋯ neben dem Listennamen) **Artikel in Landessprache zeigen** einschalten:
+
+- Das **Land** kommt aus der Ladenadresse der Liste (z. B. `Via Roma 3, Olbia, Italia` → 🇮🇹 Italienisch) – erkannt auf dem Gerät, ohne Kartendienst. Steht kein Land in der Adresse oder hat das Land mehrere Sprachen (Schweiz, Belgien …), wählst du es aus.
+- Unter jedem Artikel steht kursiv die Übersetzung mit Landesflagge. **Antippen** zeigt sie bildschirmfüllend fürs Personal; wischen (oder die Pfeile) geht zum nächsten Artikel.
+- **N Artikel übersetzen** übersetzt alles Fehlende auf einmal. Einzelne Artikel werden in den Artikeldetails übersetzt oder korrigiert – das Hinzufügen bleibt wie bisher.
+- Übersetzungen werden pro Name für die ganze ID gemerkt: Ist „Milch“ einmal „Latte“, gilt das auf jeder Liste und jedem Gerät, ohne den Übersetzungsdienst erneut zu fragen. Eine selbst eingetippte Übersetzung überschreibt keine Maschine.
+- Reisemodus aus blendet die Übersetzungen nur aus.
+
+Die maschinelle Übersetzung läuft über den ShopWiz-Server – der Übersetzungsdienst sieht nur Artikelnamen, nie dein Gerät oder deine Adresse. Der Anbieter wird mit `TRANSLATE_PROVIDER` gewählt (siehe [Einstellungen](#einstellungen)):
+
+| Anbieter | Kosten | Braucht |
+|---|---|---|
+| `mymemory` (Standard) | kostenlos, ca. 5.000 Zeichen pro Tag (ca. 50.000 mit `TRANSLATE_EMAIL`) | nichts |
+| `libretranslate` | kostenlos, selbst gehostet (Open Source, braucht 1–2 GB RAM) | `TRANSLATE_URL`, siehe Beispiel in der `docker-compose.yml` |
+| `deepl` | DeepL API Free: 500.000 Zeichen pro Monat | `TRANSLATE_API_KEY` |
+| `google` | Google Cloud Translation, ca. 500.000 Zeichen pro Monat über das Monatsguthaben | `TRANSLATE_API_KEY` |
+| `none` | – | Übersetzungen nur von Hand |
+
+Artikelnamen sind kurz – ein kostenloses Kontingent reicht weit, und gemerkte Übersetzungen zählen nicht.
 
 ### Synchronisation und Konflikte
 
@@ -225,6 +248,11 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `CREATE_LIMIT` | `30` | Neue IDs pro Adresse und Stunde |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in im Laden endet nach so vielen Minuten ohne Aktivität |
 | `SIGNAL_TTL_MIN` | `30` | So lange wartet ein Ruf auf ein Gerät, das offline ist |
+| `TRANSLATE_PROVIDER` | `mymemory` | Übersetzungen im Reisemodus: `mymemory`, `libretranslate`, `deepl`, `google` oder `none` |
+| `TRANSLATE_API_KEY` | – | Schlüssel für DeepL (Schlüssel mit `:fx` am Ende nutzen DeepL API Free) oder Google; optional für LibreTranslate und MyMemory |
+| `TRANSLATE_URL` | `http://libretranslate:5000` | Adresse deines LibreTranslate |
+| `TRANSLATE_EMAIL` | – | Optional für MyMemory: hebt das kostenlose Kontingent auf ca. 50.000 Zeichen pro Tag |
+| `TRANSLATE_LIMIT` | `300` | Artikelnamen pro ID und Stunde, die an den Übersetzungsdienst gehen |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `DATA_DIR` | `/data` | Ort der Datenbank (in Docker: das Volume) |
 
@@ -253,11 +281,16 @@ Update: In Portainer **Pull and redeploy** (Web editor) bzw. neu bauen (Reposito
 ## Datenschutz
 
 - Keine Konten, keine Cookies, keine Analyse, kein Fingerprinting.
-- Keine externen Anfragen: Schriften, Icons und die QR-Code-Bibliothek liefert ShopWiz selbst aus.
+- Keine externen Anfragen von deinem Gerät: Schriften, Icons, Flaggen und die QR-Code-Bibliothek liefert ShopWiz selbst aus.
+- Nur im Reisemodus: Der Server schickt Artikelnamen (sonst nichts) an den eingestellten Übersetzungsdienst. `TRANSLATE_PROVIDER=none` schaltet das ab.
 - Logs enthalten keine IP-Adressen, IDs oder Tokens. Die Mengenbegrenzung zählt nur im Arbeitsspeicher.
 - Gespeichert werden: Listeninhalte, die eingegebenen Namen und Zeitstempel. Jedes Gerät hat ein zufälliges geheimes Token; auf dem Server liegt nur dessen Hash.
 - Abgelaufene IDs und inaktive Geräte werden endgültig gelöscht. Alte IDs werden nie neu vergeben.
 - Strenge Sicherheits-Header (Content Security Policy, `Referrer-Policy: no-referrer`, damit die ID nie über Links abfließt).
+
+## Lizenzen von Drittanbietern
+
+Landesflaggen: [flag-icons](https://github.com/lipis/flag-icons) © Panayiotis Lipiridis, MIT-Lizenz – der Lizenztext wird mit der App als `/licenses.txt` ausgeliefert.
 
 ## Entwicklung
 

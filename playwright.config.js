@@ -14,10 +14,25 @@ export default defineConfig({
     viewport: { width: 390, height: 844 },
     launchOptions: executablePath ? { executablePath } : {},
   },
-  webServer: {
-    command: 'node --disable-warning=ExperimentalWarning server/index.js',
-    url: 'http://localhost:8098/healthz',
-    reuseExistingServer: false,
-    env: { PORT: '8098', DATA_DIR: ':memory:', LOOKUP_LIMIT: '1000', CREATE_LIMIT: '1000' },
-  },
+  webServer: [
+    {
+      command: 'node e2e/fake-translate.js',
+      url: 'http://127.0.0.1:8099/',
+      reuseExistingServer: false,
+      env: { PORT: '8099' },
+    },
+    {
+      command: 'node --disable-warning=ExperimentalWarning server/index.js',
+      url: 'http://localhost:8098/healthz',
+      reuseExistingServer: false,
+      env: {
+        PORT: '8098',
+        DATA_DIR: ':memory:',
+        LOOKUP_LIMIT: '1000',
+        CREATE_LIMIT: '1000',
+        TRANSLATE_PROVIDER: 'libretranslate',
+        TRANSLATE_URL: 'http://127.0.0.1:8099',
+      },
+    },
+  ],
 });

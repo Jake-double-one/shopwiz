@@ -1,11 +1,13 @@
 <script>
   import Icon from './Icon.svelte';
+  import Flag from './Flag.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import { toggleItem, setParked, editItem } from '../lib/actions.js';
   import { formatAmount, stepAmount } from '../../../shared/parse.js';
 
   /** inactive: row of the shadow list – tapping puts it back on the list */
-  let { item, fresh = false, conflict = false, inactive = false, onedit } = $props();
+  /** translation/country: travel mode – shown under the name; onshow: show it big to shop staff */
+  let { item, fresh = false, conflict = false, inactive = false, translation = '', country = '', trLang = '', onedit, onshow } = $props();
   const activate = () => setParked(item, false);
   // +/- next to the amount (only shown on wide screens, see CSS)
   const stepper = $derived(!inactive && !item.checked);
@@ -28,16 +30,24 @@
       <span class="box">{#if item.checked}<Icon name="check" size={16} />{/if}</span>
     </button>
   {/if}
-  <button class="body" onclick={() => (inactive ? activate() : toggleItem(item))} tabindex="-1">
-    <span class="name">
-      {item.name}
-      {#if fresh}<span class="badge">{t('item.new')}</span>{/if}
-      {#if conflict}<span class="badge warn" title={t('conflict.title')}>!</span>{/if}
-    </span>
-    {#if item.note}
-      <span class="meta"><span class="note-text">{item.note}</span></span>
+  <div class="main">
+    <button class="body" onclick={() => (inactive ? activate() : toggleItem(item))} tabindex="-1">
+      <span class="name">
+        {item.name}
+        {#if fresh}<span class="badge">{t('item.new')}</span>{/if}
+        {#if conflict}<span class="badge warn" title={t('conflict.title')}>!</span>{/if}
+      </span>
+      {#if item.note}
+        <span class="meta"><span class="note-text">{item.note}</span></span>
+      {/if}
+    </button>
+    {#if translation}
+      <button class="tr" onclick={() => onshow?.(item)} aria-label={t('travel.showLabel', { text: translation })}>
+        <Flag {country} size={13} />
+        <span lang={trLang || undefined}>{translation}</span>
+      </button>
     {/if}
-  </button>
+  </div>
   {#if stepper}
     <span class="stepper">
       {#if down}
@@ -48,7 +58,7 @@
     </span>
   {:else if amount}<span class="amount mono">{amount}</span>{/if}
   <button class="icon-btn edit" onclick={() => onedit(item)} aria-label={t('item.edit', { name: item.name })} title={t('item.editShort')}>
-    <Icon name="more" size={18} />
+    <Icon name="more" size={20} />
   </button>
 </li>
 
@@ -120,8 +130,38 @@
   :global(:root[data-theme='dark']) .checked .box {
     color: #10102a;
   }
-  .body {
+  .main {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .tr {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin: -3px 0 4px;
+    padding: 2px 6px 2px 1.6em;
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    color: var(--ink);
+    font-style: italic;
+    font-size: 0.98rem;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .tr:hover {
+    background: var(--surface-2);
+  }
+  .checked .tr {
+    color: var(--muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--muted);
+  }
+  .body {
+    width: 100%;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -223,8 +263,11 @@
   .fresh {
     background: color-mix(in srgb, var(--sun-soft) 55%, var(--surface));
   }
+  /* generous tap target for the details – the icon itself stays quiet */
   .edit {
-    width: 36px;
-    height: 36px;
+    width: 46px;
+    height: auto;
+    min-height: 44px;
+    align-self: stretch;
   }
 </style>

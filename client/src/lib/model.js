@@ -135,5 +135,8 @@ export function suggestionsFor(v, list, query, limit = 6) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
+/** Translation of an item name in travel mode, or ''. */
+export const translationOf = (v, name, lang) => (lang && v.translations?.[`${normalizeName(name)}|${lang}`]?.text) || '';
+
 /** Checked in at the shop – ends by itself after an hour without activity (server side). */
 export const isShopping = (d, now = Date.now()) => !!d?.shoppingUntil && d.shoppingUntil > now;

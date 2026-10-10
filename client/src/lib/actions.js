@@ -1,9 +1,10 @@
 import { sync, newId } from './sync.svelte.js';
 import { toast } from './toast.svelte.js';
-import { t } from './i18n.svelte.js';
+import { t, i18n } from './i18n.svelte.js';
+import { api } from './api.js';
 import { setDeviceName } from './device.js';
 import { parseEntry, normalizeName, addAmounts } from '../../../shared/parse.js';
-import { groupSet, learnedPlacement, findGroupByName, endPos, listItems } from './model.js';
+import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, translationOf } from './model.js';
 
 const v = () => sync.data;
 const undoToast = (text, undo) => toast({ text, action: { label: t('undo'), run: undo } });
@@ -151,6 +152,42 @@ export function addList(name, groupMode = 'own') {
 export const renameList = (list, name) => sync.send({ k: 'list.update', id: list.id, name });
 export const setGroupMode = (list, groupMode) => sync.send({ k: 'list.update', id: list.id, groupMode });
 export const setAddress = (list, address) => sync.send({ k: 'list.update', id: list.id, address });
+
+// ----- travel mode -----
+
+/** travel: { country, lang } or null (off) */
+export const setTravel = (list, travel) => sync.send({ k: 'list.update', id: list.id, travel });
+export const setTranslation = (name, lang, text) => sync.send({ k: 'translation.set', name, lang, text });
+
+/** Names on the list (active and inactive) that have no translation yet. */
+export function missingTranslations(list) {
+  const lang = list.travel?.lang;
+  if (!lang) return [];
+  const names = new Map();
+  for (const it of Object.values(v().items)) {
+    if (it.listId === list.id && !translationOf(v(), it.name, lang)) names.set(normalizeName(it.name), it.name);
+  }
+  return [...names.values()];
+}
+
+/**
+ * Machine-translate names via the server (remembered translations are reused there).
+ * → { translations: {name: text}, failed, error }
+ */
+export async function translateNames(names, lang) {
+  const out = { translations: {}, failed: 0, error: null };
+  for (let i = 0; i < names.length; i += 50) {
+    try {
+      const r = await api.translate(sync.spaceId, { lang, from: i18n.lang, names: names.slice(i, i + 50) });
+      Object.assign(out.translations, r.translations);
+      out.failed += r.failed ?? 0;
+    } catch (e) {
+      out.error = e.code ?? 'error';
+      break;
+    }
+  }
+  return out;
+}
 
 export function deleteList(list, onUndo) {
   const row = { ...list };

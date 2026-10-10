@@ -9,7 +9,7 @@ const SHOPPING_MS = 2 * 3_600_000;
 /** How long a signal waits for a connection – the same time the server keeps it for others. */
 const SIGNAL_WAIT_MS = 30 * 60_000;
 
-const empty = () => ({ space: null, lists: {}, groups: {}, items: {}, memory: {}, suggestions: {}, conflicts: {}, devices: {} });
+const empty = () => ({ space: null, lists: {}, groups: {}, items: {}, memory: {}, suggestions: {}, conflicts: {}, translations: {}, devices: {} });
 
 const COLLECTION = {
   list: ['lists', (r) => r.id],
@@ -18,6 +18,7 @@ const COLLECTION = {
   memory: ['memory', (r) => `${r.scope}|${r.norm}`],
   suggestion: ['suggestions', (r) => r.norm],
   conflict: ['conflicts', (r) => r.id],
+  translation: ['translations', (r) => `${r.norm}|${r.lang}`],
   device: ['devices', (r) => r.devId],
 };
 
@@ -31,6 +32,7 @@ function fromSnapshot(s) {
     ['memory', s.memory],
     ['suggestion', s.suggestions],
     ['conflict', s.conflicts],
+    ['translation', s.translations ?? []],
     ['device', s.devices],
   ]) {
     const [col, key] = COLLECTION[e];
@@ -75,6 +77,7 @@ function reduce(v, op, at, me) {
           ...(op.name !== undefined && { name: op.name }),
           ...(op.pos !== undefined && { pos: op.pos }),
           ...(op.address !== undefined && { address: op.address }),
+          ...(op.travel !== undefined && { travel: op.travel }),
         };
       }
       break;
@@ -178,6 +181,13 @@ function reduce(v, op, at, me) {
     case 'item.restore':
       for (const r of op.rows ?? []) v.items[r.id] = r;
       break;
+    case 'translation.set': {
+      const norm = normalizeName(op.name);
+      const key = `${norm}|${op.lang}`;
+      if (op.text) v.translations[key] = { norm, lang: op.lang, text: op.text, auto: !!op.auto, at };
+      else delete v.translations[key];
+      break;
+    }
     case 'suggestion.delete':
       delete v.suggestions[normalizeName(op.norm)];
       break;
@@ -215,6 +225,8 @@ class Sync {
   /** idle | connecting | online | offline | notfound | deleted | kicked | limited */
   status = $state('idle');
   me = $state(null);
+  // what this server offers, e.g. { translate: true }
+  features = $state({});
   online = $state([]);
   deleted = $state(null);
   ready = $state(false);
@@ -257,6 +269,7 @@ class Sync {
     const cached = load(`snap.${id}`);
     this.base = cached?.base ?? empty();
     this.me = cached?.me ?? null;
+    this.features = cached?.features ?? {};
     this.offset = cached?.offset ?? 0;
     this.pending = load(`pending.${id}`, []);
     this.outbox = load(`signals.${id}`, []);
@@ -373,6 +386,7 @@ class Sync {
       case 'welcome': {
         this.offset = msg.serverTime - Date.now();
         this.me = msg.me;
+        this.features = msg.features ?? {};
         this.online = msg.online;
         this.base = fromSnapshot(msg.snapshot);
         this.status = 'online';
@@ -491,6 +505,7 @@ class Sync {
       memory: { ...b.memory },
       suggestions: { ...b.suggestions },
       conflicts: { ...b.conflicts },
+      translations: { ...b.translations },
       devices: { ...b.devices },
     };
     for (const p of this.pending) reduce(v, p.op, p.at, this.me);
@@ -541,7 +556,7 @@ class Sync {
     if (!this.spaceId || !this.base.space) return;
     // a forgotten (reset / kicked) id must not be written back to the device
     if (!knownSpaces().some((s) => s.id === this.spaceId)) return;
-    save(`snap.${this.spaceId}`, { base: this.base, me: this.me, offset: this.offset });
+    save(`snap.${this.spaceId}`, { base: this.base, me: this.me, features: this.features, offset: this.offset });
     save(`pending.${this.spaceId}`, this.pending);
     save(`signals.${this.spaceId}`, this.outbox);
   }

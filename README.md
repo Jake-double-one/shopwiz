@@ -47,6 +47,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Participants** | Every device chooses its own name. An item's details show who added or checked it. Devices can be removed. |
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
 | **Find each other** | In a big shop, everybody checked in sees where the others are (the group of their last checked item). A **Call** button sends one of four fixed signals – “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done” – no chat. |
+| **Travel mode** | Shopping abroad? Per list, items get their translation underneath – with the country's flag, taken from the shop address. Tap it to show it big to the staff. Translate everything at once or correct single items. |
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
 | **Undo** | Every action can be undone right away. |
@@ -54,7 +55,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Copy / move** | Move or copy items and whole groups to another list or another ID. |
 | **Renew ID** | Creates a new ID, the old one stops working. All participating devices move along automatically. |
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
-| **Languages** | English and German, per device. Your entries are never translated. |
+| **Languages** | English and German, per device. Your entries are only translated if you turn on travel mode for a list. |
 | **Light & dark** | Follows the system or can be set per device. Design: *Feierabend design system v2*. |
 | **Built-in help** | A (?) in the header (and “How ShopWiz works” on the start screen) explains every feature in short topics – offline and in the device's language. New users get a one-time hint. |
 | **Installable** | Works as an app on the home screen (PWA). |
@@ -135,6 +136,28 @@ Shops can be big, and when you split up you lose each other. While you are check
 There is deliberately no free text, so it never becomes a chat. Signals never touch the database. If a phone is offline or its display is off, the server keeps the signal in memory for up to 30 minutes and delivers it as soon as ShopWiz is open there again. A call made without reception goes out once the connection is back.
 
 The check-in ends with the button, once everything is checked, or automatically after **60 minutes without activity** (checking, adding, calling or opening ShopWiz extends it).
+
+### Travel mode
+
+For when the shop staff don't speak your language. In the list menu (⋯ next to the list name) turn on **Show items in the local language**:
+
+- The **country** comes from the list's shop address (e.g. `Via Roma 3, Olbia, Italia` → 🇮🇹 Italian) – detected on the device, no map service involved. If the address doesn't name a country, or the country has several languages (Switzerland, Belgium …), you pick it.
+- Under every item its translation appears in italics with the country's flag. **Tap it** and it is shown full screen for the staff; swipe (or use the arrows) for the next item.
+- **Translate N items** translates everything that is still missing in one go. Single items are translated or corrected in the item details – adding items stays as it is.
+- Translations are remembered per name for the whole ID: once “Milch” is “Latte”, it is “Latte” on every list and every device, without asking the translation service again. A translation you typed is never overwritten by a machine.
+- Turning travel mode off only hides the translations.
+
+Machine translation runs on the ShopWiz server – the translation service only ever sees item names, never your device or address. The provider is set with `TRANSLATE_PROVIDER` (see [Configuration](#configuration)):
+
+| Provider | Cost | Needs |
+|---|---|---|
+| `mymemory` (default) | free, about 5,000 characters a day (about 50,000 with `TRANSLATE_EMAIL`) | nothing |
+| `libretranslate` | free, self-hosted (open source, needs 1–2 GB RAM) | `TRANSLATE_URL`, see the example in `docker-compose.yml` |
+| `deepl` | DeepL API Free: 500,000 characters a month | `TRANSLATE_API_KEY` |
+| `google` | Google Cloud Translation, about 500,000 characters a month covered by the monthly credit | `TRANSLATE_API_KEY` |
+| `none` | – | translations are only typed in by hand |
+
+Item names are short – a free quota goes a long way, and remembered translations don't count.
 
 ### Sync and conflicts
 
@@ -226,6 +249,11 @@ All settings are environment variables. The defaults are fine for most setups.
 | `CREATE_LIMIT` | `30` | New IDs per client address and hour |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in at the shop ends after this many minutes without activity |
 | `SIGNAL_TTL_MIN` | `30` | How long a call waits for a device that is offline |
+| `TRANSLATE_PROVIDER` | `mymemory` | Travel mode translations: `mymemory`, `libretranslate`, `deepl`, `google` or `none` |
+| `TRANSLATE_API_KEY` | – | Key for DeepL (keys ending in `:fx` use DeepL API Free) or Google; optional for LibreTranslate and MyMemory |
+| `TRANSLATE_URL` | `http://libretranslate:5000` | Address of your LibreTranslate |
+| `TRANSLATE_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
+| `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to the translation service |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |
 
@@ -254,7 +282,8 @@ Update: in Portainer use **Pull and redeploy** (web editor) or **Pull and redepl
 ## Privacy
 
 - No accounts, no cookies, no analytics, no fingerprinting.
-- No external requests: fonts, icons and the QR code library are served by ShopWiz itself.
+- No external requests from your device: fonts, icons, flags and the QR code library are served by ShopWiz itself.
+- Travel mode only: the server sends item names (nothing else) to the configured translation service. Set `TRANSLATE_PROVIDER=none` to switch that off.
 - Logs contain no IP addresses, IDs or tokens. Rate limiting only keeps counters in memory.
 - Stored: list contents, the names you enter, and timestamps. Each device has a random secret token; only its hash is stored on the server.
 - Expired IDs and inactive devices are deleted for good. Old IDs are never given out again.
@@ -282,6 +311,10 @@ npm run dev        # server on :8080 + Vite dev server on :5173 with hot reload
 2. Register it in `client/src/lib/i18n.svelte.js` in `LANGUAGES`.
 
 Missing keys fall back to English.
+
+## Third-party licenses
+
+Country flags: [flag-icons](https://github.com/lipis/flag-icons) © Panayiotis Lipiridis, MIT license – the license text is shipped with the app as `/licenses.txt`.
 
 ## Project structure
 

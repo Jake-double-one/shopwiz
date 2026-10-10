@@ -569,3 +569,44 @@ test('dragging a group drops it where it is let go, also past empty groups', asy
   await page.waitForTimeout(300);
   await expect.poll(names).toEqual(['Fridge', 'Bakery', 'Drinks']);
 });
+
+test('travel mode: country from the address, bulk translation, own corrections, show to staff', async ({ page }) => {
+  await createList(page);
+  await add(page, 'Milch');
+  await add(page, '2 Brot');
+  await add(page, 'Käse');
+
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByLabel('Shop address (optional)').fill('Via Roma 3, 07026 Olbia, Italia');
+  await page.getByRole('checkbox', { name: /Show items in the local language/ }).check();
+  await expect(page.locator('.travel-now')).toContainText('Italy · Italian');
+  await page.getByRole('button', { name: 'Translate 3 items' }).click();
+  await expect(page.locator('.toast', { hasText: '3 items translated.' })).toBeVisible();
+  await expect(page.getByText('Every item has a translation.')).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+
+  // under each item: flag + translation
+  await expect(item(page, 'Milch').locator('.tr')).toHaveText('Latte');
+  await expect(item(page, 'Brot').locator('.tr')).toHaveText('Pane');
+  await expect(item(page, 'Milch').locator('.tr img.flag')).toHaveCount(1);
+
+  // correct a machine translation in the item details
+  await page.getByRole('button', { name: 'Edit Käse' }).click();
+  await expect(page.getByText('Machine translation – check if unsure.')).toBeVisible();
+  await page.getByLabel('Translation · Italian').fill('Formaggio');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(item(page, 'Käse').locator('.tr')).toHaveText('Formaggio');
+
+  // show it big to the staff, step to the next item
+  await item(page, 'Milch').locator('.tr').click();
+  const show = page.getByRole('dialog', { name: 'Translation for the staff' });
+  await expect(show.locator('.big')).toHaveText('Latte');
+  await show.getByRole('button', { name: 'Next item' }).click();
+  await expect(show.locator('.big')).toHaveText('Pane');
+  await expect(show.locator('.amount')).toHaveText('2×');
+  await page.keyboard.press('Escape');
+  await expect(show).toHaveCount(0);
+
+  // the flags' license ships with the app
+  expect(await (await page.request.get('/licenses.txt')).text()).toContain('flag-icons');
+});

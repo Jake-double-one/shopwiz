@@ -3,14 +3,18 @@
   import ItemRow from './ItemRow.svelte';
   import GroupBlock from './GroupBlock.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree, posBetween } from '../lib/model.js';
+  import { listTree, posBetween, translationOf } from '../lib/model.js';
   import { moveItem, moveGroup, clearChecked, clearParked, editItem, addEntry } from '../lib/actions.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sortable } from '../lib/sortable.js';
   import { load, save } from '../lib/storage.js';
   import { sync } from '../lib/sync.svelte.js';
 
-  let { v, list, freshIds, onedit, ongroup, onaddto, onaddgroup } = $props();
+  let { v, list, freshIds, onedit, onshow, ongroup, onaddto, onaddgroup } = $props();
+
+  // travel mode: the translation under each item
+  const travel = $derived(list.travel);
+  const trOf = (item) => (travel ? translationOf(v, item.name, travel.lang) : '');
 
   const tree = $derived(listTree(v, list));
   const shadowEmpty = $derived(!tree.shadow.ungrouped.length && !tree.shadow.groups.length);
@@ -90,7 +94,7 @@
 <div class="sheet card" class:hidden={empty}>
   <ul class="items ungrouped" data-group="" data-empty="" use:sortable={itemSort} class:empty-drop={!tree.ungrouped.length}>
     {#each tree.ungrouped as item (item.id)}
-      <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
+      <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} {onedit} {onshow} />
     {/each}
   </ul>
   {#if !tree.ungrouped.length && tree.groups.length}
@@ -108,7 +112,7 @@
         onadd={() => onaddto(node.group.id)}>
         <ul class="items" data-group={node.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
           {#each node.items as item (item.id)}
-            <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
+            <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} {onedit} {onshow} />
           {/each}
         </ul>
       </GroupBlock>
