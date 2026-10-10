@@ -111,7 +111,7 @@
   "item.noGroup": "Ohne Gruppe",
   "item.addedBy": "Hinzugefügt von {name} · {date}",
   "item.checkedBy": "abgehakt von {name}",
-  "add.placeholder": "Artikel hinzufügen, z. B. 2 Milch",
+  "add.placeholder": "Artikel hinzufügen, z. B. 2 Milch oder 200g Hack",
   "add.button": "Hinzufügen",
   "add.auto": "Gruppe automatisch",
   "add.target": "Zielgruppe",

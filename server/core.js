@@ -828,6 +828,7 @@ const OPS = {
     this.db.q(`UPDATE items SET ${cols.join(', ')} WHERE space_uid = ? AND id = ?`).run(...args, ctx.uid, id);
 
     const name = updates.name ?? item.name;
+    if ('name' in updates) this._suggest(ctx, name, normalizeName(name));
     if ('groupId' in updates && op.learn !== false) this._learn(ctx, list, normalizeName(name), updates.groupId);
     if ('checked' in updates) this._act(ctx, list.id, updates.checked ? 'item.check' : 'item.uncheck', { name });
     if (updates.checked) {
@@ -908,6 +909,7 @@ const OPS = {
       case 'name': {
         const name = str(v, LIMITS.itemName, { required: true });
         this.db.q('UPDATE items SET name = ?, norm = ?, meta = ? WHERE space_uid = ? AND id = ?').run(name, normalizeName(name), JSON.stringify(meta), ctx.uid, item.id);
+        this._suggest(ctx, name, normalizeName(name));
         break;
       }
       case 'amount':

@@ -1,7 +1,7 @@
 // Parsing of quick-entry text like "3 Äpfel", "500g Hack", "Milch x2", "1,5 l Milch".
 
 const UNITS = [
-  'kg', 'g', 'mg', 'l', 'ml', 'cl', 'dl', 'oz', 'lb',
+  'kg', 'g', 'gr', 'grm', 'gramm', 'mg', 'l', 'ml', 'cl', 'dl', 'oz', 'lb',
   'stk', 'st', 'stück', 'pcs', 'pc', 'pck', 'pkg', 'pack', 'packs', 'pkt',
   'dose', 'dosen', 'can', 'cans', 'fl', 'flasche', 'flaschen', 'bottle', 'bottles',
   'bund', 'bunch', 'glas', 'gläser', 'jar', 'jars', 'becher', 'beutel', 'bag', 'bags',
@@ -25,6 +25,7 @@ function cleanUnit(u) {
   if (!u) return '';
   const l = u.toLowerCase();
   if (l === 'x') return '';
+  if (['gr', 'grm', 'gramm'].includes(l)) return 'g';
   if (['l', 'ml', 'cl', 'dl'].includes(l)) return l === 'l' ? 'l' : l;
   return l;
 }

@@ -162,6 +162,11 @@ function reduce(v, op, at, me) {
       if ('pos' in f) next.pos = f.pos;
       v.items[op.id] = next;
       if ('groupId' in f && op.learn !== false) learn(v, it.listId, next.name, f.groupId);
+      if ('name' in f) {
+        const norm = normalizeName(f.name);
+        const s = v.suggestions[norm];
+        v.suggestions[norm] = { norm, name: f.name, uses: (s?.uses ?? 0) + 1, lastUsedAt: at };
+      }
       break;
     }
     case 'item.delete':

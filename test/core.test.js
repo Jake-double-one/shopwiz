@@ -128,6 +128,14 @@ describe('items', () => {
     expect(s[0]).toMatchObject({ norm: 'bread', name: 'bread', uses: 2 });
   });
 
+  it('renaming adds the new name to the suggestions', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Frischmilch' });
+    op(devA, { k: 'item.set', id: 'item00001', fields: { name: 'Milch (Frischmilch)' }, base: {} });
+    const names = store.snapshot(uid).suggestions.map((s) => s.name);
+    expect(names).toEqual(expect.arrayContaining(['Frischmilch', 'Milch (Frischmilch)']));
+  });
+
   it('clear checked moves to inactive + undo', () => {
     const { store, uid, listId, op, devA } = setup();
     op(devA, { k: 'item.add', id: 'item00001', listId, name: 'A' });

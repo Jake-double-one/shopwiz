@@ -111,7 +111,7 @@
   "item.noGroup": "No group",
   "item.addedBy": "Added by {name} · {date}",
   "item.checkedBy": "checked by {name}",
-  "add.placeholder": "Add item, e.g. 2 milk",
+  "add.placeholder": "Add item, e.g. 2 milk or 200g minced meat",
   "add.button": "Add",
   "add.auto": "Auto group",
   "add.target": "Target group",
