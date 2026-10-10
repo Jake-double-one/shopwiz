@@ -80,3 +80,23 @@ export function formatAmount(qty, unit) {
   if (!unit) return q ? `${q}×` : '';
   return q ? `${q} ${unit}` : unit;
 }
+
+const BIG_STEP_UNITS = ['g', 'ml', 'mg', 'cl'];
+
+/**
+ * One step up (+1) or down (-1) for the +/- buttons. Without an amount an item counts as 1.
+ * g/ml change in steps of 100. Returns null when it can't go lower.
+ */
+export function stepAmount(qty, unit, dir) {
+  const big = BIG_STEP_UNITS.includes((unit || '').toLowerCase());
+  const step = big ? 100 : 1;
+  const cur = qty === '' || qty == null ? (big ? 0 : 1) : Number(qty);
+  if (!Number.isFinite(cur)) return null;
+  let next = Math.round((cur + dir * step) * 1000) / 1000;
+  if (dir < 0) {
+    if (next < step) return null;
+  } else if (big && cur % step) next = Math.ceil(cur / step) * step; // 250 g → 300 g
+  // a plain "1×" is the same as no amount
+  if (!unit && next === 1) return { qty: '', unit: '' };
+  return { qty: String(next), unit: unit || '' };
+}

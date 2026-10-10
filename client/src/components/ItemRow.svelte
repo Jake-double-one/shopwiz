@@ -1,13 +1,20 @@
 <script>
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { toggleItem, setParked } from '../lib/actions.js';
-  import { formatAmount } from '../../../shared/parse.js';
+  import { toggleItem, setParked, editItem } from '../lib/actions.js';
+  import { formatAmount, stepAmount } from '../../../shared/parse.js';
   import { sync } from '../lib/sync.svelte.js';
 
   /** inactive: row of the shadow list – tapping puts it back on the list */
   let { item, fresh = false, conflict = false, inactive = false, label = '', onedit } = $props();
   const activate = () => setParked(item, false);
+  // +/- next to the amount (only shown on wide screens, see CSS)
+  const stepper = $derived(!inactive && !item.checked);
+  const down = $derived(stepAmount(item.qty, item.unit, -1));
+  const step = (dir) => {
+    const next = stepAmount(item.qty, item.unit, dir);
+    if (next) editItem(item, { amount: next });
+  };
   const amount = $derived(formatAmount(item.qty, item.unit));
   const myName = $derived(sync.me?.name);
   const by = $derived(item.checked ? (item.checkedBy && item.checkedBy !== myName ? `✓ ${item.checkedBy}` : '') : item.addedBy && item.addedBy !== myName ? t('item.by', { name: item.addedBy }) : '');
@@ -38,7 +45,15 @@
       </span>
     {/if}
   </button>
-  {#if amount}<span class="amount mono">{amount}</span>{/if}
+  {#if stepper}
+    <span class="stepper">
+      {#if down}
+        <button class="step" onclick={() => step(-1)} aria-label={t('item.less', { name: item.name })} title={t('item.lessShort')}>−</button>
+      {/if}
+      {#if amount}<span class="amount mono">{amount}</span>{/if}
+      <button class="step" onclick={() => step(1)} aria-label={t('item.more', { name: item.name })} title={t('item.moreShort')}>+</button>
+    </span>
+  {:else if amount}<span class="amount mono">{amount}</span>{/if}
   <button class="icon-btn edit" onclick={() => onedit(item)} aria-label={t('item.edit', { name: item.name })} title={t('item.editShort')}>
     <Icon name="more" size={18} />
   </button>
@@ -161,6 +176,36 @@
     padding: 2px 9px;
     white-space: nowrap;
     flex: 0 0 auto;
+  }
+  .stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+  }
+  .step {
+    display: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+  }
+  .step:hover {
+    border-color: var(--dusk);
+    color: var(--ink);
+  }
+  /* only where there is room – on phones the edit sheet has the stepper */
+  @media (min-width: 640px) {
+    .step {
+      display: inline-grid;
+      place-items: center;
+    }
   }
   .checked .amount {
     color: var(--muted);

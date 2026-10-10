@@ -309,5 +309,9 @@
   "backup.fmtNote": "note",
   "backup.fmtChecked": "checked",
   "backup.fmtInactive": "inactive",
-  "start.import": "Import a file as a new list"
+  "start.import": "Import a file as a new list",
+  "item.more": "One more {name}",
+  "item.less": "One less {name}",
+  "item.moreShort": "More",
+  "item.lessShort": "Less"
 }

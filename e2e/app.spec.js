@@ -324,3 +324,23 @@ test('import a plain text file as a new ID from the start screen', async ({ page
   await expect(page.getByRole('checkbox', { name: 'Cola' })).toBeVisible();
   await expect(page.locator('.item', { hasText: 'Napkins' })).toContainText('white');
 });
+
+test('+/- next to the amount on wide screens only', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await createList(page);
+  await add(page, 'Eggs');
+  await add(page, '500g Flour');
+  await page.getByRole('button', { name: 'One more Eggs' }).click();
+  await page.getByRole('button', { name: 'One more Eggs' }).click();
+  await expect(item(page, 'Eggs').locator('.amount')).toHaveText('3×');
+  await page.getByRole('button', { name: 'One less Eggs' }).click();
+  await expect(item(page, 'Eggs').locator('.amount')).toHaveText('2×');
+  await page.getByRole('button', { name: 'One more Flour' }).click();
+  await expect(item(page, 'Flour').locator('.amount')).toHaveText('600 g');
+  await page.reload();
+  await expect(item(page, 'Eggs').locator('.amount')).toHaveText('2×');
+  // phones: no buttons, the amount stays visible
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: 'One more Eggs' })).toBeHidden();
+  await expect(item(page, 'Eggs').locator('.amount')).toHaveText('2×');
+});

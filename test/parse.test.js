@@ -56,3 +56,20 @@ describe('space ids', () => {
     }
   });
 });
+
+import { stepAmount } from '../shared/parse.js';
+describe('stepAmount', () => {
+  it('counts a missing amount as 1', () => {
+    expect(stepAmount('', '', 1)).toEqual({ qty: '2', unit: '' });
+    expect(stepAmount('', '', -1)).toBeNull();
+    expect(stepAmount('2', '', -1)).toEqual({ qty: '', unit: '' });
+    expect(stepAmount('3', 'dosen', -1)).toEqual({ qty: '2', unit: 'dosen' });
+  });
+  it('uses steps of 100 for g and ml', () => {
+    expect(stepAmount('500', 'g', 1)).toEqual({ qty: '600', unit: 'g' });
+    expect(stepAmount('250', 'g', 1)).toEqual({ qty: '300', unit: 'g' });
+    expect(stepAmount('200', 'ml', -1)).toEqual({ qty: '100', unit: 'ml' });
+    expect(stepAmount('100', 'g', -1)).toBeNull();
+    expect(stepAmount('1.5', 'kg', 1)).toEqual({ qty: '2.5', unit: 'kg' });
+  });
+});

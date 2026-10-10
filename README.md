@@ -37,6 +37,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Live sync** | Changes show up on all devices within a second. |
 | **Works offline** | Changes are saved on the device and sent later. Simultaneous edits of the same field show a gentle notice where you pick the right value. |
 | **Autocomplete** | Everything you have ever added is suggested while typing – including the learned group. |
+| **Amount buttons** | On tablets and computers, − and + sit right next to the amount (g/ml in steps of 100). On phones the amount is changed in the item's edit dialog. |
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
 | **Checked items stay** | They move to the end of their group and can be unchecked again. |

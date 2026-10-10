@@ -36,6 +36,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Live-Synchronisation** | Änderungen erscheinen innerhalb einer Sekunde auf allen Geräten. |
 | **Offline nutzbar** | Änderungen werden auf dem Gerät gespeichert und später gesendet. Wurde dasselbe Feld gleichzeitig geändert, erscheint eine softe Meldung, in der man den richtigen Wert wählt. |
 | **Autovervollständigung** | Alles, was je hinzugefügt wurde, wird beim Tippen vorgeschlagen – inklusive gelernter Gruppe. |
+| **Mengen-Knöpfe** | Auf Tablet und Computer stehen − und + direkt neben der Menge (g/ml in 100er-Schritten). Auf dem Handy ändert man die Menge im Bearbeiten-Dialog des Artikels. |
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
 | **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. |
