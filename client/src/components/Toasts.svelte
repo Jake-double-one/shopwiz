@@ -32,6 +32,11 @@
     width: min(520px, calc(100vw - 32px));
     pointer-events: none;
   }
+  /* while a dialog is open its buttons are at the bottom – show messages at the top instead */
+  :global(body.sheet-open) .toasts {
+    bottom: auto;
+    top: calc(12px + env(safe-area-inset-top));
+  }
   .toast {
     pointer-events: auto;
     display: flex;

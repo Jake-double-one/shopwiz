@@ -342,3 +342,25 @@ describe('list address', () => {
     expect(store.snapshot(uid).lists.find((l) => l.name === 'Beach').address).toBe('Spiaggia 2');
   });
 });
+
+describe('spot while shopping', () => {
+  it('remembers the group of the last checked item only while checked in', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'group.add', id: 'grp000001', listId, name: 'Fridge' });
+    op(devA, { k: 'group.add', id: 'grp000002', listId, parentId: 'grp000001', name: 'Dairy' });
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk', groupId: 'grp000002' });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'Bread' });
+    op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
+    expect(store.devices(uid)[0].spot).toBeNull(); // not checked in
+    op(devA, { k: 'item.set', id: 'item00001', fields: { checked: false }, base: {} });
+    op(devA, { k: 'device.shopping', on: true });
+    const r = op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
+    expect(store.devices(uid)[0].spot).toMatchObject({ group: 'Fridge › Dairy', item: 'Milk' });
+    expect(r.allDone).toBeUndefined(); // Bread still open
+    const r2 = op(devA, { k: 'item.set', id: 'item00002', fields: { checked: true }, base: {} });
+    expect(r2.allDone).toMatchObject({ listId });
+    expect(store.devices(uid)[0].spot).toMatchObject({ group: '', item: 'Bread' });
+    op(devA, { k: 'device.shopping', on: true });
+    expect(store.devices(uid)[0].spot).toBeNull(); // a new trip starts fresh
+  });
+});

@@ -388,6 +388,12 @@ class Sync {
       case 'presence':
         this.online = msg.online;
         break;
+      case 'signal':
+        this.emit('signal', msg);
+        break;
+      case 'signalSent':
+        this.emit('signalSent', msg);
+        break;
       case 'pong':
         this.lastPong = Date.now();
         if (typeof msg.c === 'number') this.offset = msg.serverTime - (msg.c + Date.now()) / 2;
@@ -476,6 +482,13 @@ class Sync {
     save(`pending.${this.spaceId}`, this.pending);
     if (this.status === 'online' && this.ws?.readyState === 1) this.ws.send(JSON.stringify({ t: 'op', ...p }));
     return p.id;
+  }
+
+  /** Short "find each other" signal. Not queued: it only makes sense right now. */
+  sendSignal({ kind, to = null, place = '', replyTo = null }) {
+    if (this.status !== 'online' || this.ws?.readyState !== 1) return false;
+    this.ws.send(JSON.stringify({ t: 'signal', kind, to, place, replyTo }));
+    return true;
   }
 
   persistSoon() {

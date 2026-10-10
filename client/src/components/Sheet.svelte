@@ -12,6 +12,7 @@
     const first = panel.querySelector('[autofocus]') ?? panel.querySelector('input, select, textarea, button:not(.close)');
     (first ?? panel).focus({ preventScroll: true });
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('sheet-open');
     // when the keyboard opens, keep the focused field visible
     const vv = window.visualViewport;
     const keepVisible = () => {
@@ -28,6 +29,7 @@
       vv?.removeEventListener('resize', keepVisible);
       for (const el of hidden) el.inert = false;
       document.body.style.overflow = '';
+      document.body.classList.remove('sheet-open');
       previous?.focus?.({ preventScroll: true });
     };
   });

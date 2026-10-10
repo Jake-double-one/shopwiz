@@ -96,6 +96,49 @@ describe('websocket sync', () => {
     for (const x of [a, b, c]) x.ws.close();
   });
 
+  it('delivers signals to people in the shop or to one person, never stored', async () => {
+    const TA = 'token-cccccccccccccccccccccc';
+    const TB = 'token-dddddddddddddddddddddd';
+    const TC = 'token-eeeeeeeeeeeeeeeeeeeeee';
+    const { id } = await (await post('/api/spaces', { name: 'Shop', token: TA, deviceName: 'A' })).json();
+    const join = async (token, name) => {
+      const c = client();
+      await c.send({ t: 'hello', space: id, token, name });
+      const w = await c.wait((m) => m.t === 'welcome');
+      return { c, w };
+    };
+    const a = await join(TA, 'A');
+    const b = await join(TB, 'B');
+    const c = await join(TC, 'C'); // not in the shop
+    const listId = a.w.snapshot.lists[0].id;
+    let n = 0;
+    const op = (x, o) => x.c.send({ t: 'op', id: `s${++n}`, at: Date.now(), op: o });
+    await op(a, { k: 'device.shopping', on: true });
+    await op(b, { k: 'device.shopping', on: true });
+    await op(a, { k: 'group.add', id: 'grp0shop1', listId, name: 'Bakery' });
+    await op(a, { k: 'item.add', id: 'itemshop1', listId, name: 'Bread', groupId: 'grp0shop1' });
+    await op(a, { k: 'item.add', id: 'itemshop2', listId, name: 'Milk' });
+    await op(a, { k: 'item.set', id: 'itemshop1', fields: { checked: true }, base: {} });
+    await b.c.wait((m) => m.t === 'patch' && m.changes.some((ch) => ch.e === 'device' && ch.row?.spot?.group === 'Bakery'));
+
+    // "come to me" to everybody in the shop: B gets it with A's spot, C (not shopping) doesn't
+    await a.c.send({ t: 'signal', kind: 'come' });
+    const sig = await b.c.wait((m) => m.t === 'signal' && m.kind === 'come');
+    expect(sig).toMatchObject({ from: { name: 'A' }, place: 'Bakery', item: 'Bread' });
+    expect((await a.c.wait((m) => m.t === 'signalSent')).count).toBe(1);
+    // a direct reply reaches A only
+    await new Promise((r) => setTimeout(r, 1600));
+    await b.c.send({ t: 'signal', kind: 'here', to: a.w.me.devId, place: 'Fruit', replyTo: sig.id });
+    expect(await a.c.wait((m) => m.t === 'signal' && m.kind === 'here')).toMatchObject({ place: 'Fruit', from: { name: 'B' } });
+    // checking the last open item tells everybody else in the shop
+    await op(b, { k: 'item.set', id: 'itemshop2', fields: { checked: true }, base: {} });
+    await a.c.wait((m) => m.t === 'signal' && m.kind === 'allDone');
+    await new Promise((r) => setTimeout(r, 100));
+    expect(c.c.inbox.some((m) => m.t === 'signal')).toBe(false);
+    expect(b.c.inbox.some((m) => m.t === 'signal' && m.kind === 'allDone')).toBe(false);
+    for (const x of [a, b, c]) x.c.ws.close();
+  });
+
   it('rate-limits unknown ids', async () => {
     let last;
     for (let i = 0; i < 7; i++) last = await fetch(`http://${base}/api/spaces/ZZZZZZZZZZ/lists`);

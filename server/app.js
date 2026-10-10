@@ -4,7 +4,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { openDb } from './db.js';
-import { Store, OpError, hashToken, mapDevice, LIMITS } from './core.js';
+import { Store, OpError, hashToken, mapDevice, LIMITS, newEntityId } from './core.js';
 import { Hub } from './hub.js';
 import { Limiter } from './limiter.js';
 import { parseSpaceId, formatSpaceId } from '../shared/ids.js';
@@ -205,6 +205,41 @@ export async function buildApp(config) {
     }
   });
 
+  // ---------- signals ----------
+  const SIGNALS = new Set(['where', 'come', 'checkout', 'done', 'here']);
+
+  /**
+   * Deliver a signal to one device (to = devId) or to everybody currently checked in at the shop.
+   * The sender's last spot is attached. Returns the number of devices reached.
+   */
+  function sendSignal(uid, dev, { kind, place = '', replyTo = null }, to, exceptDevId) {
+    const devices = store.devices(uid);
+    const me = devices.find((d) => d.devId === dev.dev_id);
+    const targets = new Set(
+      devices.filter((d) => d.devId !== exceptDevId && (to ? d.devId === to : !!d.shoppingUntil)).map((d) => d.devId),
+    );
+    if (!targets.size) return 0;
+    const data = JSON.stringify({
+      t: 'signal',
+      id: newEntityId(),
+      kind,
+      from: { devId: dev.dev_id, name: dev.name },
+      to,
+      place: place || me?.spot?.group || '',
+      item: kind === 'allDone' ? '' : me?.spot?.item || '',
+      replyTo,
+      at: Date.now(),
+    });
+    let reached = 0;
+    for (const c of hub.conns(uid)) {
+      if (targets.has(c.devId)) {
+        c.send(data);
+        reached++;
+      }
+    }
+    return reached;
+  }
+
   // ---------- WebSocket sync ----------
   await app.register(fastifyWebsocket, { options: { maxPayload: 512 * 1024 } });
 
@@ -237,6 +272,7 @@ export async function buildApp(config) {
         if (msg.t === 'ping') return reply({ t: 'pong', serverTime: Date.now(), c: msg.c });
         if (msg.t === 'hello') return onHello(msg);
         if (msg.t === 'op') return onOp(msg);
+        if (msg.t === 'signal') return onSignal(msg);
         reply({ t: 'error', error: 'unknown_message' });
       } catch (e) {
         app.log.error(e, 'ws handler failed');
@@ -278,6 +314,23 @@ export async function buildApp(config) {
       hub.presence(conn.uid);
     }
 
+    // ----- "find each other in the shop": short fixed signals, never stored -----
+    const sent = [];
+    function onSignal(msg) {
+      if (conn.uid === null) return;
+      const dev = store.device(conn.uid, conn.tokenHash);
+      if (!dev) return;
+      const now = Date.now();
+      while (sent.length && sent[0] < now - 60_000) sent.shift();
+      if (sent.length >= 20 || (sent.length && now - sent.at(-1) < 1500)) return reply({ t: 'error', error: 'signal_rate' });
+      if (!SIGNALS.has(msg.kind)) return reply({ t: 'error', error: 'bad_signal' });
+      sent.push(now);
+      const to = typeof msg.to === 'string' && msg.to ? msg.to : null;
+      const place = typeof msg.place === 'string' ? msg.place.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120) : '';
+      const n = sendSignal(conn.uid, dev, { kind: msg.kind, place, replyTo: typeof msg.replyTo === 'string' ? msg.replyTo.slice(0, 24) : null }, to, conn.devId);
+      reply({ t: 'signalSent', kind: msg.kind, to, count: n });
+    }
+
     function onOp(msg) {
       if (conn.uid === null) return reply({ t: 'ack', id: msg.id, ok: false, error: 'no_hello' });
       const space = store.spaceByUid(conn.uid);
@@ -292,6 +345,7 @@ export async function buildApp(config) {
         const res = store.applyOp(conn.uid, dev, msg.id, msg.op, msg.at);
         if (res.changes.length) hub.broadcast(conn.uid, { t: 'patch', rev: res.rev, changes: res.changes });
         reply({ t: 'ack', id: msg.id, ok: true, result: res.result });
+        if (res.allDone) sendSignal(conn.uid, dev, { kind: 'allDone', place: res.allDone.listName }, null, conn.devId);
         if (msg.op?.k === 'device.kick' && res.result?.kicked) {
           const kickedHash = res.kickedHash;
           if (kickedHash) hub.kick(conn.uid, kickedHash);

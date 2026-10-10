@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS devices (
   name           TEXT NOT NULL,
   last_seen_at   INTEGER NOT NULL,
   shopping_until INTEGER,
+  spot_group     TEXT,      -- while shopping: group of the last item this device checked
+  spot_item      TEXT,
+  spot_at        INTEGER,
   created_at     INTEGER NOT NULL,
   PRIMARY KEY (space_uid, token_hash)
 );
@@ -125,6 +128,10 @@ function migrate(db) {
   const cols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   if (!cols.includes('parked')) db.exec('ALTER TABLE items ADD COLUMN parked INTEGER NOT NULL DEFAULT 0');
   const listCols = db.prepare('PRAGMA table_info(lists)').all().map((c) => c.name);
+  const devCols = db.prepare('PRAGMA table_info(devices)').all().map((c) => c.name);
+  for (const [col, type] of [['spot_group', 'TEXT'], ['spot_item', 'TEXT'], ['spot_at', 'INTEGER']]) {
+    if (!devCols.includes(col)) db.exec(`ALTER TABLE devices ADD COLUMN ${col} ${type}`);
+  }
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
 }
 

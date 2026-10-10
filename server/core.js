@@ -106,12 +106,20 @@ export const mapConflict = (r) => ({
   options: JSON.parse(r.options),
   createdAt: r.created_at,
 });
-export const mapDevice = (r) => ({
-  devId: r.dev_id,
-  name: r.name,
-  lastSeenAt: r.last_seen_at,
-  shoppingUntil: r.shopping_until && r.shopping_until > Date.now() ? r.shopping_until : null,
-});
+export const mapDevice = (r) => {
+  const shopping = r.shopping_until && r.shopping_until > Date.now();
+  return {
+    devId: r.dev_id,
+    name: r.name,
+    lastSeenAt: r.last_seen_at,
+    shoppingUntil: shopping ? r.shopping_until : null,
+    // "where am I in the shop": only shared while checked in
+    spot: shopping && r.spot_at ? { group: r.spot_group ?? '', item: r.spot_item ?? '', at: r.spot_at } : null,
+  };
+};
+
+/** Label of a group path for spots and signals, e.g. "Fridge › Dairy". */
+export const pathLabel = (p) => [p.group, p.subgroup].filter(Boolean).join(' › ');
 export const mapSpace = (r) => ({
   id: r.public_id,
   name: r.name,
@@ -391,7 +399,7 @@ export class Store {
       if (!handler) throw new OpError('invalid', `unknown op ${op.k}`);
       const result = handler.call(this, ctx, op) ?? {};
       db.q('INSERT INTO applied_ops (space_uid, op_id, result, created_at) VALUES (?, ?, ?, ?)').run(uid, opId, JSON.stringify(result), now);
-      return { result, changes: ctx.changes, rev, kickedHash: ctx.kicked };
+      return { result, changes: ctx.changes, rev, kickedHash: ctx.kicked, allDone: ctx.allDone };
     });
   }
 
@@ -833,6 +841,18 @@ const OPS = {
     const name = updates.name ?? item.name;
     if ('groupId' in updates && op.learn !== false) this._learn(ctx, list, normalizeName(name), updates.groupId);
     if ('checked' in updates) this._act(ctx, list.id, updates.checked ? 'item.check' : 'item.uncheck', { name });
+    if (updates.checked) {
+      // remember where this device is in the shop (only while checked in)
+      const groupId = 'groupId' in updates ? updates.groupId : item.group_id;
+      const spot = pathLabel(this._groupPath(ctx.uid, groupId));
+      const r = this.db
+        .q('UPDATE devices SET spot_group = ?, spot_item = ?, spot_at = ? WHERE space_uid = ? AND dev_id = ? AND shopping_until > ? RETURNING *')
+        .get(spot, name, ctx.now, ctx.uid, ctx.dev.dev_id, ctx.now);
+      if (r) ctx.changes.push({ e: 'device', row: mapDevice(r) });
+      // everything on the list is in the cart → tell everybody in the shop
+      const open = this.db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL AND parked = 0 AND checked = 0').get(ctx.uid, list.id).c;
+      if (open === 0) ctx.allDone = { listId: list.id, listName: list.name };
+    }
     if ('parked' in updates) this._act(ctx, list.id, updates.parked ? 'item.park' : 'item.unpark', { name });
     if ('name' in updates || 'amount' in updates || 'note' in updates) {
       this._act(ctx, list.id, 'item.edit', { name, from: item.name, amount: updates.amount, note: 'note' in updates });
@@ -950,7 +970,10 @@ const OPS = {
 
   'device.shopping'(ctx, op) {
     const until = op.on ? ctx.now + SHOPPING_MS : null;
-    this.db.q('UPDATE devices SET shopping_until = ? WHERE space_uid = ? AND dev_id = ?').run(until, ctx.uid, ctx.dev.dev_id);
+    // a new shopping trip starts without a known spot
+    this.db
+      .q('UPDATE devices SET shopping_until = ?, spot_group = NULL, spot_item = NULL, spot_at = NULL WHERE space_uid = ? AND dev_id = ?')
+      .run(until, ctx.uid, ctx.dev.dev_id);
     ctx.changes.push({ e: 'device', row: mapDevice(this.db.q('SELECT * FROM devices WHERE space_uid = ? AND dev_id = ?').get(ctx.uid, ctx.dev.dev_id)) });
   },
 };

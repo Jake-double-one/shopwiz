@@ -46,6 +46,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Backup & import** | Download your lists as a Markdown file, edit it in any text editor and import it again – into the same ID (no duplicates) or as a new ID. |
 | **Participants** | Every device chooses its own name. An item's details show who added or checked it. Devices can be removed. |
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
+| **Find each other** | In a big shop, everybody checked in sees where the others are (the group of their last checked item). A **Call** button sends one of four fixed signals – “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done” – no chat. |
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
 | **Undo** | Every action can be undone right away. |
@@ -119,6 +120,19 @@ The format is easy to write by hand:
 ```
 
 Plain lines like `Milk`, `- 2 Bread` or `* Apples` work too. A name that starts with a number and has no amount is written in quotes (`"4711 Cologne"`).
+
+### Finding each other in the shop
+
+Shops can be big, and when you split up you lose each other. While you are checked in (**I'm shopping**):
+
+- The banner of everybody else in the shop shows **where they are**: the group of the item they checked last (“Jana is shopping – at Fruit & veg · just now”). No GPS – the list's groups are the map.
+- As soon as at least one other person is in the shop, a **Call** button appears next to “I'm shopping” (just an arrow on phones). It sends a fixed signal to everybody in the shop or to one person:
+  - **Where are you?** – the other phone vibrates and shows a card; one tap answers “I'm at *Bakery*” (their last spot), “Come to the checkout”, or a group they choose.
+  - **Come to me – *Fridge*** – with your last spot (or a group you pick).
+  - **Meet at the checkout** · **I'm done**
+- When the last item is checked, everybody else in the shop gets “Everything is in the cart – meet at the checkout?”.
+
+There is deliberately no free text, so it never becomes a chat. Signals are not stored and only arrive while ShopWiz is open – “Keep screen on” helps.
 
 ### Sync and conflicts
 

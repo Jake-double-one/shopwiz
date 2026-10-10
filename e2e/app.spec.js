@@ -394,3 +394,48 @@ test('a list address shows a navigation button', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 800 });
   await expect(nav.locator('.nav-label')).toBeVisible();
 });
+
+test('find each other in the shop: spot, call, answer, all done', async ({ page, browser }) => {
+  const id = await createList(page);
+  await page.getByRole('button', { name: 'Add group' }).last().click();
+  await page.getByLabel('Name').fill('Bakery');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await add(page, 'Bread');
+  await add(page, 'Rolls');
+  await page.getByRole('button', { name: 'Back to automatic group' }).click();
+  await add(page, 'Milk');
+  const { page: b, ctx } = await join(browser, id, 'Jana');
+
+  // the call button only appears when I'm checked in and somebody else is, too
+  await page.getByRole('button', { name: "I'm shopping" }).click();
+  await expect(page.getByRole('button', { name: 'Call' })).toHaveCount(0);
+  await b.getByRole('button', { name: "I'm shopping" }).click();
+  await expect(page.getByRole('button', { name: 'Call' })).toBeVisible();
+
+  // Alex checks Bread → Jana sees where Alex is
+  await page.getByRole('checkbox', { name: 'Bread' }).click();
+  await expect(b.locator('.hint', { hasText: 'Alex' })).toContainText('at Bakery');
+
+  // Jana: "Where are you?" → Alex answers with one tap
+  await b.getByRole('button', { name: 'Call' }).click();
+  await b.getByRole('button', { name: 'Where are you?' }).click();
+  await expect(page.locator('.signal')).toContainText('Jana is looking for you');
+  await page.getByRole('button', { name: 'I\'m at Bakery' }).click();
+  await expect(b.locator('.signal')).toContainText('Alex is at Bakery (last: Bread)');
+  await b.locator('.signal').getByRole('button', { name: 'OK' }).click();
+  await expect(b.locator('.signal')).toHaveCount(0);
+
+  // "Come to me" from Alex to Jana only
+  await page.waitForTimeout(1600);
+  await page.getByRole('button', { name: 'Call' }).click();
+  await page.locator('.panel').getByRole('button', { name: 'Jana' }).click();
+  await page.getByRole('button', { name: 'Come to me – Bakery' }).click();
+  await expect(b.locator('.signal')).toContainText('Alex is waiting at Bakery');
+  await b.locator('.signal').getByRole('button', { name: 'OK' }).click();
+
+  // Jana checks the rest → Alex gets "everything is in the cart"
+  await b.getByRole('checkbox', { name: 'Rolls' }).click();
+  await b.getByRole('checkbox', { name: 'Milk' }).click();
+  await expect(page.locator('.signal')).toContainText('Everything is in the cart');
+  await ctx.close();
+});

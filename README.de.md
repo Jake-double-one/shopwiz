@@ -45,6 +45,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Backup & Import** | Listen als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Die Details eines Artikels zeigen, wer ihn hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
+| **Sich im Laden finden** | In großen Läden sieht jeder Eingecheckte, wo die anderen sind (die Gruppe ihres zuletzt abgehakten Artikels). Ein **Rufen**-Knopf schickt eines von vier festen Signalen – „Wo bist du?“, „Komm zu mir“, „Treffen an der Kasse“, „Ich bin fertig“ – kein Chat. |
 | **Bildschirm anlassen** | Optionaler Knopf, damit das Handy beim Einkaufen nicht sperrt. |
 | **Verlauf** | Wer hat was gemacht, mit „Wiederherstellen“ für gelöschte Artikel. Wird nach 14 Tagen automatisch geleert. |
 | **Rückgängig** | Jede Aktion lässt sich sofort rückgängig machen. |
@@ -118,6 +119,19 @@ Das Format lässt sich leicht von Hand schreiben:
 ```
 
 Einfache Zeilen wie `Milch`, `- 2 Brot` oder `* Äpfel` funktionieren auch. Ein Name, der mit einer Zahl beginnt und keine Menge hat, steht in Anführungszeichen (`"4711 Kölnisch Wasser"`).
+
+### Sich im Laden wiederfinden
+
+Läden können groß sein, und wer sich aufteilt, verliert sich. Solange man eingecheckt ist (**Ich bin im Laden**):
+
+- Im Banner der anderen im Laden steht, **wo sie gerade sind**: die Gruppe des zuletzt abgehakten Artikels („Jana kauft gerade ein – bei Obst & Gemüse · gerade eben“). Kein GPS – die Gruppen der Liste sind die Karte.
+- Sobald mindestens eine weitere Person im Laden ist, erscheint neben „Ich bin im Laden“ der Knopf **Rufen** (auf dem Handy nur als Pfeil). Er schickt ein festes Signal an alle im Laden oder an eine Person:
+  - **Wo bist du?** – das andere Handy vibriert und zeigt eine Karte; ein Tipp antwortet „Bin bei *Bäcker*“ (der eigene letzte Ort), „Komm zur Kasse“ oder eine gewählte Gruppe.
+  - **Komm zu mir – *Kühlwaren*** – mit dem eigenen letzten Ort (oder einer gewählten Gruppe).
+  - **Treffen an der Kasse** · **Ich bin fertig**
+- Wird der letzte Artikel abgehakt, bekommen alle anderen im Laden „Alles im Wagen – Treffen an der Kasse?“.
+
+Freitext gibt es bewusst nicht, damit es nie ein Chat wird. Signale werden nicht gespeichert und kommen nur an, solange ShopWiz offen ist – „Bildschirm anlassen“ hilft.
 
 ### Synchronisation und Konflikte
 

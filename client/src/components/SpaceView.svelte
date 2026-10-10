@@ -15,8 +15,11 @@
   import HistorySheet from './HistorySheet.svelte';
   import TransferSheet from './TransferSheet.svelte';
   import BackupSheet from './BackupSheet.svelte';
+  import CallSheet from './CallSheet.svelte';
+  import SignalCard from './SignalCard.svelte';
+  import { spotPlace } from '../lib/signals.js';
   import { sync } from '../lib/sync.svelte.js';
-  import { t } from '../lib/i18n.svelte.js';
+  import { t, relTime } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
   import { sortedLists, progress, isShopping, listItems } from '../lib/model.js';
   import { setShopping, restoreItems, addList } from '../lib/actions.js';
@@ -52,6 +55,11 @@
   const myDevId = $derived(sync.me?.devId);
   const shoppers = $derived(devices.filter((d) => isShopping(d) && d.devId !== myDevId));
   const myShopping = $derived(isShopping(v.devices[myDevId]));
+  const mySpot = $derived(v.devices[myDevId]?.spot ?? null);
+
+  // ----- signals to find each other in the shop (never stored) -----
+  let signals = $state([]);
+  const dismissSignal = (id) => (signals = signals.filter((s) => s.id !== id));
   const onlineCount = $derived(sync.online.length);
 
   // ----- shopping mode: highlight what others add while I'm in the shop -----
@@ -116,6 +124,13 @@
   let syncingCount = 0;
   onMount(() => {
     const off = sync.on((type, d) => {
+      if (type === 'signal') {
+        if (signals.some((s) => s.id === d.id)) return;
+        signals = [d, ...signals].slice(0, 3);
+        navigator.vibrate?.([150, 80, 150, 80, 150]);
+        setTimeout(() => dismissSignal(d.id), 10 * 60_000);
+        return;
+      }
       if (type === 'welcome') {
         syncingCount = sync.pendingCount;
       } else if (type === 'ack') {
@@ -232,6 +247,12 @@
           {#if devices.length > 4}<span class="person">+{devices.length - 4}</span>{/if}
         </button>
         <div class="toggles">
+          {#if myShopping && shoppers.length}
+            <button class="chip call" onclick={() => open('call')} title={t('call.title')} aria-label={t('call.title')}>
+              <Icon name="nav" size={16} />
+              <span class="label">{t('call.button')}</span>
+            </button>
+          {/if}
           <button class="chip main" aria-pressed={myShopping} onclick={toggleShopping} title={t('shopping.hint')}>
             <Icon name="cart" size={16} />
             <span class="label">{t('shopping.toggle')}</span>
@@ -254,7 +275,13 @@
       </div>
     {/if}
     {#each shoppers as s (s.devId)}
-      <div class="hint dusk"><Icon name="cart" size={18} /><span class="grow"><b>{s.name}</b> {t('shopping.isShopping')}</span></div>
+      <div class="hint dusk">
+        <Icon name="cart" size={18} />
+        <span class="grow">
+          <b>{s.name}</b>
+          {#if spotPlace(s.spot)}{t('shopping.isAt', { place: spotPlace(s.spot), when: relTime(s.spot.at) })}{:else}{t('shopping.isShopping')}{/if}
+        </span>
+      </div>
     {/each}
     {#if myShopping && freshIds.size}
       <div class="hint dusk"><Icon name="plus" size={18} /><span class="grow">{t('shopping.fresh', { count: freshIds.size })}</span></div>
@@ -264,6 +291,14 @@
         <Icon name="alert" size={18} />
         <span class="grow">{t('conflict.banner', { count: conflicts.length })}</span>
         <button class="link" onclick={() => open('conflicts')}>{t('conflict.review')}</button>
+      </div>
+    {/if}
+
+    {#if signals.length}
+      <div class="signals">
+        {#each signals as sig (sig.id)}
+          <SignalCard {sig} {v} {list} {mySpot} ondismiss={() => dismissSignal(sig.id)} />
+        {/each}
       </div>
     {/if}
 
@@ -313,6 +348,8 @@
     <ConflictSheet {v} {conflicts} onclose={closeSheet} />
   {:else if sheet?.kind === 'history'}
     <HistorySheet spaceId={sync.spaceId} {list} onclose={closeSheet} />
+  {:else if sheet?.kind === 'call'}
+    <CallSheet {v} {list} {shoppers} {mySpot} onclose={closeSheet} />
   {:else if sheet?.kind === 'backup'}
     <BackupSheet spaceId={sync.spaceId} {v} {list} onclose={closeSheet} {onopen} />
   {:else if sheet?.kind === 'transfer'}
@@ -476,6 +513,21 @@
   }
   .people:hover .person {
     color: var(--ink);
+  }
+  /* incoming signals stay visible while scrolling */
+  .signals {
+    position: sticky;
+    top: 8px;
+    z-index: 30;
+  }
+  .chip.call {
+    border-color: var(--dusk);
+    color: var(--dusk);
+  }
+  @media (max-width: 639px) {
+    .chip.call .label {
+      display: none;
+    }
   }
   .toggles {
     display: flex;
