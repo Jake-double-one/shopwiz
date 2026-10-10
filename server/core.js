@@ -88,6 +88,7 @@ export const mapItem = (r) => ({
   unit: r.unit,
   note: r.note,
   checked: !!r.checked,
+  parked: !!r.parked,
   checkedBy: r.checked_by,
   addedBy: r.added_by,
   pos: r.pos,
@@ -124,6 +125,8 @@ const fieldValue = (item, f) => {
       return { qty: item.qty, unit: item.unit };
     case 'checked':
       return !!item.checked;
+    case 'parked':
+      return !!item.parked;
     case 'groupId':
       return item.group_id;
     default:
@@ -469,16 +472,17 @@ export class Store {
     for (const r of rows) ctx.changes.push({ e: 'conflict', del: r.id });
   }
 
-  _insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos, checked = false }) {
+  _insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos, checked = false, parked = false }) {
     const norm = normalizeName(name);
     const metaEntry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
-    const meta = { name: metaEntry, amount: metaEntry, note: metaEntry, checked: metaEntry, groupId: metaEntry };
+    const meta = { name: metaEntry, amount: metaEntry, note: metaEntry, checked: metaEntry, parked: metaEntry, groupId: metaEntry };
+    const isChecked = checked && !parked;
     this.db
       .q(
-        `INSERT INTO items (space_uid, id, list_id, group_id, name, norm, qty, unit, note, checked, checked_by, added_by, pos, meta, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (space_uid, id, list_id, group_id, name, norm, qty, unit, note, checked, parked, checked_by, added_by, pos, meta, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(ctx.uid, id, list.id, groupId, name, norm, qty, unit, n, checked ? 1 : 0, checked ? ctx.dev.name : null, ctx.dev.name, pos, JSON.stringify(meta), ctx.now);
+      .run(ctx.uid, id, list.id, groupId, name, norm, qty, unit, n, isChecked ? 1 : 0, parked ? 1 : 0, isChecked ? ctx.dev.name : null, ctx.dev.name, pos, JSON.stringify(meta), ctx.now);
     return norm;
   }
 
@@ -582,17 +586,49 @@ const OPS = {
     this._act(ctx, id, 'list.restore', { name: list.name });
   },
 
+  // Checked items leave the list and go to the inactive items (shadow list) – nothing is lost.
   'list.clearChecked'(ctx, op) {
     const list = this._list(ctx.uid, eid(op.listId));
+    const rows = this.db.q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND checked = 1 AND parked = 0 AND deleted_at IS NULL').all(ctx.uid, list.id);
+    const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
+    for (const r of rows) {
+      const meta = { ...JSON.parse(r.meta), checked: entry, parked: entry };
+      this.db.q('UPDATE items SET checked = 0, checked_by = NULL, parked = 1, meta = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(meta), ctx.uid, r.id);
+      this._pushItem(ctx, r.id);
+    }
+    if (rows.length) this._act(ctx, list.id, 'list.clearChecked', { count: rows.length, names: rows.slice(0, 20).map((r) => r.name) });
+    return { ids: rows.map((r) => r.id) };
+  },
+
+  /** Delete all inactive items of a list (restorable from the history for a while). */
+  'list.clearParked'(ctx, op) {
+    const list = this._list(ctx.uid, eid(op.listId));
     const rows = this.db
-      .q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND list_id = ? AND checked = 1 AND deleted_at IS NULL RETURNING id, name')
+      .q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND list_id = ? AND parked = 1 AND deleted_at IS NULL RETURNING id, name')
       .all(ctx.now, ctx.uid, list.id);
     for (const r of rows) {
       ctx.changes.push({ e: 'item', del: r.id });
       this._dropConflicts(ctx, r.id);
     }
-    if (rows.length) this._act(ctx, list.id, 'list.clearChecked', { count: rows.length, names: rows.slice(0, 20).map((r) => r.name), ids: rows.map((r) => r.id) });
+    if (rows.length) this._act(ctx, list.id, 'item.delete', { names: rows.slice(0, 20).map((r) => r.name), count: rows.length, ids: rows.map((r) => r.id) });
     return { ids: rows.map((r) => r.id) };
+  },
+
+  /** Set checked/parked for several items at once (used to undo "clear checked"). */
+  'item.setState'(ctx, op) {
+    const ids = idList(op.ids);
+    const checked = !!op.checked;
+    const parked = !!op.parked && !checked;
+    const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
+    for (const id of ids) {
+      const r = this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ? AND deleted_at IS NULL').get(ctx.uid, id);
+      if (!r) continue;
+      const meta = { ...JSON.parse(r.meta), checked: entry, parked: entry };
+      this.db
+        .q('UPDATE items SET checked = ?, checked_by = ?, parked = ?, meta = ? WHERE space_uid = ? AND id = ?')
+        .run(checked ? 1 : 0, checked ? (r.checked_by ?? ctx.dev.name) : null, parked ? 1 : 0, JSON.stringify(meta), ctx.uid, id);
+      this._pushItem(ctx, id);
+    }
   },
 
   'group.add'(ctx, op) {
@@ -689,9 +725,9 @@ const OPS = {
     const n = note(op.note);
     const norm = normalizeName(name);
     // Same unchecked item already on the list (e.g. added on two devices while offline) → merge
-    if (!op.force) {
+    if (!op.force && !op.parked) {
       const dup = this.db
-        .q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND checked = 0 AND deleted_at IS NULL')
+        .q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND checked = 0 AND parked = 0 AND deleted_at IS NULL')
         .get(ctx.uid, list.id, norm);
       if (dup) {
         const sum = addAmounts({ qty: dup.qty, unit: dup.unit }, { qty, unit }) ?? { qty: dup.qty, unit: dup.unit };
@@ -708,7 +744,7 @@ const OPS = {
     const count = this.db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL').get(ctx.uid, list.id).c;
     if (count >= LIMITS.itemsPerList) throw new OpError('limit', 'too many items');
     const groupId = this._validGroup(ctx.uid, list, op.groupId);
-    this._insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos: num(op.pos ?? ctx.now), checked: !!op.checked });
+    this._insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos: num(op.pos ?? ctx.now), checked: !!op.checked, parked: !!op.parked });
     this._pushItem(ctx, id);
     if (op.learn !== false) this._learn(ctx, list, norm, groupId);
     this._suggest(ctx, name, norm);
@@ -735,6 +771,7 @@ const OPS = {
     if ('amount' in fields) incoming.amount = { qty: qtyStr(fields.amount?.qty), unit: str(fields.amount?.unit, LIMITS.unit) };
     if ('note' in fields) incoming.note = note(fields.note);
     if ('checked' in fields) incoming.checked = !!fields.checked;
+    if ('parked' in fields) incoming.parked = !!fields.parked;
     if ('groupId' in fields) incoming.groupId = fields.groupId ? this._validGroup(ctx.uid, list, eid(fields.groupId, 'groupId')) : null;
     if ('pos' in fields) incoming.pos = num(fields.pos);
 
@@ -780,6 +817,8 @@ const OPS = {
     if ('amount' in updates) set('qty', updates.amount.qty), set('unit', updates.amount.unit);
     if ('note' in updates) set('note', updates.note);
     if ('checked' in updates) set('checked', updates.checked ? 1 : 0), set('checked_by', updates.checked ? ctx.dev.name : null);
+    if ('parked' in updates) set('parked', updates.parked ? 1 : 0);
+    if (updates.parked && !('checked' in updates) && item.checked) set('checked', 0), set('checked_by', null);
     if ('groupId' in updates) set('group_id', updates.groupId);
     if ('pos' in updates) set('pos', updates.pos);
     set('meta', JSON.stringify(meta));
@@ -788,6 +827,7 @@ const OPS = {
     const name = updates.name ?? item.name;
     if ('groupId' in updates && op.learn !== false) this._learn(ctx, list, normalizeName(name), updates.groupId);
     if ('checked' in updates) this._act(ctx, list.id, updates.checked ? 'item.check' : 'item.uncheck', { name });
+    if ('parked' in updates) this._act(ctx, list.id, updates.parked ? 'item.park' : 'item.unpark', { name });
     if ('name' in updates || 'amount' in updates || 'note' in updates) {
       this._act(ctx, list.id, 'item.edit', { name, from: item.name, amount: updates.amount, note: 'note' in updates });
     }
@@ -863,6 +903,9 @@ const OPS = {
         break;
       case 'checked':
         this.db.q('UPDATE items SET checked = ?, checked_by = ?, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? choice.byName : null, JSON.stringify(meta), ctx.uid, item.id);
+        break;
+      case 'parked':
+        this.db.q('UPDATE items SET parked = ?, checked = CASE WHEN ? THEN 0 ELSE checked END, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? 1 : 0, JSON.stringify(meta), ctx.uid, item.id);
         break;
       case 'groupId': {
         const gid = v ? this._validGroup(ctx.uid, list, v) : null;
@@ -1027,5 +1070,90 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
       this._act(sctx, items[0].list_id, mode === 'move' ? 'transfer.move' : 'transfer.copy', { count: items.length, names: items.slice(0, 20).map((r) => r.name), ids: items.map((r) => r.id) });
     }
     return { source: { changes: sctx.changes, rev: sRev }, target: { changes: tctx.changes, rev: tRev }, count: items.length };
+  });
+};
+
+export const IMPORT_LIMITS = { lists: 50, items: 5000 };
+
+/**
+ * Import a parsed backup document (see shared/backup.js) into a space.
+ * Lists are matched by name, groups by name; an item whose name is already on the target
+ * list is not added again – if the file says it is needed, an inactive/checked copy is re-activated.
+ * defaultListId receives items that are not below any "## list" heading.
+ */
+Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId = null } = {}) {
+  const { db } = this;
+  if (!doc || !Array.isArray(doc.lists)) throw new OpError('invalid', 'document');
+  if (doc.lists.length > IMPORT_LIMITS.lists) throw new OpError('limit', 'too many lists');
+  const total = doc.lists.reduce((n, l) => n + (Array.isArray(l.items) ? l.items.length : 0), 0);
+  if (total > IMPORT_LIMITS.items) throw new OpError('limit', 'too many items');
+  const now = Date.now();
+  return db.tx(() => {
+    const rev = db.q('UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev').get(now, uid).rev;
+    const ctx = { uid, dev: device, rev, at: now, now, changes: [] };
+    const stats = { lists: 0, added: 0, skipped: 0, reactivated: 0 };
+    const live = () => db.q('SELECT * FROM lists WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid);
+
+    for (const l of doc.lists) {
+      const listName = str(l.name, LIMITS.listName);
+      let list = null;
+      if (listName) list = live().find((x) => x.name.toLowerCase() === listName.toLowerCase()) ?? null;
+      else if (defaultListId) list = live().find((x) => x.id === defaultListId) ?? null;
+      if (!list) list = live()[0] && !listName ? live()[0] : null;
+      if (!list) {
+        if (live().length >= LIMITS.listsPerSpace) throw new OpError('limit', 'too many lists');
+        const id = newEntityId();
+        const pos = live().reduce((m, x) => Math.max(m, x.pos), 0) + 1;
+        db.q('INSERT INTO lists (space_uid, id, name, pos, group_mode, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(uid, id, listName || 'Import', pos, 'own', now);
+        this._pushList(ctx, id);
+        list = db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(uid, id);
+        stats.lists++;
+      }
+      let pos = db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ?').get(uid, list.id).m;
+      for (const raw of Array.isArray(l.items) ? l.items : []) {
+        const name = str(raw?.name, LIMITS.itemName);
+        if (!name) continue;
+        const state = ['open', 'checked', 'parked'].includes(raw.state) ? raw.state : 'open';
+        const norm = normalizeName(name);
+        const existing = db.q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL ORDER BY parked, checked').get(uid, list.id, norm);
+        if (existing) {
+          if (state === 'open' && (existing.checked || existing.parked)) {
+            const entry = { v: rev, at: now, by: device.dev_id };
+            const meta = { ...JSON.parse(existing.meta), checked: entry, parked: entry };
+            db.q('UPDATE items SET checked = 0, checked_by = NULL, parked = 0, meta = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(meta), uid, existing.id);
+            this._pushItem(ctx, existing.id);
+            stats.reactivated++;
+          } else stats.skipped++;
+          continue;
+        }
+        const count = db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL').get(uid, list.id).c;
+        if (count >= LIMITS.itemsPerList) throw new OpError('limit', 'too many items');
+        const groupId = this._ensurePath(ctx, list, str(raw.group, LIMITS.groupName), str(raw.subgroup, LIMITS.groupName));
+        const id = newEntityId();
+        let qty = '';
+        try {
+          qty = qtyStr(raw.qty);
+        } catch {
+          qty = '';
+        }
+        this._insertItem(ctx, list, {
+          id,
+          groupId,
+          name,
+          qty,
+          unit: str(raw.unit, LIMITS.unit),
+          note: note(raw.note),
+          pos: ++pos,
+          checked: state === 'checked',
+          parked: state === 'parked',
+        });
+        this._pushItem(ctx, id);
+        if (groupId) this._learn(ctx, list, norm, groupId);
+        this._suggest(ctx, name, norm);
+        stats.added++;
+      }
+    }
+    this._act(ctx, null, 'import', stats);
+    return { changes: ctx.changes, rev, stats };
   });
 };

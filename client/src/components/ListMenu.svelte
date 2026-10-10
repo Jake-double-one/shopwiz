@@ -36,6 +36,7 @@
   <div class="actions">
     <button class="btn block" onclick={() => onopen('group', { create: true })}><Icon name="folder" />{t('group.add')}</button>
     <button class="btn block" onclick={() => onopen('history')}><Icon name="history" />{t('history.title')}</button>
+    <button class="btn block" onclick={() => onopen('backup')}><Icon name="copy" />{t('backup.title')}</button>
     {#if checked}
       <button class="btn block" onclick={() => (clearChecked(list.id), onclose())}><Icon name="trash" />{t('list.clearChecked', { count: checked })}</button>
     {/if}

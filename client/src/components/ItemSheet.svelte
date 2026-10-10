@@ -3,7 +3,7 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import { t, clock } from '../lib/i18n.svelte.js';
-  import { editItem, deleteItems } from '../lib/actions.js';
+  import { editItem, deleteItems, setParked } from '../lib/actions.js';
   import { groupOptions } from '../lib/model.js';
 
   let { v, list, item, onclose, ontransfer } = $props();
@@ -78,6 +78,9 @@
     </p>
     <div class="row wrap-row">
       <button type="submit" class="btn main">{t('done')}</button>
+      <button type="button" class="btn" onclick={() => (save(), setParked(item, !item.parked), onclose())}>
+        <Icon name={item.parked ? 'plus' : 'folder'} size={18} />{item.parked ? t('inactive.activateShort') : t('inactive.park')}
+      </button>
       <button type="button" class="btn" onclick={() => (save(), ontransfer(item))}><Icon name="send" size={18} />{t('transfer.short')}</button>
       <button type="button" class="btn danger" onclick={() => (deleteItems([item]), onclose())}><Icon name="trash" size={18} />{t('delete')}</button>
     </div>

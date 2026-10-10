@@ -3,8 +3,9 @@
   import ItemRow from './ItemRow.svelte';
   import GroupBlock from './GroupBlock.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree, posBetween, groupSet } from '../lib/model.js';
-  import { moveItem, moveGroup, clearChecked } from '../lib/actions.js';
+  import { listTree, posBetween, groupSet, groupLabel } from '../lib/model.js';
+  import { moveItem, moveGroup, clearChecked, clearParked, editItem, addEntry } from '../lib/actions.js';
+  import { toast } from '../lib/toast.svelte.js';
   import { sortable } from '../lib/sortable.js';
   import { load, save } from '../lib/storage.js';
   import { sync } from '../lib/sync.svelte.js';
@@ -34,13 +35,35 @@
     return [];
   }
 
-  function onItemMove({ id, to, newIndex }) {
+  // ----- inactive items (shadow list), collapsed by default, per device -----
+  let shadowIds = $state(new Set(load('shadowOpen', [])));
+  const shadowOpen = $derived(shadowIds.has(list.id));
+  function toggleShadow() {
+    const ids = new Set(shadowIds);
+    ids.has(list.id) ? ids.delete(list.id) : ids.add(list.id);
+    shadowIds = ids;
+    save('shadowOpen', [...ids].slice(-100));
+  }
+  let shadowText = $state('');
+  function addInactive(e) {
+    e.preventDefault();
+    const r = addEntry(list.id, shadowText, { parked: true });
+    if (r.status === 'exists') toast(t('inactive.exists', { name: r.existing.name }));
+    if (r.status !== 'empty') shadowText = '';
+  }
+
+  function onItemMove({ id, from, to, newIndex }) {
     const item = sync.data.items[id];
     if (!item) return;
+    if (to.parked) {
+      if (!item.parked) editItem(item, { parked: true, checked: false });
+      return;
+    }
     const groupId = to.group || null;
     const target = itemsIn(groupId).filter((i) => i.id !== id);
     const pos = posBetween(target[newIndex - 1]?.pos, target[newIndex]?.pos);
-    moveItem(item, groupId, pos);
+    if (from.parked) editItem(item, { parked: false, groupId, pos });
+    else moveItem(item, groupId, pos);
   }
 
   function onGroupMove({ id, to, newIndex }) {
@@ -55,6 +78,7 @@
     else moveGroup(g, pos);
   }
 
+  const shadowSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', sort: false, onmove: onItemMove });
   const itemSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', onmove: onItemMove });
   const groupSort = $derived({ group: 'groups', draggable: '.group.top', handle: '.g-top', onmove: onGroupMove });
   const subSort = $derived({ group: 'subgroups', draggable: '.group.sub', handle: '.g-sub', onmove: onGroupMove });
@@ -114,6 +138,31 @@
     {/each}
   </div>
 </div>
+
+<section class="shadow card" aria-label={t('inactive.title')}>
+  <button class="shadow-head" onclick={toggleShadow} aria-expanded={shadowOpen}>
+    <span class="chev" class:open={shadowOpen}><Icon name="chevron" size={16} /></span>
+    <span class="title">{t('inactive.title')}</span>
+    {#if tree.parked.length}<span class="count mono">{tree.parked.length}</span>{/if}
+  </button>
+  {#if shadowOpen}
+    <p class="hint-text">{t('inactive.hint')}</p>
+    <form class="row add-inactive" onsubmit={addInactive}>
+      <input class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
+      <button class="btn" type="submit" disabled={!shadowText.trim()} aria-label={t('inactive.add')}><Icon name="plus" /></button>
+    </form>
+    <ul class="items shadow-items" data-parked="1" data-empty={t('inactive.empty')} use:sortable={shadowSort}>
+      {#each tree.parked as item (item.id)}
+        <ItemRow {item} inactive label={groupLabel(v, item.groupId)} conflict={conflictIds.has(item.id)} {onedit} />
+      {/each}
+    </ul>
+    {#if tree.parked.length}
+      <div class="row shadow-foot">
+        <button class="btn small danger" onclick={() => clearParked(list.id)}><Icon name="trash" size={16} />{t('inactive.clear')}</button>
+      </div>
+    {/if}
+  {/if}
+</section>
 
 <div class="footer row wrap-row">
   <button class="btn small" onclick={onaddgroup}><Icon name="folder" size={16} />{t('group.add')}</button>
@@ -189,6 +238,63 @@
   .footer {
     margin-top: 12px;
     justify-content: center;
+  }
+  .shadow {
+    margin-top: 16px;
+    padding: 4px 6px;
+    background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+    box-shadow: none;
+  }
+  .shadow-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 46px;
+    background: none;
+    border: 0;
+    padding: 6px 8px;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .shadow-head:hover {
+    color: var(--ink);
+  }
+  .shadow-head .chev {
+    display: inline-grid;
+    transition: transform 0.15s ease;
+  }
+  .shadow-head .chev.open {
+    transform: rotate(90deg);
+  }
+  .shadow-head .count {
+    letter-spacing: 0;
+    font-size: 0.7rem;
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 1px 8px;
+  }
+  .hint-text {
+    margin: 0 10px 10px;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .add-inactive {
+    margin: 0 8px 8px;
+  }
+  .add-inactive .btn {
+    width: 44px;
+    padding: 0;
+    flex: 0 0 auto;
+  }
+  .shadow-foot {
+    justify-content: flex-end;
+    padding: 8px;
   }
   :global(.drag-ghost) {
     opacity: 0.35;

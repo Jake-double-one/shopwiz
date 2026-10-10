@@ -39,6 +39,8 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
 | **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. |
+| **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste: Dinge, die gerade nicht gebraucht werden. „Erledigte entfernen“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
+| **Backup & Import** | Listen als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Artikel zeigen, wer sie hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
 | **Bildschirm anlassen** | Optionaler Knopf, damit das Handy beim Einkaufen nicht sperrt. |
@@ -74,6 +76,40 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 - Jede Liste hat standardmäßig eigene Gruppen. Unter **Listen-Optionen → Gruppen** kann eine Liste stattdessen die **gemeinsamen Gruppen der ID** nutzen – dann teilen sich alle Listen in diesem Modus Gruppen und Gelerntes.
 - Mit **+** an einer Gruppe fügst du direkt dort hinzu, oder du ziehst Artikel am Griff (⋮⋮) in eine andere Gruppe.
 - ShopWiz merkt sich zu jedem Artikelnamen die letzte Gruppe. Beim nächsten Hinzufügen landet er automatisch dort.
+
+### Inaktive Artikel (Schattenliste)
+
+Am Ende jeder Liste gibt es den eingeklappten Bereich **Inaktive Artikel**:
+
+- **Erledigte entfernen** verschiebt Abgehaktes dorthin – nichts geht verloren. Gruppe, Menge und Notiz bleiben erhalten.
+- Ein Tipp auf einen inaktiven Artikel (oder sein **+**) holt ihn unabgehakt zurück auf die Liste.
+- Dinge, die noch nicht gebraucht werden, direkt dort hinzufügen – oder Artikel am Griff hinein- und herausziehen.
+- Wer den Namen eines inaktiven Artikels normal eintippt, holt ihn zurück, statt ein Duplikat anzulegen.
+- Inaktive Artikel zählen nicht zum Fortschritt. **Alle inaktiven löschen** löscht sie wirklich (14 Tage über den Verlauf wiederherstellbar).
+
+### Backup und Import als Datei
+
+**Einstellungen → Backup & Import** (auch in den Listen-Optionen):
+
+- **Exportieren** lädt eine Markdown-Datei (`.md`) herunter – alle Listen der ID oder nur die aktuelle Liste. Funktioniert auch offline.
+- **Importieren** nimmt so eine Datei, beliebiges Markdown oder einfachen Text mit einem Artikel pro Zeile – Datei auswählen oder Text einfügen.
+  - **In diese ID:** Listen und Gruppen werden über den Namen zugeordnet; ein Artikel, der schon auf der Liste steht, wird nicht doppelt angelegt (sagt die Datei, dass er gebraucht wird, und er ist abgehakt oder inaktiv, wird er wieder aktiviert). Artikel ohne Listen-Überschrift landen in der aktuellen Liste.
+  - **Als neue ID:** legt eine neue ID mit den importierten Listen an. Das geht auch direkt auf der Startseite („Datei als neue Liste importieren“).
+
+Das Format lässt sich leicht von Hand schreiben:
+
+```markdown
+# Zuhause                        ← Name der ID (optional)
+## Wocheneinkauf                 ← Liste
+- [ ] Brot                       ← offener Artikel ohne Gruppe
+### Kühlwaren                    ← Gruppe
+#### Milchprodukte               ← Untergruppe
+- [ ] 2 l Milch // laktosefrei   ← Menge, Name, Notiz nach //
+- [x] Butter                     ← abgehakt
+- [-] Feta                       ← inaktiv
+```
+
+Einfache Zeilen wie `Milch`, `- 2 Brot` oder `* Äpfel` funktionieren auch. Ein Name, der mit einer Zahl beginnt und keine Menge hat, steht in Anführungszeichen (`"4711 Kölnisch Wasser"`).
 
 ### Synchronisation und Konflikte
 

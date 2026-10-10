@@ -40,6 +40,8 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
 | **Checked items stay** | They move to the end of their group and can be unchecked again. |
+| **Inactive items** | A collapsed “shadow list” at the bottom of every list: things you don't need right now. Clearing checked items moves them there; one tap puts them back on the list. |
+| **Backup & import** | Download your lists as a Markdown file, edit it in any text editor and import it again – into the same ID (no duplicates) or as a new ID. |
 | **Participants** | Every device chooses its own name. Items show who added or checked them. Devices can be removed. |
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
@@ -75,6 +77,40 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 - Each list has its own groups by default. In **List options → Groups** a list can use the **shared groups of the ID** instead – then all lists in that mode share groups and what was learned.
 - Tap **+** on a group to add items directly into it, or drag items by the handle (⋮⋮) to another group.
 - ShopWiz remembers the last group of every item name. Adding it again puts it there automatically.
+
+### Inactive items (shadow list)
+
+At the bottom of every list there is a collapsed section **Inactive items**:
+
+- **Clear checked** moves checked items there – nothing is lost. They keep their group, amount and note.
+- Tap an inactive item (or its **+**) to put it back on the list, unchecked.
+- Add things you don't need yet directly there, or drag items in and out by the handle.
+- Typing the name of an inactive item in the normal input brings it back instead of creating a duplicate.
+- Inactive items don't count towards the progress bar. **Delete all inactive** really deletes them (restorable from the history for 14 days).
+
+### Backup and import as a file
+
+**Settings → Backup & import** (also in the list options):
+
+- **Export** downloads a Markdown file (`.md`) – all lists of the ID, or just the current list. It works offline.
+- **Import** takes such a file, any Markdown or plain text with one item per line – choose a file or paste the text.
+  - **Into this ID:** lists and groups are matched by name; an item that is already on the list is not added again (if the file says it's needed and it is checked or inactive, it is re-activated). Items without a list heading go into the current list.
+  - **As a new ID:** creates a new ID with the imported lists. This is also available on the start screen (“Import a file as a new list”).
+
+The format is easy to write by hand:
+
+```markdown
+# Home                          ← name of the ID (optional)
+## Weekly shop                  ← list
+- [ ] Bread                     ← open item without a group
+### Fridge                      ← group
+#### Dairy                      ← subgroup
+- [ ] 2 l Milk // lactose free  ← amount, name, note after //
+- [x] Butter                    ← checked
+- [-] Feta                      ← inactive
+```
+
+Plain lines like `Milk`, `- 2 Bread` or `* Apples` work too. A name that starts with a number and has no amount is written in quotes (`"4711 Cologne"`).
 
 ### Sync and conflicts
 

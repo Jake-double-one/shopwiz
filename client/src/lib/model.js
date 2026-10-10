@@ -22,15 +22,29 @@ export function listTree(v, list) {
   const groups = groupSet(v, list);
   const ids = new Set(groups.map((g) => g.id));
   const itemsBy = new Map();
+  const parked = [];
   for (const it of Object.values(v.items)) {
     if (it.listId !== list.id) continue;
+    if (it.parked) {
+      parked.push(it);
+      continue;
+    }
     const key = it.groupId && ids.has(it.groupId) ? it.groupId : '';
     if (!itemsBy.has(key)) itemsBy.set(key, []);
     itemsBy.get(key).push(it);
   }
   const sortItems = (arr = []) => arr.sort((a, b) => (a.checked - b.checked) || byPos(a, b));
   const top = groups.filter((g) => !g.parentId || !ids.has(g.parentId)).sort(byPos);
+  // inactive items: sorted by their group (in list order), then by position
+  const order = new Map();
+  top.forEach((g, i) => {
+    order.set(g.id, i * 1000);
+    groups.filter((s) => s.parentId === g.id).sort(byPos).forEach((s, j) => order.set(s.id, i * 1000 + j + 1));
+  });
+  const rank = (it) => (it.groupId && order.has(it.groupId) ? order.get(it.groupId) : -1);
+  parked.sort((a, b) => rank(a) - rank(b) || byPos(a, b));
   return {
+    parked,
     ungrouped: sortItems(itemsBy.get('')),
     groups: top.map((g) => ({
       group: g,
@@ -47,8 +61,13 @@ export function listItems(v, listId) {
   return Object.values(v.items).filter((it) => it.listId === listId);
 }
 
+/** Items that are actually on the list (not in the inactive shadow list). */
+export function activeItems(v, listId) {
+  return Object.values(v.items).filter((it) => it.listId === listId && !it.parked);
+}
+
 export function progress(v, listId) {
-  const items = listItems(v, listId);
+  const items = activeItems(v, listId);
   return { done: items.filter((i) => i.checked).length, total: items.length };
 }
 
@@ -97,7 +116,8 @@ export function groupOptions(v, list) {
 export function suggestionsFor(v, list, query, limit = 6) {
   const q = normalizeName(query);
   if (!q) return [];
-  const onList = new Set(listItems(v, list.id).filter((i) => !i.checked).map((i) => normalizeName(i.name)));
+  const onList = new Set(listItems(v, list.id).filter((i) => !i.checked && !i.parked).map((i) => normalizeName(i.name)));
+  const inactive = new Set(listItems(v, list.id).filter((i) => i.parked).map((i) => normalizeName(i.name)));
   const scored = [];
   const now = Date.now();
   for (const s of Object.values(v.suggestions)) {
@@ -105,7 +125,7 @@ export function suggestionsFor(v, list, query, limit = 6) {
     if (idx < 0 || s.norm === q) continue;
     const ageDays = (now - s.lastUsedAt) / 86_400_000;
     const score = (idx === 0 ? 100 : s.norm.includes(` ${q}`) ? 60 : 20) + Math.min(s.uses, 30) * 2 - Math.min(ageDays, 60) / 3;
-    scored.push({ ...s, score, onList: onList.has(s.norm), placement: learnedPlacement(v, list, s.name) });
+    scored.push({ ...s, score, onList: onList.has(s.norm), inactive: inactive.has(s.norm), placement: learnedPlacement(v, list, s.name) });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }

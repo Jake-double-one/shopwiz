@@ -131,7 +131,7 @@
           <button class="pick" onmousedown={(e) => e.preventDefault()} onclick={() => pick(s)}>
             <span class="s-name">{s.name}</span>
             {#if s.placement}<span class="micro">{s.placement.group}{s.placement.subgroup ? ` › ${s.placement.subgroup}` : ''}</span>{/if}
-            {#if s.onList}<span class="micro on">{t('add.onList')}</span>{/if}
+            {#if s.onList}<span class="micro on">{t('add.onList')}</span>{:else if s.inactive}<span class="micro">{t('add.inactive')}</span>{/if}
           </button>
           <button
             class="icon-btn forget"

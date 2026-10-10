@@ -12,6 +12,7 @@ export function sortable(node, params) {
     group: p.group,
     draggable: p.draggable,
     handle: p.handle,
+    sort: p.sort !== false,
     animation: 150,
     delay: 120,
     delayOnTouchOnly: true,

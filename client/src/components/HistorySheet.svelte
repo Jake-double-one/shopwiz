@@ -47,6 +47,8 @@
     switch (e.action) {
       case 'item.add':
         return t('history.add', { name: [formatAmount(p.qty, p.unit), p.name].filter(Boolean).join(' ') });
+      case 'item.park':
+      case 'item.unpark':
       case 'item.check':
       case 'item.uncheck':
       case 'item.merge':
@@ -77,6 +79,8 @@
         return t(p.mode === 'shared' ? 'history.modeShared' : 'history.modeOwn');
       case 'group.delete':
         return t('history.groupDelete', { name: p.name });
+      case 'import':
+        return t('history.import', { added: p.added ?? 0, skipped: p.skipped ?? 0, reactivated: p.reactivated ?? 0 });
       case 'device.kick':
         return t('history.kick', { name: p.name });
       case 'space.update':
@@ -89,7 +93,7 @@
   function restorable(e) {
     const p = e.payload;
     if (e.action === 'item.editDeleted') return [p.id];
-    if (['item.delete', 'list.clearChecked', 'transfer.move'].includes(e.action)) return p.ids ?? null;
+    if (['item.delete', 'transfer.move'].includes(e.action)) return p.ids ?? null;
     return null;
   }
 </script>

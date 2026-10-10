@@ -2,6 +2,7 @@
   import Icon from './Icon.svelte';
   import Scanner from './Scanner.svelte';
   import Prefs from './Prefs.svelte';
+  import BackupSheet from './BackupSheet.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import { api } from '../lib/api.js';
   import { knownSpaces, forgetSpace, deviceName, setDeviceName, suggestDeviceName } from '../lib/device.js';
@@ -17,6 +18,7 @@
   let error = $state('');
   let joinError = $state('');
   let scanning = $state(false);
+  let importing = $state(false);
   let known = $state(knownSpaces());
   const canScan = typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 
@@ -112,6 +114,7 @@
         {t('start.create')}
       </button>
     </form>
+    <button class="link import" onclick={() => (askName && myName.trim() && setDeviceName(myName.trim().slice(0, 40)), (importing = true))}>{t('start.import')}</button>
   </section>
 
   <section class="card">
@@ -153,6 +156,10 @@
 
   <p class="micro privacy">{t('start.privacy')}</p>
 </main>
+
+{#if importing}
+  <BackupSheet onclose={() => (importing = false)} {onopen} />
+{/if}
 
 {#if scanning}
   <Scanner
@@ -219,6 +226,11 @@
   }
   .open:hover .name {
     color: var(--dusk);
+  }
+  .import {
+    display: block;
+    margin: 14px auto 0;
+    font-size: 0.9rem;
   }
   .privacy {
     text-align: center;

@@ -13,6 +13,8 @@
         return formatAmount(value?.qty, value?.unit) || t('conflict.noAmount');
       case 'checked':
         return value ? t('conflict.checked') : t('conflict.unchecked');
+      case 'parked':
+        return value ? t('inactive.title') : t('conflict.onList');
       case 'groupId':
         return groupLabel(v, value) || t('item.noGroup');
       case 'note':
@@ -25,8 +27,9 @@
   function isCurrent(c, value) {
     const it = v.items[c.itemId];
     if (!it) return false;
-    const cur = c.field === 'amount' ? { qty: it.qty, unit: it.unit } : c.field === 'groupId' ? it.groupId : it[c.field];
-    return JSON.stringify(cur) === JSON.stringify(c.field === 'checked' ? !!value : value);
+    const bool = c.field === 'checked' || c.field === 'parked';
+    const cur = c.field === 'amount' ? { qty: it.qty, unit: it.unit } : c.field === 'groupId' ? it.groupId : bool ? !!it[c.field] : it[c.field];
+    return JSON.stringify(cur) === JSON.stringify(bool ? !!value : value);
   }
 
   $effect(() => {

@@ -11,7 +11,7 @@
   import { knownSpaces, forgetSpace } from '../lib/device.js';
   import { formatSpaceId } from '../../../shared/ids.js';
 
-  let { space, spaceId, onclose, onleave, onopen, onshare } = $props();
+  let { space, spaceId, onclose, onleave, onopen, onshare, onbackup } = $props();
 
   let name = $state(untrack(() => space.name));
   let ttl = $state(untrack(() => space.ttlDays));
@@ -98,6 +98,7 @@
     <p class="eyebrow">{t('settings.spaces')}</p>
     <div class="list">
       <button class="btn block" onclick={onshare}><Icon name="share" />{t('share.title')}</button>
+      <button class="btn block" onclick={onbackup}><Icon name="copy" />{t('backup.title')}</button>
       {#each others as s (s.id)}
         <button class="btn block" onclick={() => (onclose(), onopen(s.id))}><Icon name="swap" />{s.name} <span class="micro">{formatSpaceId(s.id)}</span></button>
       {/each}

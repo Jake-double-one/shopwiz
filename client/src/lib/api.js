@@ -17,7 +17,8 @@ async function call(method, path, body) {
 }
 
 export const api = {
-  createSpace: (name, deviceName, listName) => call('POST', '/api/spaces', { name, deviceName, listName, token: deviceToken() }),
+  createSpace: (name, deviceName, listName, doc) => call('POST', '/api/spaces', { name, deviceName, listName, doc, token: deviceToken() }),
+  importInto: (id, doc, listId) => call('POST', `/api/spaces/${id}/import`, { doc, listId }),
   lists: (id) => call('GET', `/api/spaces/${id}/lists`),
   activity: (id, listId) => call('GET', `/api/spaces/${id}/activity?list=${encodeURIComponent(listId)}`),
   renew: (id) => call('POST', `/api/spaces/${id}/renew`, {}),

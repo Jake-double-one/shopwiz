@@ -264,3 +264,63 @@ test('rename this device in the settings; long names are shortened', async ({ pa
   expect(box.width).toBeLessThanOrEqual(171);
   await ctx.close();
 });
+
+test('inactive items: clear checked parks them, tap brings them back', async ({ page }) => {
+  await createList(page);
+  await add(page, 'Milk');
+  await add(page, 'Bread');
+  await page.getByRole('checkbox', { name: 'Milk' }).click();
+  await page.getByRole('button', { name: 'Move 1 checked item to inactive' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toHaveCount(0);
+  await expect(page.locator('.progress .count')).toHaveText('0 / 1');
+
+  await page.getByRole('button', { name: /Inactive items/ }).click();
+  await expect(page.locator('.shadow .item', { hasText: 'Milk' })).toBeVisible();
+  // add something only for later
+  await page.getByPlaceholder('Add for later, e.g. Baking powder').fill('Baking powder');
+  await page.getByPlaceholder('Add for later, e.g. Baking powder').press('Enter');
+  await expect(page.locator('.shadow .item', { hasText: 'Baking powder' })).toBeVisible();
+  await expect(page.locator('.progress .count')).toHaveText('0 / 1');
+
+  // tap → back on the list
+  await page.getByRole('button', { name: 'Put Milk back on the list' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toHaveAttribute('aria-checked', 'false');
+  // typing an inactive item's name re-activates it instead of duplicating
+  await add(page, 'baking powder');
+  await expect(page.getByRole('checkbox', { name: 'Baking powder' })).toBeVisible();
+  await expect(page.locator('.shadow .item')).toHaveCount(0);
+});
+
+test('export as Markdown and import with duplicate check', async ({ page }) => {
+  await createList(page, 'Home');
+  await add(page, '2 Milk');
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.getByRole('button', { name: 'Backup & import' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download all lists (.md)' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^shopwiz-home-\d{4}-\d{2}-\d{2}\.md$/);
+  const fs = await import('node:fs/promises');
+  const md = await fs.readFile(await download.path(), 'utf8');
+  expect(md).toContain('# Home');
+  expect(md).toContain('- [ ] 2 Milk');
+
+  // edit the file "by hand" and import it into the same ID
+  const edited = `${md}### Bakery\n- [ ] Bread\n- [-] Croissants\n`;
+  await page.getByLabel('…or paste text').fill(edited);
+  await expect(page.locator('.hint', { hasText: 'Found 3 items' })).toBeVisible();
+  await page.getByRole('button', { name: 'Import 3 items' }).click();
+  await expect(page.getByText('Import done: 2 added, 0 re-activated, 1 already there')).toBeVisible();
+  await expect(page.locator('.group', { hasText: 'Bakery' }).getByRole('checkbox', { name: 'Bread' })).toBeVisible();
+  await expect(page.locator('.item', { hasText: 'Milk' })).toHaveCount(1);
+});
+
+test('import a plain text file as a new ID from the start screen', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Import a file as a new list' }).click();
+  await page.locator('input[type=file]').setInputFiles({ name: 'party.txt', mimeType: 'text/plain', buffer: Buffer.from('Chips\n2 Cola\nNapkins // white\n') });
+  await expect(page.locator('.hint', { hasText: 'Found 3 items' })).toBeVisible();
+  await page.getByRole('button', { name: 'Import 3 items' }).click();
+  await page.waitForURL(ID_URL);
+  await expect(page.locator('.list-title')).toContainText('party');
+  await expect(page.getByRole('checkbox', { name: 'Cola' })).toBeVisible();
+  await expect(page.locator('.item', { hasText: 'Napkins' })).toContainText('white');
+});

@@ -17,7 +17,7 @@ const escapeHtml = (s) =>
 export async function buildApp(config) {
   const app = Fastify({
     trustProxy: config.trustProxy,
-    bodyLimit: 256 * 1024,
+    bodyLimit: 2 * 1024 * 1024,
     logController: new LogController({ disableRequestLogging: true }),
     logger: {
       level: config.logLevel,
@@ -101,12 +101,23 @@ export async function buildApp(config) {
   app.get('/healthz', async () => ({ ok: true }));
 
   app.post('/api/spaces', async (req, reply) => {
-    const { name, token, deviceName, listName } = req.body ?? {};
+    const { name, token, deviceName, listName, doc } = req.body ?? {};
     if (typeof token !== 'string' || !TOKEN_RE.test(token)) return reply.code(400).send({ error: 'invalid', message: 'token' });
     if (createLimiter.blocked(clientKey(req))) return reply.code(429).send({ error: 'rate_limited' });
     createLimiter.fail(clientKey(req));
     try {
       const id = store.createSpace({ name, token, deviceName, listName });
+      // optional: start the new space from a backup file
+      if (doc) {
+        const { space } = store.resolve(id, null);
+        try {
+          const res = store.importDoc(space.uid, store.device(space.uid, hashToken(token)), doc);
+          return { id, stats: res.stats };
+        } catch (e) {
+          store.db.q('DELETE FROM spaces WHERE uid = ?').run(space.uid); // don't leave a half-imported id behind
+          throw e;
+        }
+      }
       return { id };
     } catch (e) {
       return sendError(reply, e);
@@ -153,6 +164,21 @@ export async function buildApp(config) {
     if (r.status !== 'deleted') return reply.code(409).send({ error: 'not_deleted' });
     const id = store.continueSpace(r.space.uid, r.tokenHash, req.body?.deviceName);
     return { id };
+  });
+
+  // Import a backup (parsed client side, see shared/backup.js) into an existing space
+  app.post('/api/spaces/:id/import', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    const dev = store.device(r.space.uid, r.tokenHash);
+    try {
+      const res = store.importDoc(r.space.uid, dev, req.body?.doc, { defaultListId: typeof req.body?.listId === 'string' ? req.body.listId : null });
+      if (res.changes.length) hub.broadcast(r.space.uid, { t: 'patch', rev: res.rev, changes: res.changes });
+      return { stats: res.stats };
+    } catch (e) {
+      return sendError(reply, e);
+    }
   });
 
   app.post('/api/spaces/:id/transfer', async (req, reply) => {

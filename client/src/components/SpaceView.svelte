@@ -14,6 +14,7 @@
   import ConflictSheet from './ConflictSheet.svelte';
   import HistorySheet from './HistorySheet.svelte';
   import TransferSheet from './TransferSheet.svelte';
+  import BackupSheet from './BackupSheet.svelte';
   import { sync } from '../lib/sync.svelte.js';
   import { t } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
@@ -57,7 +58,7 @@
   const freshIds = $derived.by(() => {
     if (!myShopping || !list) return new Set();
     const myName = sync.me?.name;
-    return new Set(listItems(v, list.id).filter((i) => !i.checked && i.createdAt > shoppingSince && i.addedBy !== myName).map((i) => i.id));
+    return new Set(listItems(v, list.id).filter((i) => !i.checked && !i.parked && i.createdAt > shoppingSince && i.addedBy !== myName).map((i) => i.id));
   });
   let lastFresh = 0;
   $effect(() => {
@@ -285,13 +286,15 @@
   {:else if sheet?.kind === 'share'}
     <ShareSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} />
   {:else if sheet?.kind === 'settings'}
-    <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} onshare={() => open('share')} />
+    <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} onshare={() => open('share')} onbackup={() => open('backup')} />
   {:else if sheet?.kind === 'people'}
     <PeopleSheet {devices} online={sync.online} me={sync.me} onclose={closeSheet} {onleave} />
   {:else if sheet?.kind === 'conflicts'}
     <ConflictSheet {v} {conflicts} onclose={closeSheet} />
   {:else if sheet?.kind === 'history'}
     <HistorySheet spaceId={sync.spaceId} {list} onclose={closeSheet} />
+  {:else if sheet?.kind === 'backup'}
+    <BackupSheet spaceId={sync.spaceId} {v} {list} onclose={closeSheet} {onopen} />
   {:else if sheet?.kind === 'transfer'}
     <TransferSheet spaceId={sync.spaceId} itemIds={sheet.itemIds} groupId={sheet.groupId} label={sheet.label} onclose={closeSheet} />
   {/if}

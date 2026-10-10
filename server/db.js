@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS items (
   unit       TEXT NOT NULL DEFAULT '',
   note       TEXT NOT NULL DEFAULT '',
   checked    INTEGER NOT NULL DEFAULT 0,
+  parked     INTEGER NOT NULL DEFAULT 0,   -- 1 = in the 'inactive items' shadow list
   checked_by TEXT,
   added_by   TEXT,
   pos        REAL NOT NULL,
@@ -118,6 +119,12 @@ CREATE TABLE IF NOT EXISTS applied_ops (
 );
 `;
 
+/** Additive migrations for databases created by older versions. */
+function migrate(db) {
+  const cols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
+  if (!cols.includes('parked')) db.exec('ALTER TABLE items ADD COLUMN parked INTEGER NOT NULL DEFAULT 0');
+}
+
 export function openDb(dataDir) {
   let file = ':memory:';
   if (dataDir !== ':memory:') {
@@ -127,6 +134,7 @@ export function openDb(dataDir) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
   db.exec(SCHEMA);
+  migrate(db);
 
   const cache = new Map();
   /** Cached prepared statement. */

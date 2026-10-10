@@ -46,14 +46,21 @@ export function addEntry(listId, raw, opts = {}) {
   const norm = normalizeName(parsed.name);
   const same = listItems(v(), listId).filter((i) => normalizeName(i.name) === norm);
   if (!opts.force) {
-    const open = same.find((i) => !i.checked);
+    if (opts.parked) {
+      // adding to the inactive items: something with that name exists already → nothing to do
+      const any = same[0];
+      if (any) return { status: 'exists', existing: any };
+    }
+    const open = same.find((i) => !i.checked && !i.parked);
     if (open) return { status: 'duplicate', existing: open, parsed };
-    const done = same.find((i) => i.checked);
+    // checked or inactive → simply bring it back
+    const done = same.find((i) => i.checked) ?? same.find((i) => i.parked);
     if (done) {
-      const fields = { checked: false };
+      const fields = done.parked ? { parked: false } : { checked: false };
       if (parsed.qty) fields.amount = { qty: parsed.qty, unit: parsed.unit };
       editItem(done, fields, { silent: true });
-      if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, { checked: true, ...(fields.amount && { amount: { qty: done.qty, unit: done.unit } }) }, { silent: true }));
+      const back = done.parked ? { parked: true } : { checked: true };
+      if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, { ...back, ...(fields.amount && { amount: { qty: done.qty, unit: done.unit } }) }, { silent: true }));
       return { status: 'reactivated', item: done };
     }
   }
@@ -68,7 +75,7 @@ export function addEntry(listId, raw, opts = {}) {
   }
   const siblings = listItems(v(), listId).filter((i) => (i.groupId ?? null) === groupId);
   const id = newId();
-  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn });
+  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }) });
   return { status: 'added', id, groupId };
 }
 
@@ -107,11 +114,24 @@ export function restoreItems(ids) {
   sync.send({ k: 'item.restore', ids });
 }
 
+/** Checked items leave the list and become inactive (shadow list). */
 export function clearChecked(listId) {
-  const rows = listItems(v(), listId).filter((i) => i.checked).map((i) => ({ ...i }));
-  if (!rows.length) return;
+  const ids = listItems(v(), listId).filter((i) => i.checked && !i.parked).map((i) => i.id);
+  if (!ids.length) return;
   sync.send({ k: 'list.clearChecked', listId });
-  undoToast(t('toast.cleared', { count: rows.length }), () => sync.send({ k: 'item.restore', ids: rows.map((r) => r.id), rows }));
+  undoToast(t('toast.cleared', { count: ids.length }), () => sync.send({ k: 'item.setState', ids, checked: true }));
+}
+
+export function clearParked(listId) {
+  const rows = listItems(v(), listId).filter((i) => i.parked).map((i) => ({ ...i }));
+  if (!rows.length) return;
+  sync.send({ k: 'list.clearParked', listId });
+  undoToast(t('toast.deletedMany', { count: rows.length }), () => sync.send({ k: 'item.restore', ids: rows.map((r) => r.id), rows }));
+}
+
+/** Move an item to the inactive items, or back onto the list. */
+export function setParked(item, parked) {
+  editItem(item, parked ? { parked: true, checked: false } : { parked: false });
 }
 
 // ----- lists -----

@@ -76,7 +76,18 @@ function reduce(v, op, at, me) {
       if (op.row) v.lists[op.id] = op.row;
       break;
     case 'list.clearChecked':
-      for (const it of Object.values(v.items)) if (it.listId === op.listId && it.checked) delete v.items[it.id];
+      for (const it of Object.values(v.items)) {
+        if (it.listId === op.listId && it.checked && !it.parked) v.items[it.id] = { ...it, checked: false, checkedBy: null, parked: true };
+      }
+      break;
+    case 'list.clearParked':
+      for (const it of Object.values(v.items)) if (it.listId === op.listId && it.parked) delete v.items[it.id];
+      break;
+    case 'item.setState':
+      for (const id of op.ids) {
+        const it = v.items[id];
+        if (it) v.items[id] = { ...it, checked: !!op.checked, checkedBy: op.checked ? (it.checkedBy ?? myName) : null, parked: !!op.parked && !op.checked };
+      }
       break;
     case 'group.add':
       v.groups[op.id] = { id: op.id, listId: op.listId ?? null, parentId: op.parentId ?? null, name: op.name, pos: op.pos };
@@ -112,8 +123,9 @@ function reduce(v, op, at, me) {
         qty: op.qty ?? '',
         unit: op.unit ?? '',
         note: op.note ?? '',
-        checked: !!op.checked,
-        checkedBy: op.checked ? myName : null,
+        checked: !!op.checked && !op.parked,
+        checkedBy: op.checked && !op.parked ? myName : null,
+        parked: !!op.parked,
         addedBy: myName,
         pos: op.pos,
         meta: {},
@@ -135,6 +147,10 @@ function reduce(v, op, at, me) {
       if ('amount' in f) Object.assign(next, { qty: f.amount.qty ?? '', unit: f.amount.unit ?? '' });
       if ('note' in f) next.note = f.note;
       if ('checked' in f) Object.assign(next, { checked: !!f.checked, checkedBy: f.checked ? myName : null });
+      if ('parked' in f) {
+        next.parked = !!f.parked;
+        if (f.parked && !('checked' in f)) Object.assign(next, { checked: false, checkedBy: null });
+      }
       if ('groupId' in f) next.groupId = f.groupId;
       if ('pos' in f) next.pos = f.pos;
       v.items[op.id] = next;
@@ -158,6 +174,7 @@ function reduce(v, op, at, me) {
       if (!it || value === undefined) break;
       if (c.field === 'amount') v.items[it.id] = { ...it, qty: value.qty, unit: value.unit };
       else if (c.field === 'checked') v.items[it.id] = { ...it, checked: !!value };
+      else if (c.field === 'parked') v.items[it.id] = { ...it, parked: !!value, checked: value ? false : it.checked };
       else v.items[it.id] = { ...it, [c.field]: value };
       break;
     }

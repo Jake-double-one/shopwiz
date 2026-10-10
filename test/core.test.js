@@ -126,16 +126,17 @@ describe('items', () => {
     expect(s[0]).toMatchObject({ norm: 'bread', name: 'bread', uses: 2 });
   });
 
-  it('clear checked + restore', () => {
+  it('clear checked moves to inactive + undo', () => {
     const { store, uid, listId, op, devA } = setup();
     op(devA, { k: 'item.add', id: 'item00001', listId, name: 'A' });
     op(devA, { k: 'item.add', id: 'item00002', listId, name: 'B' });
     op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
     const r = op(devA, { k: 'list.clearChecked', listId });
     expect(r.result.ids).toEqual(['item00001']);
-    expect(store.snapshot(uid).items.map((i) => i.name)).toEqual(['B']);
-    op(devA, { k: 'item.restore', ids: r.result.ids });
-    expect(store.snapshot(uid).items).toHaveLength(2);
+    // checked items move to the inactive items instead of being deleted
+    expect(store.snapshot(uid).items.filter((i) => !i.parked).map((i) => i.name)).toEqual(['B']);
+    op(devA, { k: 'item.setState', ids: r.result.ids, checked: true });
+    expect(store.snapshot(uid).items.filter((i) => !i.parked)).toHaveLength(2);
   });
 
   it('deleting a group ungroups its items; restore puts them back', () => {
@@ -265,5 +266,69 @@ describe('guards', () => {
     expect(store.snapshot(uid).items).toHaveLength(0);
     const r = op(devA, { k: 'list.restore', id: 'list00002' });
     expect(r.changes.some((c) => c.e === 'item' && c.row?.id === 'item00001')).toBe(true);
+  });
+});
+
+describe('shadow list and import', () => {
+  it('clear checked parks items; setState undoes it; parked items are not merged', () => {
+    const { store, uid, listId, op, devA, item } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk' });
+    op(devA, { k: 'item.set', id: 'item00001', fields: { checked: true }, base: {} });
+    op(devA, { k: 'list.clearChecked', listId });
+    expect(item('item00001')).toMatchObject({ checked: false, parked: true });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'milk' });
+    expect(store.snapshot(uid).items).toHaveLength(2);
+    op(devA, { k: 'item.setState', ids: ['item00001'], checked: true });
+    expect(item('item00001')).toMatchObject({ checked: true, parked: false });
+    op(devA, { k: 'item.set', id: 'item00002', fields: { parked: true }, base: {} });
+    const r = op(devA, { k: 'list.clearParked', listId });
+    expect(r.result.ids).toEqual(['item00002']);
+  });
+
+  it('imports with duplicate check into an existing space', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Milk' });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'Bread', parked: true });
+    const doc = {
+      lists: [
+        { name: '', items: [
+          { name: 'milk', state: 'open' },
+          { name: 'Bread', state: 'open' },
+          { name: 'Cheese', qty: '200', unit: 'g', state: 'open', group: 'Fridge', subgroup: 'Dairy' },
+        ] },
+        { name: 'DIY', items: [{ name: 'Screws', state: 'parked' }] },
+      ],
+    };
+    const res = store.importDoc(uid, devA, doc, { defaultListId: listId });
+    expect(res.stats).toEqual({ lists: 1, added: 2, skipped: 1, reactivated: 1 });
+    const snap = store.snapshot(uid);
+    expect(snap.lists.map((l) => l.name)).toContain('DIY');
+    expect(snap.items.find((i) => i.name === 'Bread').parked).toBe(false);
+    expect(snap.items.find((i) => i.name === 'Screws').parked).toBe(true);
+    expect(snap.groups.map((g) => g.name).sort()).toEqual(['Dairy', 'Fridge']);
+    expect(snap.memory).toContainEqual({ scope: listId, norm: 'cheese', group: 'Fridge', subgroup: 'Dairy' });
+    // importing the same again adds nothing
+    expect(store.importDoc(uid, devA, doc, { defaultListId: listId }).stats.added).toBe(0);
+  });
+});
+
+describe('migration', () => {
+  it('adds the parked column to databases from v0.1.0', async () => {
+    const { mkdtempSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { DatabaseSync } = await import('node:sqlite');
+    const dir = mkdtempSync(join(tmpdir(), 'shopwiz-'));
+    const old = new DatabaseSync(join(dir, 'shopwiz.db'));
+    old.exec(`CREATE TABLE items (space_uid INTEGER NOT NULL, id TEXT NOT NULL, list_id TEXT NOT NULL, group_id TEXT, name TEXT NOT NULL,
+      norm TEXT NOT NULL, qty TEXT NOT NULL DEFAULT '', unit TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+      checked INTEGER NOT NULL DEFAULT 0, checked_by TEXT, added_by TEXT, pos REAL NOT NULL, meta TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL, deleted_at INTEGER, PRIMARY KEY (space_uid, id))`);
+    old.exec(`INSERT INTO items (space_uid, id, list_id, name, norm, pos, created_at) VALUES (1, 'x', 'l', 'Milk', 'milk', 1, 1)`);
+    old.close();
+    const db = openDb(dir);
+    expect(db.prepare('PRAGMA table_info(items)').all().map((c) => c.name)).toContain('parked');
+    expect(db.prepare('SELECT parked FROM items').get().parked).toBe(0);
+    db.close();
   });
 });
