@@ -57,7 +57,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    min-height: 52px;
+    min-height: 44px;
     padding: 2px 4px 2px 0;
     border-top: 1px solid var(--line);
     background: var(--surface);
@@ -83,7 +83,7 @@
     display: grid;
     place-items: center;
     width: 40px;
-    height: 44px;
+    height: 40px;
     background: none;
     border: 0;
     padding: 0;
@@ -129,7 +129,7 @@
     gap: 1px;
     background: none;
     border: 0;
-    padding: 8px 4px;
+    padding: 5px 4px;
     text-align: left;
     color: var(--ink);
   }
@@ -225,6 +225,6 @@
   }
   .edit {
     width: 36px;
-    height: 40px;
+    height: 36px;
   }
 </style>

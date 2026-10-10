@@ -38,7 +38,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    min-height: 46px;
+    min-height: 40px;
   }
   .g-handle {
     display: grid;
@@ -60,7 +60,7 @@
     gap: 6px;
     background: none;
     border: 0;
-    padding: 8px 4px;
+    padding: 5px 4px;
     text-align: left;
     font-family: var(--mono);
     font-size: 0.74rem;

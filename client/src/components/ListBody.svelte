@@ -281,7 +281,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    min-height: 46px;
+    min-height: 40px;
     background: none;
     border: 0;
     padding: 6px 8px;
@@ -342,7 +342,7 @@
   .s-head {
     display: flex;
     align-items: center;
-    min-height: 40px;
+    min-height: 34px;
     padding-left: 30px;
   }
   .s-name {
