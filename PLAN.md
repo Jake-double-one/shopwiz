@@ -20,7 +20,7 @@ Dieses Dokument ist der Plan vor der Umsetzung. Offene Fragen stehen am Ende.
 - **10 Zeichen, Crockford-Base32** (`0-9 A-Z` ohne `I L O U`) → keine Verwechslung von 0/O oder 1/I/l, ~1,1 Billiarden Kombinationen.
 - Anzeige gruppiert und gut vorlesbar: `K7QM-2XPA-9F` (Bindestriche werden bei Eingabe ignoriert, Kleinbuchstaben akzeptiert).
 - Erzeugung serverseitig mit kryptografischem Zufall, Eindeutigkeit per `UNIQUE`-Constraint in der Datenbank (bei Kollision neu würfeln).
-- **Ablauf:** gleitend – z. B. 180 Tage nach letzter Aktivität (per Umgebungsvariable einstellbar). Jede Nutzung verlängert. Ab 14 Tagen vor Ablauf zeigt die App einen Hinweis. Ein nächtlicher Job löscht abgelaufene Spaces vollständig.
+- **Ablauf:** Ein Space wird gelöscht, wenn er **181 Tage** (Standard) lang kein aktives Gerät hatte. Der Zeitraum ist **pro Space in den Einstellungen änderbar, höchstens 367 Tage**. Jede Aktivität eines Geräts setzt die Frist zurück. Ab 14 Tagen vor Ablauf zeigt die App einen Hinweis. Ein nächtlicher Job löscht abgelaufene Spaces vollständig.
 - Da die ID gleichzeitig der Schlüssel ist: **Rate-Limiting** auf das Aufrufen fremder IDs (gegen Durchprobieren), ohne IPs dauerhaft zu speichern (nur im Arbeitsspeicher).
 - Die ID liegt im `localStorage`. Ein kleiner **„Abmelden / ID vergessen“-Knopf** entfernt sie (mit Bestätigung und dem Hinweis, die ID vorher zu notieren/teilen). Zusätzlich merkt sich das Gerät zuletzt benutzte Spaces, damit man zwischen mehreren wechseln kann (ebenfalls einzeln löschbar).
 
@@ -73,6 +73,14 @@ Dieses Dokument ist der Plan vor der Umsetzung. Offene Fragen stehen am Ende.
 - **Teilen-Knopf** über die Web-Share-API (öffnet das native Teilen-Menü → WhatsApp, Signal, Mail …) mit Titel = Name des Space/der Liste. Fallback: Link kopieren.
 - **Link-Vorschau** für Messenger: Der Server liefert für `/<ID>` passende Open-Graph-Tags (`og:title` = Name der Liste, Beschreibung z. B. „Gemeinsame Einkaufsliste · 12 Artikel“, eigenes Vorschaubild).
 - ID zusätzlich groß zum Abschreiben/Vorlesen.
+- **Kamera-Knopf zum QR-Scannen** (Startseite und „Space wechseln“). Nutzt die eingebaute `BarcodeDetector`-API und fällt auf eine lokal gebündelte Bibliothek (`jsQR`) zurück, weil iOS-Safari und Firefox die API nicht haben. Die Kamera funktioniert im Browser nur über **HTTPS**.
+
+### 3.8 Startseite ohne gespeicherte ID
+- Es gibt nur zwei Aktionen: **„Neue Liste erzeugen“** und **„ID einfügen“** (mit Kamera-Knopf). Die App braucht keine weitere Zugangssperre, die ID ist der Schutz.
+
+### 3.9 ID erneuern & Übertragen
+- **ID erneuern:** Es wird eine neue ID erzeugt, die alte wird sofort ungültig und alle Inhalte bleiben erhalten.
+- **In andere ID übertragen:** Artikel oder ganze Gruppen lassen sich in eine andere bekannte ID verschieben oder kopieren. Ziel-ID eingeben oder aus den gemerkten IDs wählen, dann die Ziel-Liste auswählen. Fehlende Gruppen werden im Ziel angelegt.
 
 ## 4. Datenschutz / „ohne Tracking“
 
@@ -117,7 +125,7 @@ devices       token_hash · space_id · name · last_seen_at · created_at
 
 ### Docker
 - Ein Image (mehrstufiger Build), läuft als unprivilegierter Benutzer.
-- `docker-compose.yml` fertig für **Portainer-Stacks**: ein Service, ein benanntes Volume für `/data`, Healthcheck, Umgebungsvariablen (`PUBLIC_URL`, `SPACE_TTL_DAYS=180`, `DEVICE_TTL_DAYS=30`, `PORT`), Beispiel-Labels für Traefik/Reverse-Proxy auskommentiert.
+- `docker-compose.yml` fertig für **Portainer-Stacks**: ein Service, ein benanntes Volume für `/data`, Healthcheck, Umgebungsvariablen (`PUBLIC_URL`, `SPACE_TTL_DAYS=181` (Standard für neue Spaces, max. 367), `DEVICE_TTL_DAYS=30`, `PORT`). Der Port wird direkt veröffentlicht, ein Reverse Proxy ist optional (für HTTPS/Kamera aber empfohlen).
 - Ohne Docker startbar mit `npm install && npm run build && npm start`.
 
 ## 7. Weitere Ideen (Vorschläge – bitte aussuchen)
@@ -151,10 +159,10 @@ Bewusst **nicht** geplant, um es einfach zu halten: Preise/Budget, Rezepte, Benu
 7. Teilen: QR-Code, Web Share, Open-Graph-Vorschau.
 8. Design-Feinschliff, Hell/Dunkel, PWA-Manifest, Tests, README.
 
-## 9. Offene Fragen
+## 9. Entscheidungen
 
-1. **Geltungsbereich der ID:** Mein Vorschlag: *eine ID = ein Space mit mehreren Listen* (geteilt wird immer der ganze Space). Alternative: jede Liste hat ihre eigene ID, und das Dropdown wechselt zwischen gemerkten IDs. Was ist gewünscht?
-2. **Gruppen:** Gelten Gruppen pro Liste (Vorschlag) oder einheitlich für den ganzen Space?
-3. **Ablaufdatum:** Gleitend 180 Tage nach letzter Nutzung in Ordnung, oder fester Zeitraum ab Erstellung?
-4. **Welche Ideen aus Abschnitt 7** sollen in Version 1?
-5. **Domain / Reverse Proxy:** Läuft es hinter einem vorhandenen Proxy (Traefik, Nginx Proxy Manager, Caddy)? Dann bereite ich die Compose-Datei passend vor.
+1. Eine ID = ein Space mit mehreren Listen.
+2. Gruppen gelten pro Liste. Übertragen von Artikeln/Gruppen in andere IDs ist möglich (3.9).
+3. Ablauf nach 181 Tagen ohne aktives Gerät, pro Space einstellbar bis 367 Tage.
+4. „ID erneuern“ kommt in Version 1.
+5. Die App bleibt offen, ohne vorgeschaltete Zugangssperre. Ohne gespeicherte ID gibt es nur „Neue Liste erzeugen“ und „ID einfügen“, dazu einen Kamera-Knopf zum QR-Scannen.
