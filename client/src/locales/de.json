@@ -377,5 +377,11 @@
   "name.confirmText": "Andere sehen diesen Namen bei allem, was du hinzufügst und abhakst. Du kannst ihn jederzeit in den Einstellungen ändern.",
   "name.confirmYes": "Ja, weiter",
   "name.confirmChange": "Namen ändern",
-  "help.hintClose": "Hinweis ausblenden"
+  "help.hintClose": "Hinweis ausblenden",
+  "help.about": "Über ShopWiz",
+  "help.version": "Version",
+  "help.versionLatest": "neuester Stand von main",
+  "help.versionDev": "Entwicklungsversion",
+  "help.built": "gebaut am {date}",
+  "help.source": "Quellcode auf GitHub"
 }

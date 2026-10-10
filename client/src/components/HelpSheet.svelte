@@ -1,11 +1,18 @@
 <script>
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
-  import { t } from '../lib/i18n.svelte.js';
+  import { t, i18n } from '../lib/i18n.svelte.js';
+  import { build, versionUrl } from '../lib/build.js';
 
   let { onclose } = $props();
   const TOPICS = ['start', 'add', 'check', 'groups', 'shop', 'lists', 'offline', 'backup', 'privacy'];
   let open = $state(null);
+  const builtAt = $derived(
+    build.time && !Number.isNaN(Date.parse(build.time))
+      ? new Intl.DateTimeFormat(i18n.lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(build.time))
+      : '',
+  );
+  const versionNote = $derived(build.version === 'latest' ? t('help.versionLatest') : build.version === 'dev' ? t('help.versionDev') : '');
 </script>
 
 <Sheet title={t('help.title')} eyebrow="ShopWiz" {onclose}>
@@ -25,6 +32,17 @@
       </section>
     {/each}
   </div>
+
+  <footer class="about">
+    <p class="eyebrow">{t('help.about')}</p>
+    <p class="version">
+      <span>{t('help.version')}:</span>
+      <a href={versionUrl()} target="_blank" rel="noopener noreferrer" class="mono">{build.version}</a>
+      {#if build.sha}<span class="mono muted">· {build.sha.slice(0, 7)}</span>{/if}
+    </p>
+    <p class="muted small">{[versionNote, builtAt && t('help.built', { date: builtAt })].filter(Boolean).join(' · ')}</p>
+    <a class="btn small" href={build.repo} target="_blank" rel="noopener noreferrer"><Icon name="code" size={16} />{t('help.source')}</a>
+  </footer>
 </Sheet>
 
 <style>
@@ -70,6 +88,26 @@
     font-size: 0.93rem;
     line-height: 1.5;
     color: var(--ink);
+  }
+  .about {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .version {
+    margin: 0 0 2px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .version a {
+    color: var(--dusk);
+    font-weight: 600;
+  }
+  .small {
+    font-size: 0.85rem;
+    margin: 0 0 12px;
   }
   .body li::marker {
     color: var(--muted);

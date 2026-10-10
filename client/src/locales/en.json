@@ -377,5 +377,11 @@
   "name.confirmText": "Others will see this name next to what you add and check off. You can change it any time in the settings.",
   "name.confirmYes": "Yes, continue",
   "name.confirmChange": "Change name",
-  "help.hintClose": "Hide hint"
+  "help.hintClose": "Hide hint",
+  "help.about": "About ShopWiz",
+  "help.version": "Version",
+  "help.versionLatest": "newest state of main",
+  "help.versionDev": "development build",
+  "help.built": "built {date}",
+  "help.source": "Source code on GitHub"
 }

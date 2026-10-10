@@ -46,6 +46,17 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref || github.ref }}
+      - name: Build info (shown in the app's help)
+        id: info
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+        run: |
+          if [ -n "$INPUT_REF" ]; then v="$INPUT_REF"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then v="$GITHUB_REF_NAME"
+          else v="latest"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
       - name: Image name (registry names must be lowercase)
         id: name
         run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/shopwiz" >> "$GITHUB_OUTPUT"
@@ -77,3 +88,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.info.outputs.version }}
+            GIT_SHA=${{ steps.info.outputs.sha }}
+            BUILD_TIME=${{ steps.info.outputs.time }}
+            REPO_URL=${{ github.server_url }}/${{ github.repository }}

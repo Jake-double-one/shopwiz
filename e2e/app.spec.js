@@ -462,6 +462,9 @@ test('help: visible on the start screen and in the header, one-time hint', async
   await expect(hint).toHaveCount(0); // only once
   await page.getByRole('button', { name: 'How ShopWiz works' }).click();
   await expect(page.getByRole('button', { name: 'Privacy' })).toBeVisible();
+  // about: version and a link to the source code
+  await expect(page.getByRole('link', { name: 'Source code on GitHub' })).toHaveAttribute('href', /github\.com\//);
+  await expect(page.locator('.about')).toContainText('Version');
 });
 
 test('keeping the suggested device name asks once before creating', async ({ page }) => {

@@ -6,6 +6,15 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
+# build info for the help dialog (set by CI; local builds show "dev")
+ARG APP_VERSION=dev
+ARG GIT_SHA=
+ARG BUILD_TIME=
+ARG REPO_URL=https://github.com/Jake-double-one/shopwiz
+ENV VITE_APP_VERSION=$APP_VERSION \
+    VITE_GIT_SHA=$GIT_SHA \
+    VITE_BUILD_TIME=$BUILD_TIME \
+    VITE_REPO_URL=$REPO_URL
 RUN npm run build
 
 # ---- runtime: server + built client, production deps only ----
