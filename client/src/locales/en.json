@@ -180,6 +180,7 @@
   "settings.days": "days",
   "settings.ttlHint": "Everything is deleted after {days} days without any active device (7–367).",
   "settings.device": "This device",
+  "settings.idTitle": "Your ID",
   "settings.pmSave": "Save ID in password manager",
   "settings.pmHint": "Keeps the ID safe – handy for a new phone or after clearing the browser.",
   "settings.pmSaved": "If your password manager doesn’t ask now, add the ID by hand.",

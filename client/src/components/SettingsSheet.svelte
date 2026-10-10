@@ -19,6 +19,7 @@
   let confirm = $state(null); // 'renew' | 'delete' | 'delete2' | 'forget'
   let typed = $state('');
   let busy = $state(false);
+  let showId = $state(false);
   const online = $derived(sync.status === 'online');
   const others = knownSpaces().filter((s) => s.id !== spaceId);
 
@@ -63,6 +64,15 @@
     }
   }
 
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(formatSpaceId(spaceId));
+      toast(t('share.idCopied'));
+    } catch {
+      window.prompt(t('share.copyManual'), formatSpaceId(spaceId));
+    }
+  }
+
   // a tiny login form: submitting it makes password managers offer to save the ID
   function savePm(e) {
     e.preventDefault();
@@ -78,7 +88,7 @@
   }
 </script>
 
-<Sheet title={t('settings.title')} eyebrow={formatSpaceId(spaceId)} {onclose}>
+<Sheet title={t('settings.title')} eyebrow={space.name} {onclose}>
   <section>
     <label class="field">
       <span>{t('settings.spaceName')}</span>
@@ -104,14 +114,28 @@
   </section>
 
   <section>
+    <p class="eyebrow">{t('settings.idTitle')}</p>
+    <!-- a tiny login form: submitting it makes password managers offer to save the ID -->
+    <form class="pm" onsubmit={savePm} action="#">
+      <input class="sr-only" type="text" name="username" autocomplete="username" value={space.name} readonly tabindex="-1" aria-hidden="true" />
+      <input class="sr-only" type="password" name="password" autocomplete="new-password" value={formatSpaceId(spaceId)} readonly tabindex="-1" aria-hidden="true" />
+      <div class="id-row">
+        <button type="button" class="id-chip mono" onclick={copyId} title={t('share.copyId')} aria-label={t('share.copyId')}>
+          <span class:masked={!showId}>{showId ? formatSpaceId(spaceId) : '••••-••••-••'}</span>
+          <Icon name="copy" />
+        </button>
+        <button type="button" class="btn" onclick={() => (showId = !showId)} aria-pressed={showId} aria-label={t(showId ? 'start.hideId' : 'start.showId')} title={t(showId ? 'start.hideId' : 'start.showId')}>
+          <Icon name={showId ? 'eyeOff' : 'eye'} />
+        </button>
+      </div>
+      <button class="btn block" type="submit"><Icon name="key" />{t('settings.pmSave')}</button>
+      <p class="note">{t('settings.pmHint')}</p>
+    </form>
+  </section>
+
+  <section>
     <p class="eyebrow">{t('settings.spaces')}</p>
     <div class="list">
-      <form class="pm" onsubmit={savePm} action="#">
-        <input class="sr-only" type="text" name="username" autocomplete="username" value={space.name} readonly tabindex="-1" aria-hidden="true" />
-        <input class="sr-only" type="password" name="password" autocomplete="new-password" value={formatSpaceId(spaceId)} readonly tabindex="-1" aria-hidden="true" />
-        <button class="btn block" type="submit"><Icon name="key" />{t('settings.pmSave')}</button>
-        <p class="note pm-note">{t('settings.pmHint')}</p>
-      </form>
       <button class="btn block" onclick={onshare}><Icon name="share" />{t('share.title')}</button>
       <button class="btn block" onclick={onbackup}><Icon name="copy" />{t('backup.title')}</button>
       {#each others as s (s.id)}
@@ -181,10 +205,43 @@
     gap: 8px;
   }
   .pm {
-    display: contents;
+    display: grid;
+    gap: 8px;
   }
-  .pm-note {
-    margin: -0.15rem 0 0.35rem;
+  .pm .note {
+    margin: 0;
+  }
+  .pm .btn.block {
+    justify-content: flex-start;
+  }
+  .id-row {
+    display: flex;
+    gap: 8px;
+  }
+  .id-chip {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface-2);
+    min-height: 44px;
+    font-weight: 500;
+    color: var(--ink);
+    font-size: 1.25rem;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+  }
+  .id-chip :global(svg) {
+    flex: none;
+    opacity: 0.7;
+  }
+  .id-chip .masked {
+    letter-spacing: 0.12em;
   }
   .list .btn {
     justify-content: flex-start;
