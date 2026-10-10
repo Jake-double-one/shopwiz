@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
-# ---- build the client ----
-FROM node:22-alpine AS build
+# ---- build the client (platform independent, so always on the native build platform) ----
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund

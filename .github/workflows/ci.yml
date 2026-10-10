@@ -11,6 +11,11 @@ on:
         description: Tag or branch to build an image from (e.g. v.0.1.0)
         required: true
 
+# a newer push to the same ref replaces a still running build
+concurrency:
+  group: ci-${{ github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
