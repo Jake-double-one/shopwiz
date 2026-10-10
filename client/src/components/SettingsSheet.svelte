@@ -63,6 +63,15 @@
     }
   }
 
+  // a tiny login form: submitting it makes password managers offer to save the ID
+  function savePm(e) {
+    e.preventDefault();
+    if (window.PasswordCredential) {
+      navigator.credentials.store(new window.PasswordCredential({ id: space.name, password: formatSpaceId(spaceId), name: `ShopWiz · ${space.name}` })).catch(() => {});
+    }
+    toast({ text: t('settings.pmSaved') });
+  }
+
   function forget() {
     forgetSpace(spaceId);
     onleave();
@@ -97,6 +106,12 @@
   <section>
     <p class="eyebrow">{t('settings.spaces')}</p>
     <div class="list">
+      <form class="pm" onsubmit={savePm} action="#">
+        <input class="sr-only" type="text" name="username" autocomplete="username" value={space.name} readonly tabindex="-1" aria-hidden="true" />
+        <input class="sr-only" type="password" name="password" autocomplete="new-password" value={formatSpaceId(spaceId)} readonly tabindex="-1" aria-hidden="true" />
+        <button class="btn block" type="submit"><Icon name="key" />{t('settings.pmSave')}</button>
+        <p class="note pm-note">{t('settings.pmHint')}</p>
+      </form>
       <button class="btn block" onclick={onshare}><Icon name="share" />{t('share.title')}</button>
       <button class="btn block" onclick={onbackup}><Icon name="copy" />{t('backup.title')}</button>
       {#each others as s (s.id)}
@@ -164,6 +179,12 @@
   .list {
     display: grid;
     gap: 8px;
+  }
+  .pm {
+    display: contents;
+  }
+  .pm-note {
+    margin: -0.15rem 0 0.35rem;
   }
   .list .btn {
     justify-content: flex-start;
