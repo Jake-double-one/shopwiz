@@ -4,7 +4,6 @@ import { normalizeName, addAmounts } from '../shared/parse.js';
 import { MAX_SPACE_TTL_DAYS } from './config.js';
 
 const DAY = 86_400_000;
-const SHOPPING_MS = 2 * 3_600_000;
 const MIN_SPACE_TTL_DAYS = 7;
 const SUGGESTION_LIMIT = 1500;
 
@@ -150,6 +149,7 @@ export class Store {
   constructor(db, config) {
     this.db = db;
     this.config = config;
+    this.shoppingMs = (config.shoppingIdleMin ?? 60) * 60_000;
   }
 
   // ----- spaces -----
@@ -252,6 +252,19 @@ export class Store {
     const now = Date.now();
     this.db.q('UPDATE spaces SET last_active_at = ? WHERE uid = ? AND last_active_at < ?').run(now, uid, now - 60_000);
     this.db.q('UPDATE devices SET last_seen_at = ? WHERE space_uid = ? AND token_hash = ? AND last_seen_at < ?').run(now, uid, tokenHash, now - 60_000);
+  }
+
+  /**
+   * Activity while checked in at the shop keeps the check-in alive (sliding window).
+   * Written at most every few minutes; returns the device row when it changed.
+   */
+  keepShopping(uid, tokenHash, now = Date.now()) {
+    const until = now + this.shoppingMs;
+    const step = Math.min(5 * 60_000, this.shoppingMs / 4);
+    const r = this.db
+      .q('UPDATE devices SET shopping_until = ? WHERE space_uid = ? AND token_hash = ? AND shopping_until > ? AND shopping_until < ? RETURNING *')
+      .get(until, uid, tokenHash, now, until - step);
+    return r ? mapDevice(r) : null;
   }
 
   snapshot(uid) {
@@ -960,7 +973,7 @@ const OPS = {
   },
 
   'device.shopping'(ctx, op) {
-    const until = op.on ? ctx.now + SHOPPING_MS : null;
+    const until = op.on ? ctx.now + this.shoppingMs : null;
     // a new shopping trip starts without a known spot
     this.db
       .q('UPDATE devices SET shopping_until = ?, spot_group = NULL, spot_item = NULL, spot_at = NULL WHERE space_uid = ? AND dev_id = ?')

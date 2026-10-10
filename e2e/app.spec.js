@@ -435,9 +435,19 @@ test('find each other in the shop: spot, call, answer, all done', async ({ page,
   await expect(b.locator('.signal')).toContainText('Alex is waiting at Bakery');
   await b.locator('.signal').getByRole('button', { name: 'OK' }).click();
 
+  // Jana's display goes off – the call waits and arrives when ShopWiz is open again
+  await b.close();
+  await page.waitForTimeout(1600);
+  await page.getByRole('button', { name: 'Call' }).click();
+  await page.getByRole('button', { name: 'Meet at the checkout' }).click();
+  const b2 = await ctx.newPage();
+  await b2.goto(`/${id}`);
+  await expect(b2.locator('.signal')).toContainText('Alex: meet at the checkout');
+  await b2.locator('.signal').getByRole('button', { name: 'OK' }).click();
+
   // Jana checks the rest → Alex gets "everything is in the cart"
-  await b.getByRole('checkbox', { name: 'Rolls' }).click();
-  await b.getByRole('checkbox', { name: 'Milk' }).click();
+  await b2.getByRole('checkbox', { name: 'Rolls' }).click();
+  await b2.getByRole('checkbox', { name: 'Milk' }).click();
   await expect(page.locator('.signal')).toContainText('Everything is in the cart');
   await ctx.close();
 });

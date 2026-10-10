@@ -12,11 +12,8 @@
   const places = $derived(groupOptions(v, list).map((o) => (o.depth ? `${o.parent} › ${o.label}` : o.label)));
 
   function reply(kind, place = '') {
-    if (!sync.sendSignal({ kind, to: sig.from.devId, place, replyTo: sig.id })) {
-      toast({ text: t('call.offline'), kind: 'alert' });
-      return;
-    }
-    toast(t('call.sentTo', { name: sig.from.name }));
+    const res = sync.sendSignal({ kind, to: sig.from.devId, place, replyTo: sig.id });
+    toast(res === 'queued' ? t('call.queued') : t('call.sentTo', { name: sig.from.name }));
     ondismiss();
   }
 </script>

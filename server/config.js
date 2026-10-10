@@ -20,6 +20,10 @@ export function loadConfig(env = process.env) {
     lookupWindowMin: int(env.LOOKUP_WINDOW_MIN, 15),
     // New ids per client address and hour
     createLimit: int(env.CREATE_LIMIT, 30),
+    // check-in at the shop ends after this many minutes without activity
+    shoppingIdleMin: Math.max(int(env.SHOPPING_IDLE_MIN, 60), 1),
+    // undelivered "find each other" signals wait this long for a device to come back
+    signalTtlMin: Math.max(int(env.SIGNAL_TTL_MIN, 30), 1),
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
   };

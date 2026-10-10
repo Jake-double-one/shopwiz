@@ -139,6 +139,47 @@ describe('websocket sync', () => {
     for (const x of [a, b, c]) x.c.ws.close();
   });
 
+  it('keeps signals for devices that are offline and delivers them once', async () => {
+    const TA = 'token-ffffffffffffffffffffff';
+    const TB = 'token-gggggggggggggggggggggg';
+    const { id } = await (await post('/api/spaces', { name: 'Shop 2', token: TA, deviceName: 'A' })).json();
+    const join = async (token, name) => {
+      const c = client();
+      await c.send({ t: 'hello', space: id, token, name });
+      const w = await c.wait((m) => m.t === 'welcome');
+      return { c, w };
+    };
+    const a = await join(TA, 'A');
+    let b = await join(TB, 'B');
+    await a.c.send({ t: 'op', id: 'q1', at: Date.now(), op: { k: 'device.shopping', on: true } });
+    await b.c.send({ t: 'op', id: 'q2', at: Date.now(), op: { k: 'device.shopping', on: true } });
+    await a.c.wait((m) => m.t === 'ack' && m.id === 'q1');
+    await b.c.wait((m) => m.t === 'ack' && m.id === 'q2');
+
+    // B's display goes off
+    b.c.ws.close();
+    await a.c.wait((m) => m.t === 'presence' && m.online.length === 1 && a.c.inbox.indexOf(m) > 3);
+    // A calls after a minute without reception – the original time is kept
+    const sentAt = Date.now() - 60_000;
+    await a.c.send({ t: 'signal', kind: 'come', cid: 'c1', at: sentAt });
+    expect(await a.c.wait((m) => m.t === 'signalSent')).toMatchObject({ cid: 'c1', count: 1 });
+
+    // B is back: the call is delivered
+    b = await join(TB, 'B');
+    const sig = await b.c.wait((m) => m.t === 'signal' && m.kind === 'come');
+    expect(sig).toMatchObject({ from: { name: 'A' }, at: sentAt });
+    await b.c.send({ t: 'signalAck', id: sig.id });
+    await new Promise((r) => setTimeout(r, 50));
+    b.c.ws.close();
+
+    // confirmed signals are not delivered again
+    b = await join(TB, 'B');
+    await new Promise((r) => setTimeout(r, 100));
+    expect(b.c.inbox.some((m) => m.t === 'signal')).toBe(false);
+    a.c.ws.close();
+    b.c.ws.close();
+  });
+
   it('rate-limits unknown ids', async () => {
     let last;
     for (let i = 0; i < 7; i++) last = await fetch(`http://${base}/api/spaces/ZZZZZZZZZZ/lists`);

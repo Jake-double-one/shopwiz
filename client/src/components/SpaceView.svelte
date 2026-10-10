@@ -54,8 +54,14 @@
   const conflicts = $derived(list ? Object.values(v.conflicts).filter((c) => c.listId === list.id && v.items[c.itemId]) : []);
   const devices = $derived(Object.values(v.devices));
   const myDevId = $derived(sync.me?.devId);
-  const shoppers = $derived(devices.filter((d) => isShopping(d) && d.devId !== myDevId));
-  const myShopping = $derived(isShopping(v.devices[myDevId]));
+  // check-ins run out by themselves – look again every 30 s
+  let clockNow = $state(Date.now());
+  onMount(() => {
+    const timer = setInterval(() => (clockNow = Date.now()), 30_000);
+    return () => clearInterval(timer);
+  });
+  const shoppers = $derived(devices.filter((d) => isShopping(d, clockNow) && d.devId !== myDevId));
+  const myShopping = $derived(isShopping(v.devices[myDevId], clockNow));
   const mySpot = $derived(v.devices[myDevId]?.spot ?? null);
 
   // ----- signals to find each other in the shop (never stored) -----

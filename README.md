@@ -132,7 +132,9 @@ Shops can be big, and when you split up you lose each other. While you are check
   - **Meet at the checkout** · **I'm done**
 - When the last item is checked, everybody else in the shop gets “Everything is in the cart – meet at the checkout?”.
 
-There is deliberately no free text, so it never becomes a chat. Signals are not stored and only arrive while ShopWiz is open – “Keep screen on” helps.
+There is deliberately no free text, so it never becomes a chat. Signals never touch the database. If a phone is offline or its display is off, the server keeps the signal in memory for up to 30 minutes and delivers it as soon as ShopWiz is open there again. A call made without reception goes out once the connection is back.
+
+The check-in ends with the button, once everything is checked, or automatically after **60 minutes without activity** (checking, adding, calling or opening ShopWiz extends it).
 
 ### Sync and conflicts
 
@@ -222,6 +224,8 @@ All settings are environment variables. The defaults are fine for most setups.
 | `LOOKUP_LIMIT` | `30` | Unknown IDs a client address may try … |
 | `LOOKUP_WINDOW_MIN` | `15` | … per this many minutes (protection against guessing IDs) |
 | `CREATE_LIMIT` | `30` | New IDs per client address and hour |
+| `SHOPPING_IDLE_MIN` | `60` | Check-in at the shop ends after this many minutes without activity |
+| `SIGNAL_TTL_MIN` | `30` | How long a call waits for a device that is offline |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |
 

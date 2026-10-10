@@ -135,4 +135,5 @@ export function suggestionsFor(v, list, query, limit = 6) {
   return scored.sort((a, b) => b.score - a.score).slice(0, limit);
 }
 
-export const isShopping = (d) => !!d?.shoppingUntil && d.shoppingUntil > Date.now();
+/** Checked in at the shop – ends by itself after an hour without activity (server side). */
+export const isShopping = (d, now = Date.now()) => !!d?.shoppingUntil && d.shoppingUntil > now;

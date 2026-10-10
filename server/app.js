@@ -208,36 +208,64 @@ export async function buildApp(config) {
   // ---------- signals ----------
   const SIGNALS = new Set(['where', 'come', 'checkout', 'done', 'here']);
 
+  // A signal waits in memory (never on disk) until its device confirms it – phones in the shop
+  // lose the connection or turn the display off. Key: `${uid}:${devId}` → [{ id, at, data }].
+  const inbox = new Map();
+  const signalTtl = config.signalTtlMin * 60_000;
+  const pruneInbox = (key, now = Date.now()) => {
+    const q = (inbox.get(key) ?? []).filter((s) => s.at > now - signalTtl);
+    if (q.length) inbox.set(key, q);
+    else inbox.delete(key);
+    return q;
+  };
+  const sweep = setInterval(() => {
+    for (const key of inbox.keys()) pruneInbox(key);
+  }, 5 * 60_000);
+  sweep.unref();
+  app.addHook('onClose', async () => clearInterval(sweep));
+
+  /** Send everything still waiting for this device (after it (re)connected). */
+  function deliverInbox(conn) {
+    for (const s of pruneInbox(`${conn.uid}:${conn.devId}`)) conn.send(s.data);
+  }
+
   /**
    * Deliver a signal to one device (to = devId) or to everybody currently checked in at the shop.
-   * The sender's last spot is attached. Returns the number of devices reached.
+   * The sender's last spot is attached. Devices that aren't connected get it when they come back.
+   * Returns the number of devices it is meant for.
    */
-  function sendSignal(uid, dev, { kind, place = '', replyTo = null }, to, exceptDevId) {
+  function sendSignal(uid, dev, { kind, place = '', replyTo = null, at = Date.now() }, to, exceptDevId) {
     const devices = store.devices(uid);
     const me = devices.find((d) => d.devId === dev.dev_id);
     const targets = new Set(
       devices.filter((d) => d.devId !== exceptDevId && (to ? d.devId === to : !!d.shoppingUntil)).map((d) => d.devId),
     );
     if (!targets.size) return 0;
+    const now = Date.now();
+    const id = newEntityId();
     const data = JSON.stringify({
       t: 'signal',
-      id: newEntityId(),
+      id,
       kind,
       from: { devId: dev.dev_id, name: dev.name },
       to,
       place: place || me?.spot?.group || '',
       item: kind === 'allDone' ? '' : me?.spot?.item || '',
       replyTo,
-      at: Date.now(),
+      at,
     });
-    let reached = 0;
-    for (const c of hub.conns(uid)) {
-      if (targets.has(c.devId)) {
-        c.send(data);
-        reached++;
-      }
+    for (const devId of targets) {
+      const key = `${uid}:${devId}`;
+      inbox.set(key, [...pruneInbox(key, now), { id, at: now, data }].slice(-20));
     }
-    return reached;
+    for (const c of hub.conns(uid)) if (targets.has(c.devId)) c.send(data);
+    return targets.size;
+  }
+
+  /** Activity while checked in keeps the check-in alive – tell the others when it was extended. */
+  function keepShopping(conn) {
+    const row = store.keepShopping(conn.uid, conn.tokenHash);
+    if (row) hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row }] });
   }
 
   // ---------- WebSocket sync ----------
@@ -273,6 +301,7 @@ export async function buildApp(config) {
         if (msg.t === 'hello') return onHello(msg);
         if (msg.t === 'op') return onOp(msg);
         if (msg.t === 'signal') return onSignal(msg);
+        if (msg.t === 'signalAck') return onSignalAck(msg);
         reply({ t: 'error', error: 'unknown_message' });
       } catch (e) {
         app.log.error(e, 'ws handler failed');
@@ -312,6 +341,16 @@ export async function buildApp(config) {
       });
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);
       hub.presence(conn.uid);
+      keepShopping(conn);
+      deliverInbox(conn);
+    }
+
+    function onSignalAck(msg) {
+      if (conn.uid === null || typeof msg.id !== 'string') return;
+      const key = `${conn.uid}:${conn.devId}`;
+      const q = (inbox.get(key) ?? []).filter((s) => s.id !== msg.id);
+      if (q.length) inbox.set(key, q);
+      else inbox.delete(key);
     }
 
     // ----- "find each other in the shop": short fixed signals, never stored -----
@@ -325,10 +364,14 @@ export async function buildApp(config) {
       if (sent.length >= 20 || (sent.length && now - sent.at(-1) < 1500)) return reply({ t: 'error', error: 'signal_rate' });
       if (!SIGNALS.has(msg.kind)) return reply({ t: 'error', error: 'bad_signal' });
       sent.push(now);
+      keepShopping(conn);
       const to = typeof msg.to === 'string' && msg.to ? msg.to : null;
       const place = typeof msg.place === 'string' ? msg.place.replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120) : '';
-      const n = sendSignal(conn.uid, dev, { kind: msg.kind, place, replyTo: typeof msg.replyTo === 'string' ? msg.replyTo.slice(0, 24) : null }, to, conn.devId);
-      reply({ t: 'signalSent', kind: msg.kind, to, count: n });
+      // a signal sent while offline keeps the time it was sent at
+      const at = Number.isFinite(msg.at) ? Math.min(now, Math.max(now - signalTtl, msg.at)) : now;
+      const cid = typeof msg.cid === 'string' ? msg.cid.slice(0, 24) : null;
+      const n = sendSignal(conn.uid, dev, { kind: msg.kind, place, at, replyTo: typeof msg.replyTo === 'string' ? msg.replyTo.slice(0, 24) : null }, to, conn.devId);
+      reply({ t: 'signalSent', cid, kind: msg.kind, to, count: n });
     }
 
     function onOp(msg) {
@@ -343,12 +386,14 @@ export async function buildApp(config) {
       store.touch(conn.uid, conn.tokenHash);
       try {
         const res = store.applyOp(conn.uid, dev, msg.id, msg.op, msg.at);
+        if (msg.op?.k !== 'device.shopping') keepShopping(conn);
         if (res.changes.length) hub.broadcast(conn.uid, { t: 'patch', rev: res.rev, changes: res.changes });
         reply({ t: 'ack', id: msg.id, ok: true, result: res.result });
         if (res.allDone) sendSignal(conn.uid, dev, { kind: 'allDone', place: res.allDone.listName }, null, conn.devId);
         if (msg.op?.k === 'device.kick' && res.result?.kicked) {
           const kickedHash = res.kickedHash;
           if (kickedHash) hub.kick(conn.uid, kickedHash);
+          inbox.delete(`${conn.uid}:${res.result.kicked}`);
           hub.presence(conn.uid);
         }
       } catch (e) {

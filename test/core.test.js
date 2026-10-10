@@ -371,7 +371,30 @@ describe('spot while shopping', () => {
     op(devA, { k: 'device.shopping', on: true });
     expect(store.devices(uid)[0].spot).toBeNull(); // a new trip starts fresh
   });
+
+  it('ends the check-in after an hour without activity; activity extends it', () => {
+    const { store, uid, op, devA } = setup();
+    const MIN = 60_000;
+    const t0 = Date.now();
+    op(devA, { k: 'device.shopping', on: true }, t0);
+    const until = () => store.devices(uid)[0].shoppingUntil;
+    expect(until()).toBeGreaterThanOrEqual(t0 + 59 * MIN);
+    expect(until()).toBeLessThanOrEqual(Date.now() + 60 * MIN);
+    // right after checking in nothing needs to be written
+    expect(store.keepShopping(uid, devA.token_hash, Date.now() + MIN)).toBeNull();
+    // activity after 40 minutes → another full hour from then
+    const later = Date.now() + 40 * MIN;
+    expect(store.keepShopping(uid, devA.token_hash, later).shoppingUntil).toBe(later + 60 * MIN);
+    // once it has run out, activity doesn't check you in again
+    db_expire(store, uid);
+    expect(store.keepShopping(uid, devA.token_hash)).toBeNull();
+    expect(store.devices(uid)[0].shoppingUntil).toBeNull();
+  });
 });
+
+function db_expire(store, uid) {
+  store.db.q('UPDATE devices SET shopping_until = ? WHERE space_uid = ?').run(Date.now() - 1000, uid);
+}
 
 describe('subgroup migration', () => {
   it('turns subgroups of older versions into normal groups', async () => {

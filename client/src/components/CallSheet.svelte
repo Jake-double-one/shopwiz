@@ -17,11 +17,11 @@
   const comePlace = $derived(place || autoPlace);
 
   function send(kind) {
-    const ok = sync.sendSignal({ kind, to, place: kind === 'come' ? comePlace : '' });
-    if (!ok) return toast({ text: t('call.offline'), kind: 'alert' });
+    const res = sync.sendSignal({ kind, to, place: kind === 'come' ? comePlace : '' });
+    onclose();
+    if (res === 'queued') return toast(t('call.queued'));
     const target = to ? shoppers.find((s) => s.devId === to)?.name : null;
     toast(target ? t('call.sentTo', { name: target }) : t('call.sentAll'));
-    onclose();
   }
 </script>
 

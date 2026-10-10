@@ -131,7 +131,9 @@ Läden können groß sein, und wer sich aufteilt, verliert sich. Solange man ein
   - **Treffen an der Kasse** · **Ich bin fertig**
 - Wird der letzte Artikel abgehakt, bekommen alle anderen im Laden „Alles im Wagen – Treffen an der Kasse?“.
 
-Freitext gibt es bewusst nicht, damit es nie ein Chat wird. Signale werden nicht gespeichert und kommen nur an, solange ShopWiz offen ist – „Bildschirm anlassen“ hilft.
+Freitext gibt es bewusst nicht, damit es nie ein Chat wird. Signale landen nie in der Datenbank. Ist ein Handy gerade offline oder das Display aus, hält der Server das Signal bis zu 30 Minuten im Arbeitsspeicher und liefert es nach, sobald ShopWiz dort wieder offen ist. Wer ohne Empfang ruft, dessen Signal geht raus, sobald die Verbindung wieder da ist.
+
+Der Check-in endet per Knopf, sobald alles abgehakt ist, oder automatisch nach **60 Minuten ohne Aktivität** (Abhaken, Hinzufügen, Rufen oder ShopWiz öffnen verlängern ihn).
 
 ### Synchronisation und Konflikte
 
@@ -221,6 +223,8 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `LOOKUP_LIMIT` | `30` | So viele unbekannte IDs darf eine Adresse probieren … |
 | `LOOKUP_WINDOW_MIN` | `15` | … pro so vielen Minuten (Schutz gegen das Erraten von IDs) |
 | `CREATE_LIMIT` | `30` | Neue IDs pro Adresse und Stunde |
+| `SHOPPING_IDLE_MIN` | `60` | Check-in im Laden endet nach so vielen Minuten ohne Aktivität |
+| `SIGNAL_TTL_MIN` | `30` | So lange wartet ein Ruf auf ein Gerät, das offline ist |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `DATA_DIR` | `/data` | Ort der Datenbank (in Docker: das Volume) |
 

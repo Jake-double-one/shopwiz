@@ -90,7 +90,7 @@ Nach dem Nachsenden zeigt die App kurz: „5 Änderungen synchronisiert, 1 über
 - **„Ich bin im Laden“** (Schalter pro Gerät):
   - Die anderen sehen oben ein Banner „Jana kauft gerade ein“ – so weiß man, dass Nachträge *jetzt* noch mitgenommen werden, und zwei Leute kaufen nicht dasselbe.
   - Auf dem Gerät im Laden werden Artikel, die währenddessen hinzukommen, als **„neu“** hervorgehoben (plus kurzes Vibrieren, falls erlaubt).
-  - Endet per Knopf, automatisch nach 2 Stunden oder wenn alles abgehakt ist.
+  - Endet per Knopf, automatisch nach 60 Minuten ohne Aktivität oder wenn alles abgehakt ist.
   - Lässt sich mit dem **Bildschirm-an-Knopf** kombinieren, ist aber unabhängig davon.
 - **Bildschirm bleibt an:** eigener Knopf (Wake-Lock), standardmäßig aus, nur sichtbar, wenn der Browser es unterstützt.
 

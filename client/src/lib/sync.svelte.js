@@ -6,6 +6,9 @@ import { randomEntityId } from '../../../shared/ids.js';
 export const newId = () => randomEntityId((b) => crypto.getRandomValues(b));
 const SHOPPING_MS = 2 * 3_600_000;
 
+/** How long a signal waits for a connection – the same time the server keeps it for others. */
+const SIGNAL_WAIT_MS = 30 * 60_000;
+
 const empty = () => ({ space: null, lists: {}, groups: {}, items: {}, memory: {}, suggestions: {}, conflicts: {}, devices: {} });
 
 const COLLECTION = {
@@ -220,6 +223,10 @@ class Sync {
 
   base = empty();
   pending = [];
+  // "find each other" signals waiting for a connection, and ids of signals already shown
+  outbox = [];
+  seenSignals = new Set();
+  outboxTimer = null;
   offset = 0;
   ws = null;
   retry = 0;
@@ -252,6 +259,7 @@ class Sync {
     this.me = cached?.me ?? null;
     this.offset = cached?.offset ?? 0;
     this.pending = load(`pending.${id}`, []);
+    this.outbox = load(`signals.${id}`, []);
     this.ready = !!cached?.base?.space;
     this.rebuild(true);
     this.connect();
@@ -260,6 +268,7 @@ class Sync {
   close() {
     clearTimeout(this.retryTimer);
     clearInterval(this.pingTimer);
+    clearTimeout(this.outboxTimer);
     this.persist();
     const ws = this.ws;
     this.ws = null;
@@ -269,6 +278,7 @@ class Sync {
     this.ready = false;
     this.base = empty();
     this.pending = [];
+    this.outbox = [];
     this.online = [];
     this.data = empty();
   }
@@ -373,6 +383,7 @@ class Sync {
         for (const p of this.pending) this.ws?.send(JSON.stringify({ t: 'op', ...p }));
         this.persist();
         this.startHeartbeat();
+        this.flushOutbox();
         this.emit('welcome');
         break;
       }
@@ -394,9 +405,17 @@ class Sync {
         this.online = msg.online;
         break;
       case 'signal':
+        // confirm it, so the server doesn't deliver it again after a reconnect
+        this.ws?.send(JSON.stringify({ t: 'signalAck', id: msg.id }));
+        if (this.seenSignals.has(msg.id)) break;
+        this.seenSignals.add(msg.id);
         this.emit('signal', msg);
         break;
       case 'signalSent':
+        this.outbox = this.outbox.filter((s) => s.cid !== msg.cid);
+        this.persistSoon();
+        clearTimeout(this.outboxTimer);
+        if (this.outbox.length) this.outboxTimer = setTimeout(() => this.flushOutbox(), 1600);
         this.emit('signalSent', msg);
         break;
       case 'pong':
@@ -489,11 +508,27 @@ class Sync {
     return p.id;
   }
 
-  /** Short "find each other" signal. Not queued: it only makes sense right now. */
+  /**
+   * Short "find each other" signal. Without a connection it waits (up to SIGNAL_WAIT_MS) and is
+   * sent as soon as the device is back online. Returns 'sent' or 'queued'.
+   */
   sendSignal({ kind, to = null, place = '', replyTo = null }) {
-    if (this.status !== 'online' || this.ws?.readyState !== 1) return false;
-    this.ws.send(JSON.stringify({ t: 'signal', kind, to, place, replyTo }));
-    return true;
+    this.outbox.push({ cid: newId(), kind, to, place, replyTo, at: this.now() });
+    this.outbox = this.outbox.slice(-5);
+    this.persistSoon();
+    if (this.status !== 'online' || this.ws?.readyState !== 1) return 'queued';
+    this.flushOutbox();
+    return 'sent';
+  }
+
+  /** One signal at a time – the server accepts at most one every 1.5 s. */
+  flushOutbox() {
+    clearTimeout(this.outboxTimer);
+    this.outbox = this.outbox.filter((s) => s.at > this.now() - SIGNAL_WAIT_MS);
+    if (!this.outbox.length || this.status !== 'online' || this.ws?.readyState !== 1) return;
+    // stays in the outbox until the server confirms it (signalSent)
+    this.ws.send(JSON.stringify({ t: 'signal', ...this.outbox[0] }));
+    this.outboxTimer = setTimeout(() => this.flushOutbox(), 5000);
   }
 
   persistSoon() {
@@ -508,6 +543,7 @@ class Sync {
     if (!knownSpaces().some((s) => s.id === this.spaceId)) return;
     save(`snap.${this.spaceId}`, { base: this.base, me: this.me, offset: this.offset });
     save(`pending.${this.spaceId}`, this.pending);
+    save(`signals.${this.spaceId}`, this.outbox);
   }
 }
 

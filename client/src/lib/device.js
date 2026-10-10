@@ -61,6 +61,7 @@ export function forgetSpace(id) {
   if (currentSpace() === id) remove('current');
   remove(`snap.${id}`);
   remove(`pending.${id}`);
+  remove(`signals.${id}`);
 }
 
 export const clearCurrent = () => remove('current');
