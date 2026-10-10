@@ -139,6 +139,13 @@
   </div>
 </div>
 
+<div class="footer row wrap-row">
+  <button class="btn small" onclick={onaddgroup}><Icon name="folder" size={16} />{t('group.add')}</button>
+  {#if checkedCount}
+    <button class="btn small" onclick={() => clearChecked(list.id)}><Icon name="down" size={16} />{t('list.clearChecked', { count: checkedCount })}</button>
+  {/if}
+</div>
+
 <section class="shadow card" aria-label={t('inactive.title')}>
   <button class="shadow-head" onclick={toggleShadow} aria-expanded={shadowOpen}>
     <span class="chev" class:open={shadowOpen}><Icon name="chevron" size={16} /></span>
@@ -194,12 +201,6 @@
   {/if}
 </section>
 
-<div class="footer row wrap-row">
-  <button class="btn small" onclick={onaddgroup}><Icon name="folder" size={16} />{t('group.add')}</button>
-  {#if checkedCount}
-    <button class="btn small" onclick={() => clearChecked(list.id)}><Icon name="trash" size={16} />{t('list.clearChecked', { count: checkedCount })}</button>
-  {/if}
-</div>
 
 <style>
   .sheet {
@@ -266,7 +267,7 @@
     margin: 0 0 14px;
   }
   .footer {
-    margin-top: 12px;
+    margin: 12px 0 4px;
     justify-content: center;
   }
   .shadow {
