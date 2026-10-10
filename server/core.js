@@ -583,7 +583,7 @@ const OPS = {
       ctx.changes.push({ e: 'item', del: r.id });
       this._dropConflicts(ctx, r.id);
     }
-    if (rows.length) this._act(ctx, list.id, 'list.clearChecked', { count: rows.length, names: rows.slice(0, 20).map((r) => r.name) });
+    if (rows.length) this._act(ctx, list.id, 'list.clearChecked', { count: rows.length, names: rows.slice(0, 20).map((r) => r.name), ids: rows.map((r) => r.id) });
     return { ids: rows.map((r) => r.id) };
   },
 

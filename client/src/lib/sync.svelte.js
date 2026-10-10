@@ -1,0 +1,486 @@
+import { load, save } from './storage.js';
+import { deviceToken, deviceName, rememberSpace, replaceKnown, forgetSpace } from './device.js';
+import { normalizeName } from '../../../shared/parse.js';
+import { randomEntityId } from '../../../shared/ids.js';
+
+export const newId = () => randomEntityId((b) => crypto.getRandomValues(b));
+const SHOPPING_MS = 2 * 3_600_000;
+
+const empty = () => ({ space: null, lists: {}, groups: {}, items: {}, memory: {}, suggestions: {}, conflicts: {}, devices: {} });
+
+const COLLECTION = {
+  list: ['lists', (r) => r.id],
+  group: ['groups', (r) => r.id],
+  item: ['items', (r) => r.id],
+  memory: ['memory', (r) => `${r.scope}|${r.norm}`],
+  suggestion: ['suggestions', (r) => r.norm],
+  conflict: ['conflicts', (r) => r.id],
+  device: ['devices', (r) => r.devId],
+};
+
+function fromSnapshot(s) {
+  const base = empty();
+  base.space = s.space;
+  for (const [e, rows] of [
+    ['list', s.lists],
+    ['group', s.groups],
+    ['item', s.items],
+    ['memory', s.memory],
+    ['suggestion', s.suggestions],
+    ['conflict', s.conflicts],
+    ['device', s.devices],
+  ]) {
+    const [col, key] = COLLECTION[e];
+    for (const r of rows) base[col][key(r)] = r;
+  }
+  return base;
+}
+
+/** Which scope learned placements live in for a list. */
+export const scopeOf = (list) => (list?.groupMode === 'shared' ? '' : list?.id ?? '');
+
+export function groupPath(v, groupId) {
+  const g = groupId ? v.groups[groupId] : null;
+  if (!g) return { group: '', subgroup: '' };
+  if (g.parentId) return { group: v.groups[g.parentId]?.name ?? '', subgroup: g.name };
+  return { group: g.name, subgroup: '' };
+}
+
+function learn(v, listId, name, groupId) {
+  const list = v.lists[listId];
+  if (!list) return;
+  const scope = scopeOf(list);
+  const norm = normalizeName(name);
+  v.memory[`${scope}|${norm}`] = { scope, norm, ...groupPath(v, groupId) };
+}
+
+/** Optimistic, local version of the server's op handlers. Never mutates existing objects. */
+function reduce(v, op, at, me) {
+  const myName = me?.name ?? '';
+  switch (op.k) {
+    case 'space.update':
+      v.space = { ...v.space, ...(op.name !== undefined && { name: op.name }), ...(op.ttlDays !== undefined && { ttlDays: op.ttlDays }) };
+      break;
+    case 'list.add':
+      v.lists[op.id] = { id: op.id, name: op.name, pos: op.pos, groupMode: op.groupMode === 'shared' ? 'shared' : 'own', createdAt: at };
+      break;
+    case 'list.update': {
+      const l = v.lists[op.id];
+      if (l) v.lists[op.id] = { ...l, ...(op.name !== undefined && { name: op.name }), ...(op.pos !== undefined && { pos: op.pos }) };
+      break;
+    }
+    case 'list.delete':
+      delete v.lists[op.id];
+      break;
+    case 'list.restore':
+      if (op.row) v.lists[op.id] = op.row;
+      break;
+    case 'list.clearChecked':
+      for (const it of Object.values(v.items)) if (it.listId === op.listId && it.checked) delete v.items[it.id];
+      break;
+    case 'group.add':
+      v.groups[op.id] = { id: op.id, listId: op.listId ?? null, parentId: op.parentId ?? null, name: op.name, pos: op.pos };
+      break;
+    case 'group.update': {
+      const g = v.groups[op.id];
+      if (g) {
+        v.groups[op.id] = {
+          ...g,
+          ...(op.name !== undefined && { name: op.name }),
+          ...(op.pos !== undefined && { pos: op.pos }),
+          ...(op.parentId !== undefined && { parentId: op.parentId }),
+        };
+      }
+      break;
+    }
+    case 'group.delete': {
+      const ids = new Set([op.id, ...Object.values(v.groups).filter((g) => g.parentId === op.id).map((g) => g.id)]);
+      for (const id of ids) delete v.groups[id];
+      for (const it of Object.values(v.items)) if (ids.has(it.groupId)) v.items[it.id] = { ...it, groupId: null };
+      break;
+    }
+    case 'group.restore':
+      for (const r of op.rows ?? []) v.groups[r.id] = r;
+      for (const m of op.moves ?? []) if (v.items[m.id]) v.items[m.id] = { ...v.items[m.id], groupId: m.groupId };
+      break;
+    case 'item.add': {
+      v.items[op.id] = {
+        id: op.id,
+        listId: op.listId,
+        groupId: op.groupId ?? null,
+        name: op.name,
+        qty: op.qty ?? '',
+        unit: op.unit ?? '',
+        note: op.note ?? '',
+        checked: !!op.checked,
+        checkedBy: op.checked ? myName : null,
+        addedBy: myName,
+        pos: op.pos,
+        meta: {},
+        createdAt: at,
+        pending: true,
+      };
+      if (op.learn !== false) learn(v, op.listId, op.name, op.groupId ?? null);
+      const norm = normalizeName(op.name);
+      const s = v.suggestions[norm];
+      v.suggestions[norm] = { norm, name: op.name, uses: (s?.uses ?? 0) + 1, lastUsedAt: at };
+      break;
+    }
+    case 'item.set': {
+      const it = v.items[op.id];
+      if (!it) break;
+      const f = op.fields;
+      const next = { ...it, pending: true };
+      if ('name' in f) next.name = f.name;
+      if ('amount' in f) Object.assign(next, { qty: f.amount.qty ?? '', unit: f.amount.unit ?? '' });
+      if ('note' in f) next.note = f.note;
+      if ('checked' in f) Object.assign(next, { checked: !!f.checked, checkedBy: f.checked ? myName : null });
+      if ('groupId' in f) next.groupId = f.groupId;
+      if ('pos' in f) next.pos = f.pos;
+      v.items[op.id] = next;
+      if ('groupId' in f && op.learn !== false) learn(v, it.listId, next.name, f.groupId);
+      break;
+    }
+    case 'item.delete':
+      for (const id of op.ids) delete v.items[id];
+      break;
+    case 'item.restore':
+      for (const r of op.rows ?? []) v.items[r.id] = r;
+      break;
+    case 'suggestion.delete':
+      delete v.suggestions[normalizeName(op.norm)];
+      break;
+    case 'conflict.resolve': {
+      const c = v.conflicts[op.id];
+      delete v.conflicts[op.id];
+      const it = c && v.items[c.itemId];
+      const value = c?.options[op.index]?.value;
+      if (!it || value === undefined) break;
+      if (c.field === 'amount') v.items[it.id] = { ...it, qty: value.qty, unit: value.unit };
+      else if (c.field === 'checked') v.items[it.id] = { ...it, checked: !!value };
+      else v.items[it.id] = { ...it, [c.field]: value };
+      break;
+    }
+    case 'conflict.dismiss':
+      delete v.conflicts[op.id];
+      break;
+    case 'device.rename':
+      if (me && v.devices[me.devId]) v.devices[me.devId] = { ...v.devices[me.devId], name: op.name };
+      break;
+    case 'device.kick':
+      delete v.devices[op.devId];
+      break;
+    case 'device.shopping':
+      if (me && v.devices[me.devId]) v.devices[me.devId] = { ...v.devices[me.devId], shoppingUntil: op.on ? at + SHOPPING_MS : null };
+      break;
+    default:
+      break;
+  }
+}
+
+class Sync {
+  spaceId = $state(null);
+  /** idle | connecting | online | offline | notfound | deleted | kicked | limited */
+  status = $state('idle');
+  me = $state(null);
+  online = $state([]);
+  deleted = $state(null);
+  ready = $state(false);
+  pendingCount = $state(0);
+  data = $state.raw(empty());
+
+  base = empty();
+  pending = [];
+  offset = 0;
+  ws = null;
+  retry = 0;
+  retryTimer = null;
+  pingTimer = null;
+  persistTimer = null;
+  rebuildQueued = false;
+  listeners = new Set();
+  opSeq = 0;
+
+  on(fn) {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+  emit(type, detail) {
+    for (const fn of this.listeners) fn(type, detail);
+  }
+
+  now() {
+    return Date.now() + this.offset;
+  }
+
+  open(id) {
+    this.close();
+    this.spaceId = id;
+    this.status = 'connecting';
+    this.deleted = null;
+    const cached = load(`snap.${id}`);
+    this.base = cached?.base ?? empty();
+    this.me = cached?.me ?? null;
+    this.offset = cached?.offset ?? 0;
+    this.pending = load(`pending.${id}`, []);
+    this.ready = !!cached?.base?.space;
+    this.rebuild(true);
+    this.connect();
+  }
+
+  close() {
+    clearTimeout(this.retryTimer);
+    clearInterval(this.pingTimer);
+    this.persist();
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) ws.close();
+    this.status = 'idle';
+    this.spaceId = null;
+    this.ready = false;
+    this.base = empty();
+    this.pending = [];
+    this.online = [];
+    this.data = empty();
+  }
+
+  connect() {
+    if (!this.spaceId) return;
+    clearTimeout(this.retryTimer);
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let ws;
+    try {
+      ws = new WebSocket(`${proto}//${location.host}/ws`);
+    } catch {
+      return this.scheduleReconnect();
+    }
+    this.ws = ws;
+    if (this.status !== 'connecting') this.status = this.ready ? 'offline' : 'connecting';
+    ws.onopen = () => {
+      if (this.ws !== ws) return;
+      ws.send(JSON.stringify({ t: 'hello', space: this.spaceId, token: deviceToken(), name: deviceName() }));
+    };
+    ws.onmessage = (ev) => {
+      if (this.ws !== ws) return;
+      let msg;
+      try {
+        msg = JSON.parse(ev.data);
+      } catch {
+        return;
+      }
+      this.handle(msg);
+    };
+    ws.onclose = () => {
+      if (this.ws !== ws) return;
+      clearInterval(this.pingTimer);
+      this.ws = null;
+      this.online = [];
+      if (['notfound', 'deleted', 'kicked', 'limited', 'idle'].includes(this.status)) return;
+      this.status = 'offline';
+      this.scheduleReconnect();
+    };
+  }
+
+  /** Detect dead connections (e.g. mobile network gone without a close event). */
+  startHeartbeat() {
+    clearInterval(this.pingTimer);
+    this.lastPong = Date.now();
+    this.pingTimer = setInterval(() => {
+      const ws = this.ws;
+      if (!ws || ws.readyState !== 1) return;
+      if (Date.now() - this.lastPong > 45_000) return this.dropConnection();
+      ws.send(JSON.stringify({ t: 'ping', c: Date.now() }));
+    }, 15_000);
+  }
+
+  /** Treat the connection as lost right away and reconnect with backoff. */
+  dropConnection() {
+    const ws = this.ws;
+    if (!ws) return;
+    ws.onclose?.();
+    try {
+      ws.close();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  scheduleReconnect() {
+    clearTimeout(this.retryTimer);
+    const delay = Math.min(30_000, 1000 * 2 ** this.retry) * (0.75 + Math.random() * 0.5);
+    this.retry = Math.min(this.retry + 1, 6);
+    this.retryTimer = setTimeout(() => this.connect(), delay);
+  }
+
+  /** Reconnect right away, e.g. when the tab becomes visible or the network returns. */
+  nudge() {
+    if (this.spaceId && !this.ws && this.status === 'offline') {
+      this.retry = 0;
+      this.connect();
+    }
+  }
+
+  stop(status) {
+    this.status = status;
+    clearTimeout(this.retryTimer);
+    clearInterval(this.pingTimer);
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) ws.close();
+  }
+
+  handle(msg) {
+    switch (msg.t) {
+      case 'welcome': {
+        this.offset = msg.serverTime - Date.now();
+        this.me = msg.me;
+        this.online = msg.online;
+        this.base = fromSnapshot(msg.snapshot);
+        this.status = 'online';
+        this.ready = true;
+        this.retry = 0;
+        rememberSpace(this.spaceId, this.base.space.name);
+        this.rebuild(true);
+        for (const p of this.pending) this.ws?.send(JSON.stringify({ t: 'op', ...p }));
+        this.persist();
+        this.startHeartbeat();
+        this.emit('welcome');
+        break;
+      }
+      case 'patch':
+        this.applyPatch(msg.changes);
+        this.rebuild();
+        this.persistSoon();
+        break;
+      case 'ack': {
+        const i = this.pending.findIndex((p) => p.id === msg.id);
+        const p = i >= 0 ? this.pending.splice(i, 1)[0] : null;
+        this.rebuild();
+        this.persistSoon();
+        if (!msg.ok) this.emit('rejected', { op: p?.op, error: msg.error });
+        else if (p) this.emit('ack', { op: p.op, result: msg.result });
+        break;
+      }
+      case 'presence':
+        this.online = msg.online;
+        break;
+      case 'pong':
+        this.lastPong = Date.now();
+        if (typeof msg.c === 'number') this.offset = msg.serverTime - (msg.c + Date.now()) / 2;
+        break;
+      case 'moved':
+      case 'renewed': {
+        const old = this.spaceId;
+        replaceKnown(old, msg.id);
+        this.spaceId = msg.id;
+        this.emit('moved', { from: old, to: msg.id, live: msg.t === 'renewed' });
+        if (msg.t === 'moved') this.ws?.send(JSON.stringify({ t: 'hello', space: msg.id, token: deviceToken(), name: deviceName() }));
+        break;
+      }
+      case 'deleted':
+        this.deleted = { by: msg.by, at: msg.at };
+        this.persist();
+        this.stop('deleted');
+        break;
+      case 'kicked':
+        forgetSpace(this.spaceId);
+        this.stop('kicked');
+        break;
+      case 'notfound':
+        this.stop('notfound');
+        break;
+      case 'error':
+        if (msg.error === 'rate_limited') this.stop('limited');
+        break;
+      default:
+        break;
+    }
+  }
+
+  applyPatch(changes) {
+    const copied = new Set();
+    for (const c of changes) {
+      if (c.e === 'space') {
+        this.base.space = c.row;
+        renameKnownSoon(this.spaceId, c.row.name);
+        continue;
+      }
+      const spec = COLLECTION[c.e];
+      if (!spec) continue;
+      const [col, key] = spec;
+      if (!copied.has(col)) {
+        this.base[col] = { ...this.base[col] };
+        copied.add(col);
+      }
+      if (c.del !== undefined) delete this.base[col][c.del];
+      else this.base[col][key(c.row)] = c.row;
+    }
+    this.emit('patch', changes);
+  }
+
+  rebuild(now = false) {
+    if (!now) {
+      if (this.rebuildQueued) return;
+      this.rebuildQueued = true;
+      queueMicrotask(() => {
+        this.rebuildQueued = false;
+        this.rebuild(true);
+      });
+      return;
+    }
+    const b = this.base;
+    const v = {
+      space: b.space,
+      lists: { ...b.lists },
+      groups: { ...b.groups },
+      items: { ...b.items },
+      memory: { ...b.memory },
+      suggestions: { ...b.suggestions },
+      conflicts: { ...b.conflicts },
+      devices: { ...b.devices },
+    };
+    for (const p of this.pending) reduce(v, p.op, p.at, this.me);
+    this.data = v;
+    this.pendingCount = this.pending.length;
+  }
+
+  /** Queue an operation: applied locally right away, sent when connected. */
+  send(op) {
+    const p = { id: `${Date.now().toString(36)}-${(++this.opSeq).toString(36)}-${newId().slice(0, 6)}`, op, at: this.now() };
+    this.pending.push(p);
+    this.rebuild(true);
+    save(`pending.${this.spaceId}`, this.pending);
+    if (this.status === 'online' && this.ws?.readyState === 1) this.ws.send(JSON.stringify({ t: 'op', ...p }));
+    return p.id;
+  }
+
+  persistSoon() {
+    clearTimeout(this.persistTimer);
+    this.persistTimer = setTimeout(() => this.persist(), 800);
+  }
+
+  persist() {
+    clearTimeout(this.persistTimer);
+    if (!this.spaceId || !this.base.space) return;
+    save(`snap.${this.spaceId}`, { base: this.base, me: this.me, offset: this.offset });
+    save(`pending.${this.spaceId}`, this.pending);
+  }
+}
+
+let renameTimer;
+function renameKnownSoon(id, name) {
+  clearTimeout(renameTimer);
+  renameTimer = setTimeout(() => rememberSpace(id, name), 300);
+}
+
+export const sync = new Sync();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => sync.nudge());
+  window.addEventListener('offline', () => sync.dropConnection());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') sync.nudge();
+    else sync.persist();
+  });
+  window.addEventListener('pagehide', () => sync.persist());
+}

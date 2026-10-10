@@ -283,9 +283,10 @@ export async function buildApp(config) {
       root: staticDir,
       wildcard: false,
       index: false,
-      setHeaders(res, path) {
-        if (path.includes(`${join(staticDir, 'assets')}`)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        else res.setHeader('Cache-Control', 'no-cache');
+      cacheControl: false,
+      setHeaders(reply, path) {
+        const immutable = path.startsWith(join(staticDir, 'assets'));
+        reply.header('Cache-Control', immutable ? 'public, max-age=31536000, immutable' : 'no-cache');
       },
     });
   }
