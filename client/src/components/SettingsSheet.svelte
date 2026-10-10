@@ -73,12 +73,12 @@
   <section>
     <label class="field">
       <span>{t('settings.spaceName')}</span>
-      <input class="input" bind:value={name} onblur={saveName} onkeydown={(e) => e.key === 'Enter' && saveName()} maxlength="80" />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} onblur={saveName} onkeydown={(e) => e.key === 'Enter' && saveName()} maxlength="80" />
     </label>
     <label class="field">
       <span>{t('settings.ttl')}</span>
       <div class="row">
-        <input class="input mono ttl" type="number" min="7" max="367" bind:value={ttl} onblur={saveTtl} onkeydown={(e) => e.key === 'Enter' && saveTtl()} />
+        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input mono ttl" type="number" min="7" max="367" bind:value={ttl} onblur={saveTtl} onkeydown={(e) => e.key === 'Enter' && saveTtl()} />
         <span class="muted">{t('settings.days')}</span>
       </div>
     </label>
@@ -89,7 +89,7 @@
     <p class="eyebrow">{t('settings.device')}</p>
     <label class="field">
       <span>{t('people.yourName')}</span>
-      <input class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
     </label>
     <Prefs />
   </section>
@@ -124,7 +124,7 @@
     {:else if confirm === 'delete2'}
       <label class="field">
         <span>{t('settings.deleteConfirm2', { name: space.name })}</span>
-        <input class="input" bind:value={typed} autocomplete="off" />
+        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:value={typed} autocomplete="off" />
       </label>
       <div class="row">
         <button class="btn danger solid" onclick={remove} disabled={busy || !online || typed.trim().toLowerCase() !== space.name.trim().toLowerCase()}>{t('settings.deleteFinal')}</button>

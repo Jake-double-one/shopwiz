@@ -135,7 +135,7 @@
   {#if shadowOpen}
     <p class="hint-text">{t('inactive.hint')}</p>
     <form class="row add-inactive" onsubmit={addInactive}>
-      <input class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
       <button class="btn" type="submit" disabled={!shadowText.trim()} aria-label={t('inactive.add')}><Icon name="plus" /></button>
     </form>
     <ul class="items shadow-items" data-parked="1" data-group="" data-empty={shadowEmpty ? t('inactive.empty') : ''} use:sortable={itemSort}>

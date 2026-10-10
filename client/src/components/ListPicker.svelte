@@ -34,7 +34,7 @@
   <form onsubmit={create} class="new">
     <p class="eyebrow">{t('lists.new')}</p>
     <div class="row">
-      <input class="input" bind:value={name} maxlength="80" placeholder={t('lists.newPh')} aria-label={t('lists.new')} />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} maxlength="80" placeholder={t('lists.newPh')} aria-label={t('lists.new')} />
       <button class="btn main" type="submit" disabled={!name.trim()} aria-label={t('lists.create')}><Icon name="plus" /></button>
     </div>
     <label class="check-row">

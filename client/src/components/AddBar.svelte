@@ -158,7 +158,7 @@
       {/if}
     </div>
     <div class="row">
-      <input
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
         bind:this={input}
         class="input"
         bind:value={text}

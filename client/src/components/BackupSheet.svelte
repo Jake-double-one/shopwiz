@@ -90,7 +90,7 @@
     <button class="btn block" onclick={() => fileInput.click()}><Icon name="folder" />{fileName || t('backup.chooseFile')}</button>
     <label class="field paste">
       <span>{t('backup.orPaste')}</span>
-      <textarea class="input paste-text" rows="5" bind:value={text} placeholder={'## Weekly\n- [ ] 2 Milk\n### Bakery\n- [ ] Bread'} spellcheck="false"></textarea>
+      <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input paste-text" rows="5" bind:value={text} placeholder={'## Weekly\n- [ ] 2 Milk\n### Bakery\n- [ ] Bread'} spellcheck="false"></textarea>
     </label>
 
     {#if stats}
@@ -116,7 +116,7 @@
       {#if target === 'new'}
         <label class="field">
           <span>{t('settings.spaceName')}</span>
-          <input class="input" bind:value={newName} maxlength="80" placeholder={doc.spaceName || t('backup.defaultName')} />
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={newName} maxlength="80" placeholder={doc.spaceName || t('backup.defaultName')} />
         </label>
       {/if}
       {#if error}<p class="hint alert">{error}</p>{/if}

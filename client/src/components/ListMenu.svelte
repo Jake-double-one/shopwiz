@@ -35,11 +35,11 @@
   <form onsubmit={(e) => (e.preventDefault(), saveName(), saveAddress(), onclose())}>
     <label class="field">
       <span>{t('list.name')}</span>
-      <input class="input" bind:value={name} onblur={saveName} maxlength="80" required />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} onblur={saveName} maxlength="80" required />
     </label>
     <label class="field">
       <span>{t('list.address')}</span>
-      <input class="input" bind:value={address} onblur={saveAddress} maxlength="300" placeholder={t('list.addressPh')} autocomplete="street-address" />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:value={address} onblur={saveAddress} maxlength="300" placeholder={t('list.addressPh')} autocomplete="street-address" />
     </label>
     <p class="micro addr-hint">{t('list.addressHint')}</p>
   </form>

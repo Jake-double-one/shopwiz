@@ -64,7 +64,7 @@
       <label class="field">
         <span>{t('transfer.otherId')}</span>
         <div class="row">
-          <input class="input mono" bind:value={targetInput} placeholder="XXXX-XXXX-XX" autocomplete="off" spellcheck="false" />
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input mono" bind:value={targetInput} placeholder="XXXX-XXXX-XX" autocomplete="off" spellcheck="false" />
           <button class="btn dusk" type="submit" disabled={busy || !targetInput.trim()}>{t('transfer.next')}</button>
         </div>
       </label>

@@ -43,25 +43,25 @@
   <form onsubmit={(e) => (e.preventDefault(), close())}>
     <label class="field">
       <span>{t('item.name')}</span>
-      <input class="input" bind:value={name} maxlength="120" required />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} maxlength="120" required />
     </label>
     <div class="amount">
       <label class="field qty">
         <span>{t('item.qty')}</span>
         <div class="row">
           <button type="button" class="btn" onclick={() => step(-1)} aria-label="−1">−</button>
-          <input class="input mono" bind:value={qty} inputmode="decimal" maxlength="12" />
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input mono" bind:value={qty} inputmode="decimal" maxlength="12" />
           <button type="button" class="btn" onclick={() => step(1)} aria-label="+1">+</button>
         </div>
       </label>
       <label class="field unit">
         <span>{t('item.unit')}</span>
-        <input class="input" bind:value={unit} maxlength="16" placeholder="g, kg, l, …" />
+        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={unit} maxlength="16" placeholder="g, kg, l, …" />
       </label>
     </div>
     <label class="field">
       <span>{t('item.note')}</span>
-      <textarea class="input" bind:value={note} rows="2" maxlength="500"></textarea>
+      <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={note} rows="2" maxlength="500"></textarea>
     </label>
     <label class="field">
       <span>{t('item.group')}</span>
