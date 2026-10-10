@@ -102,7 +102,7 @@
     <p class="drop-hint micro">{t('list.ungroupedHint')}</p>
   {/if}
 
-  <div class="groups" data-parent="" use:sortable={groupSort}>
+  <div class="groups" class:first={!tree.ungrouped.length} data-parent="" use:sortable={groupSort}>
     {#each tree.groups as node (node.group.id)}
       <GroupBlock
         group={node.group}
@@ -249,6 +249,10 @@
   }
   .ungrouped:empty {
     min-height: 0;
+  }
+  /* nothing above the first group → no extra line under the card border */
+  .groups.first > :global(.group:first-child) {
+    border-top: 0;
   }
   :global(body.dragging) .ungrouped:empty {
     min-height: 40px;
