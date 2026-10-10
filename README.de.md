@@ -144,7 +144,7 @@ Freitext gibt es bewusst nicht, damit es nie ein Chat wird. Signale werden nicht
 | Knopf | Was passiert |
 |---|---|
 | **Deine ID** | Verdeckt angezeigt; das Auge blendet sie ein, Antippen kopiert sie. |
-| **ID im Passwortmanager speichern** | Bietet die ID deinem Passwortmanager an (Name der ID als Benutzername, ID als Passwort). Das ID-Feld auf der Startseite kann er auch ausfüllen. |
+| **ID im Passwortmanager speichern** | Bietet die ID deinem Passwortmanager an (Name der ID als Benutzername, ID als Passwort). Ist die 1Password-Erweiterung installiert, erscheint stattdessen deren eigener Knopf „Save in 1Password“. Das ID-Feld auf der Startseite können Passwortmanager auch ausfüllen. |
 | **ID auf diesem Gerät vergessen** | Der „Reset-Knopf“: entfernt die ID und ihre zwischengespeicherten Daten nur von diesem Gerät. Auf dem Server wird nichts gelöscht. |
 | **ID erneuern** | Neue ID, alte ungültig. Teilnehmende Geräte ziehen mit um; wer nur den alten Link hat, verliert den Zugang. |
 | **ID für alle löschen** | Fragt zweimal (Namen eintippen). Teilnehmer sehen dann „Diese Liste wurde gelöscht“ und können mit einer Kopie unter neuer ID weitermachen. Ist das letzte Gerät abgelaufen, ist alles endgültig weg. |

@@ -10,6 +10,8 @@
   import { toast } from '../lib/toast.svelte.js';
   import { knownSpaces, forgetSpace } from '../lib/device.js';
   import { formatSpaceId } from '../../../shared/ids.js';
+  import { activateOPButton, encodeOPSaveRequest } from '@1password/save-button';
+  import { i18n } from '../lib/i18n.svelte.js';
 
   let { space, spaceId, onclose, onleave, onopen, onshare, onbackup } = $props();
 
@@ -20,6 +22,35 @@
   let typed = $state('');
   let busy = $state(false);
   let showId = $state(false);
+
+  // 1Password ignores forms it didn't see typed into, but it has its own "Save in 1Password"
+  // button: the extension enables it when present – then we show it instead of ours.
+  let opWrap = $state();
+  let hasOP = $state(false);
+  const opDark = () =>
+    document.documentElement.dataset.theme === 'dark' ||
+    (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const opValue = $derived(
+    encodeOPSaveRequest({
+      title: `ShopWiz · ${space.name}`,
+      fields: [
+        { autocomplete: 'username', value: space.name },
+        { autocomplete: 'new-password', value: formatSpaceId(spaceId) },
+      ],
+      notes: `${location.origin}/${spaceId}`,
+    }),
+  );
+  $effect(() => {
+    const btn = opWrap?.querySelector('onepassword-save-button')?.shadowRoot?.querySelector('button[data-onepassword-save-button]');
+    if (!btn) return;
+    btn.setAttribute('value', opValue);
+    const check = () => (hasOP = !btn.disabled);
+    const mo = new MutationObserver(check);
+    mo.observe(btn, { attributes: true, attributeFilter: ['disabled'] });
+    activateOPButton();
+    check();
+    return () => mo.disconnect();
+  });
   const online = $derived(sync.status === 'online');
   const others = knownSpaces().filter((s) => s.id !== spaceId);
 
@@ -128,7 +159,12 @@
           <Icon name={showId ? 'eyeOff' : 'eye'} />
         </button>
       </div>
-      <button class="btn block" type="submit"><Icon name="key" />{t('settings.pmSave')}</button>
+      <div class="op" class:waiting={!hasOP} bind:this={opWrap} aria-hidden={!hasOP}>
+        <onepassword-save-button data-onepassword-type="login" value={opValue} lang={i18n.lang} data-theme={opDark() ? 'dark' : 'light'} padding="none"></onepassword-save-button>
+      </div>
+      {#if !hasOP}
+        <button class="btn block" type="submit"><Icon name="key" />{t('settings.pmSave')}</button>
+      {/if}
       <p class="note">{t('settings.pmHint')}</p>
     </form>
   </section>
@@ -207,6 +243,14 @@
   .pm {
     display: grid;
     gap: 8px;
+  }
+  .op.waiting {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    pointer-events: none;
   }
   .pm .note {
     margin: 0;
