@@ -246,3 +246,21 @@ test('language can be switched per device', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Liste erzeugen' })).toBeVisible();
 });
+
+test('rename this device in the settings; long names are shortened', async ({ page, browser }) => {
+  const id = await createList(page);
+  const { page: b, ctx } = await join(browser, id, 'Jana');
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  const name = page.locator('.panel').getByLabel('Your device name');
+  await expect(name).toHaveValue('Alex');
+  await name.fill('Dennis-Laptop-in-the-kitchen');
+  await name.press('Enter');
+  await page.keyboard.press('Escape');
+  await expect(b.locator('.person', { hasText: 'Dennis-Laptop' })).toBeVisible();
+  const pname = page.locator('.person.me .pname');
+  const overflow = await pname.evaluate((el) => getComputedStyle(el).textOverflow);
+  expect(overflow).toBe('ellipsis');
+  const box = await page.locator('.person.me').boundingBox();
+  expect(box.width).toBeLessThanOrEqual(171);
+  await ctx.close();
+});

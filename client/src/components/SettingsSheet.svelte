@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import Prefs from './Prefs.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { updateSpace } from '../lib/actions.js';
+  import { updateSpace, renameDevice } from '../lib/actions.js';
   import { api } from '../lib/api.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -15,6 +15,7 @@
 
   let name = $state(untrack(() => space.name));
   let ttl = $state(untrack(() => space.ttlDays));
+  let myName = $state(untrack(() => sync.me?.name ?? ''));
   let confirm = $state(null); // 'renew' | 'delete' | 'delete2' | 'forget'
   let typed = $state('');
   let busy = $state(false);
@@ -24,6 +25,11 @@
   function saveName() {
     const n = name.trim();
     if (n && n !== space.name) updateSpace({ name: n.slice(0, 80) });
+  }
+  function saveMyName() {
+    const n = myName.trim();
+    if (n && n !== sync.me?.name) renameDevice(n.slice(0, 40));
+    else myName = sync.me?.name ?? '';
   }
   function saveTtl() {
     const d = Math.round(Number(ttl));
@@ -81,6 +87,10 @@
 
   <section>
     <p class="eyebrow">{t('settings.device')}</p>
+    <label class="field">
+      <span>{t('people.yourName')}</span>
+      <input class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
+    </label>
     <Prefs />
   </section>
 

@@ -210,8 +210,8 @@
         <button class="people" onclick={() => open('people')} aria-label={t('people.title')}>
           <Icon name="users" size={18} />
           {#each devices.slice(0, 4) as d (d.devId)}
-            <span class="person" class:me={d.devId === myDevId}>
-              <span class="dot" class:on={sync.online.includes(d.devId)}></span>{d.name}
+            <span class="person" class:me={d.devId === myDevId} title={d.name}>
+              <span class="dot" class:on={sync.online.includes(d.devId)}></span><span class="pname">{d.name}</span>
             </span>
           {/each}
           {#if devices.length > 4}<span class="person">+{devices.length - 4}</span>{/if}
@@ -408,10 +408,15 @@
     padding: 3px 8px;
     border: 1px solid var(--line);
     border-radius: 999px;
-    max-width: 14ch;
+    max-width: 170px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  /* long device names end in … instead of being cut off */
+  .pname {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .person.me {
     border-color: var(--dusk);
