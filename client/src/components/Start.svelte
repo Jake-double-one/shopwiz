@@ -155,7 +155,7 @@
     <h2>{t('start.joinTitle')}</h2>
     <form onsubmit={join}>
       <!-- the ID works like a password: let password managers save and fill it -->
-      <input class="sr-only" type="text" name="username" autocomplete="username" value="ShopWiz" readonly tabindex="-1" aria-hidden="true" />
+      <input class="sr-only" type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" />
       <label class="field">
         <span>{t('start.idLabel')}</span>
         <div class="row">

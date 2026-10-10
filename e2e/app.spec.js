@@ -500,7 +500,7 @@ test('the ID field is a password field that password managers can fill', async (
   const field = p2.getByLabel('10-character ID', { exact: true });
   await expect(field).toHaveAttribute('type', 'password');
   await expect(field).toHaveAttribute('autocomplete', 'current-password');
-  await expect(p2.locator('input[autocomplete="username"]')).toHaveValue('ShopWiz');
+  await expect(p2.locator('input[autocomplete="username"]')).toHaveCount(1);
   await field.fill(id.toLowerCase());
   await p2.getByRole('button', { name: 'Show ID' }).click();
   await expect(field).toHaveAttribute('type', 'text');
@@ -508,5 +508,25 @@ test('the ID field is a password field that password managers can fill', async (
   await p2.getByRole('button', { name: 'Open list' }).click();
   await p2.getByRole('button', { name: 'Yes, continue' }).click();
   await expect(p2.locator('.list-title')).toContainText('Weekly');
+  await ctx.close();
+});
+
+test('settings show the ID masked, reveal and copy it, and offer it to password managers', async ({ browser }) => {
+  const ctx = await browser.newContext({ locale: 'en-US', permissions: ['clipboard-read', 'clipboard-write'] });
+  const page = await ctx.newPage();
+  const id = await createList(page);
+  const formatted = `${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8)}`;
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const chip = page.locator('.id-chip');
+  await expect(chip).not.toContainText(formatted);
+  await page.getByRole('button', { name: 'Show ID' }).click();
+  await expect(chip).toContainText(formatted);
+  await chip.click();
+  await expect(page.locator('.toast', { hasText: 'ID copied' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(formatted);
+  await expect(page.locator('form.pm input[autocomplete="username"]')).toHaveValue('Weekly');
+  await expect(page.locator('form.pm input[type="password"]')).toHaveValue(formatted);
+  await page.getByRole('button', { name: 'Save ID in password manager' }).click();
+  await expect(page.locator('.toast').last()).toContainText('add the ID by hand');
   await ctx.close();
 });
