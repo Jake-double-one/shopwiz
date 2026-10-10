@@ -18,7 +18,7 @@
   import { t } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
   import { sortedLists, progress, isShopping, listItems } from '../lib/model.js';
-  import { setShopping, restoreItems } from '../lib/actions.js';
+  import { setShopping, restoreItems, addList } from '../lib/actions.js';
   import { toast } from '../lib/toast.svelte.js';
 
   let { id, onleave, onopen } = $props();
@@ -37,6 +37,11 @@
   });
   $effect(() => {
     if (listId) save(`list.${sync.spaceId ?? id}`, listId);
+  });
+
+  $effect(() => {
+    document.title = list ? `${list.name} · ShopWiz` : 'ShopWiz';
+    return () => (document.title = 'ShopWiz');
   });
 
   const prog = $derived(list ? progress(v, list.id) : { done: 0, total: 0 });
@@ -153,7 +158,15 @@
 
 {#if ['notfound', 'deleted', 'kicked', 'limited'].includes(sync.status)}
   <StatusScreen status={sync.status} deleted={sync.deleted} spaceId={id} {onleave} {onopen} />
-{:else if !sync.ready || !list}
+{:else if sync.ready && !list}
+  <main class="wrap">
+    <div class="loading">
+      <div class="brand">Shop<span>·</span>Wiz</div>
+      <p class="muted">{t('list.none')}</p>
+      <button class="btn main" onclick={() => (listId = addList(v.space?.name || 'ShopWiz'))}>{t('lists.create')}</button>
+    </div>
+  </main>
+{:else if !sync.ready}
   <main class="wrap">
     <div class="loading">
       <div class="brand">Shop<span>·</span>Wiz</div>

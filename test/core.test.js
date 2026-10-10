@@ -254,3 +254,16 @@ describe('devices', () => {
     expect(store.devices(uid)[0].shoppingUntil).toBeNull();
   });
 });
+
+describe('guards', () => {
+  it('refuses to delete the last list and hides items of deleted lists', () => {
+    const { store, uid, listId, op, devA } = setup();
+    expect(() => op(devA, { k: 'list.delete', id: listId })).toThrow(/last list/);
+    op(devA, { k: 'list.add', id: 'list00002', name: 'Second' });
+    op(devA, { k: 'item.add', id: 'item00001', listId: 'list00002', name: 'X' });
+    op(devA, { k: 'list.delete', id: 'list00002' });
+    expect(store.snapshot(uid).items).toHaveLength(0);
+    const r = op(devA, { k: 'list.restore', id: 'list00002' });
+    expect(r.changes.some((c) => c.e === 'item' && c.row?.id === 'item00001')).toBe(true);
+  });
+});

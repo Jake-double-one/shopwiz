@@ -250,7 +250,13 @@ export class Store {
       rev: space.rev,
       lists: db.q('SELECT * FROM lists WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid).map(mapList),
       groups: db.q('SELECT * FROM groups WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid).map(mapGroup),
-      items: db.q('SELECT * FROM items WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid).map(mapItem),
+      items: db
+        .q(
+          `SELECT i.* FROM items i JOIN lists l ON l.space_uid = i.space_uid AND l.id = i.list_id
+           WHERE i.space_uid = ? AND i.deleted_at IS NULL AND l.deleted_at IS NULL ORDER BY i.pos`,
+        )
+        .all(uid)
+        .map(mapItem),
       memory: db.q('SELECT * FROM memory WHERE space_uid = ?').all(uid).map(mapMemory),
       suggestions: db
         .q('SELECT * FROM suggestions WHERE space_uid = ? ORDER BY last_used_at DESC LIMIT ?')
@@ -557,6 +563,8 @@ const OPS = {
 
   'list.delete'(ctx, op) {
     const list = this._list(ctx.uid, eid(op.id));
+    const count = this.db.q('SELECT COUNT(*) AS c FROM lists WHERE space_uid = ? AND deleted_at IS NULL').get(ctx.uid).c;
+    if (count <= 1) throw new OpError('invalid', 'the last list cannot be deleted');
     this.db.q('UPDATE lists SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(ctx.now, ctx.uid, list.id);
     this._pushList(ctx, list.id);
     this._act(ctx, null, 'list.delete', { name: list.name, listId: list.id });

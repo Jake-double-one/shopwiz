@@ -1,7 +1,7 @@
 # ShopWiz – Planung
 
 Gemeinsame Einkaufsliste für mehrere Personen. Kein Login, kein Tracking, Feierabend-Design.
-Dieses Dokument ist der Plan vor der Umsetzung. Getroffene Entscheidungen stehen am Ende.
+Dieses Dokument ist der ursprüngliche Plan (umgesetzt in Version 1). Getroffene Entscheidungen stehen am Ende. Die aktuelle Doku steht in der [README](../README.md).
 
 ---
 
@@ -20,7 +20,7 @@ Dieses Dokument ist der Plan vor der Umsetzung. Getroffene Entscheidungen stehen
 - **10 Zeichen, Crockford-Base32** (`0-9 A-Z` ohne `I L O U`) → keine Verwechslung von 0/O oder 1/I/l, ~1,1 Billiarden Kombinationen.
 - Anzeige gruppiert und gut vorlesbar: `K7QM-2XPA-9F` (Bindestriche werden bei Eingabe ignoriert, Kleinbuchstaben akzeptiert).
 - Erzeugung serverseitig mit kryptografischem Zufall, Eindeutigkeit per `UNIQUE`-Constraint in der Datenbank (bei Kollision neu würfeln).
-- **Ablauf:** Ein Space wird gelöscht, wenn er **181 Tage** (Standard) lang kein aktives Gerät hatte. Der Zeitraum ist **pro Space in den Einstellungen änderbar, höchstens 367 Tage**. Jede Aktivität eines Geräts setzt die Frist zurück. Ab 14 Tagen vor Ablauf zeigt die App einen Hinweis. Ein nächtlicher Job löscht abgelaufene Spaces vollständig.
+- **Ablauf:** Ein Space wird gelöscht, wenn er **181 Tage** (Standard) lang kein aktives Gerät hatte. Der Zeitraum ist **pro Space in den Einstellungen änderbar, 7 bis 367 Tage**. Jede Aktivität eines Geräts setzt die Frist zurück. Ab 14 Tagen vor Ablauf zeigt die App einen Hinweis. Ein nächtlicher Job löscht abgelaufene Spaces vollständig.
 - Da die ID gleichzeitig der Schlüssel ist: **Rate-Limiting** auf das Aufrufen fremder IDs (gegen Durchprobieren), ohne IPs dauerhaft zu speichern (nur im Arbeitsspeicher).
 - Die ID liegt im `localStorage`. Ein kleiner **„Abmelden / ID vergessen“-Knopf** entfernt sie (mit Bestätigung und dem Hinweis, die ID vorher zu notieren/teilen). Zusätzlich merkt sich das Gerät zuletzt benutzte Spaces, damit man zwischen mehreren wechseln kann (ebenfalls einzeln löschbar).
 
@@ -62,7 +62,7 @@ Dieses Dokument ist der Plan vor der Umsetzung. Getroffene Entscheidungen stehen
 
 ### 3.5 Synchronisation
 - **WebSocket** pro Space. Jede Änderung wird sofort optimistisch angezeigt, an den Server geschickt und an alle anderen Geräte verteilt (Ziel: < 1 s).
-- **Offline:** Die App ist eine PWA und startet auch ohne Netz. Änderungen werden lokal gepuffert (IndexedDB) und beim Wiederverbinden nachgesendet; danach holt sich das Gerät den aktuellen Stand. Wichtig für Funklöcher im Supermarkt. Oben zeigt ein `hint` „Offline – 3 Änderungen warten“.
+- **Offline:** Die App ist eine PWA und startet auch ohne Netz. Änderungen werden lokal gepuffert (localStorage) und beim Wiederverbinden nachgesendet; danach holt sich das Gerät den aktuellen Stand. Wichtig für Funklöcher im Supermarkt. Oben zeigt ein `hint` „Offline – 3 Änderungen warten“.
 
 #### Konflikte (gleichzeitige Änderungen, auch nach Offline-Phasen)
 Gesendet werden **einzelne Aktionen** („Milch abgehakt“, „Menge von Eiern = 10“), nie die ganze Liste. Dadurch kollidiert fast nichts: Wer offline Brot abhakt, während jemand anderes online Käse hinzufügt, bekommt am Ende beides.

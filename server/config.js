@@ -18,6 +18,8 @@ export function loadConfig(env = process.env) {
     // Failed ID lookups allowed per client address and window (brute-force protection).
     lookupLimit: int(env.LOOKUP_LIMIT, 30),
     lookupWindowMin: int(env.LOOKUP_WINDOW_MIN, 15),
+    // New ids per client address and hour
+    createLimit: int(env.CREATE_LIMIT, 30),
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
   };

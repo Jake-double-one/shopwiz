@@ -87,7 +87,7 @@
         ontoggle={() => toggleCollapsed(node.group.id)}
         onmenu={() => ongroup(node.group)}
         onadd={() => onaddto(node.group.id)}>
-        <ul class="items" data-group={node.group.id} use:sortable={itemSort}>
+        <ul class="items" class:has-subs={node.subs.length > 0} data-group={node.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
           {#each node.items as item (item.id)}
             <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
           {/each}
@@ -102,7 +102,7 @@
               ontoggle={() => toggleCollapsed(sub.group.id)}
               onmenu={() => ongroup(sub.group)}
               onadd={() => onaddto(sub.group.id)}>
-              <ul class="items" data-group={sub.group.id} use:sortable={itemSort}>
+              <ul class="items" data-group={sub.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
                 {#each sub.items as item (item.id)}
                   <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} {onedit} />
                 {/each}
@@ -140,10 +140,40 @@
     min-height: 14px;
   }
   .drop-hint {
+    display: none;
     text-align: center;
     margin: 0;
     padding: 2px 0 6px;
     opacity: 0.7;
+  }
+  :global(body.dragging) .drop-hint {
+    display: block;
+  }
+  /* empty groups stay a visible drop target */
+  .items:empty {
+    min-height: 40px;
+    display: grid;
+    place-items: center;
+  }
+  .items.has-subs:empty {
+    min-height: 10px;
+  }
+  .items:not(.ungrouped):not(.has-subs):empty::before {
+    content: attr(data-empty);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+  .ungrouped:empty {
+    min-height: 0;
+  }
+  :global(body.dragging) .ungrouped:empty {
+    min-height: 40px;
+    background: var(--surface-2);
+    border-radius: 10px;
   }
   .groups,
   .subs {

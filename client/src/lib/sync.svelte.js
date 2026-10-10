@@ -1,5 +1,5 @@
 import { load, save } from './storage.js';
-import { deviceToken, deviceName, rememberSpace, replaceKnown, forgetSpace } from './device.js';
+import { deviceToken, deviceName, rememberSpace, replaceKnown, forgetSpace, knownSpaces } from './device.js';
 import { normalizeName } from '../../../shared/parse.js';
 import { randomEntityId } from '../../../shared/ids.js';
 
@@ -462,6 +462,8 @@ class Sync {
   persist() {
     clearTimeout(this.persistTimer);
     if (!this.spaceId || !this.base.space) return;
+    // a forgotten (reset / kicked) id must not be written back to the device
+    if (!knownSpaces().some((s) => s.id === this.spaceId)) return;
     save(`snap.${this.spaceId}`, { base: this.base, me: this.me, offset: this.offset });
     save(`pending.${this.spaceId}`, this.pending);
   }

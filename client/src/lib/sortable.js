@@ -23,8 +23,10 @@ export function sortable(node, params) {
     onStart(evt) {
       // remember the exact neighbour (may be a Svelte anchor comment) to restore the DOM later
       next = evt.item.nextSibling;
+      document.body.classList.add('dragging');
     },
     onEnd(evt) {
+      document.body.classList.remove('dragging');
       const { item, from, to, oldIndex, newIndex } = evt;
       if (from === to && oldIndex === newIndex) return;
       // revert, so Svelte's DOM bookkeeping stays intact

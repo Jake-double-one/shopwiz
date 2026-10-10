@@ -30,6 +30,8 @@ export async function buildApp(config) {
   const store = new Store(db, config);
   const hub = new Hub();
   const limiter = new Limiter({ limit: config.lookupLimit, windowMs: config.lookupWindowMin * 60_000 });
+  // creating ids is cheap for clients – cap it per address to keep spam out of the database
+  const createLimiter = new Limiter({ limit: config.createLimit, windowMs: 3_600_000 });
   app.decorate('store', store);
   app.decorate('hub', hub);
 
@@ -45,6 +47,7 @@ export async function buildApp(config) {
   app.addHook('onClose', async () => {
     clearInterval(cleanupTimer);
     limiter.stop();
+    createLimiter.stop();
     db.close();
   });
 
@@ -100,6 +103,8 @@ export async function buildApp(config) {
   app.post('/api/spaces', async (req, reply) => {
     const { name, token, deviceName, listName } = req.body ?? {};
     if (typeof token !== 'string' || !TOKEN_RE.test(token)) return reply.code(400).send({ error: 'invalid', message: 'token' });
+    if (createLimiter.blocked(clientKey(req))) return reply.code(429).send({ error: 'rate_limited' });
+    createLimiter.fail(clientKey(req));
     try {
       const id = store.createSpace({ name, token, deviceName, listName });
       return { id };

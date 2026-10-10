@@ -18,6 +18,6 @@ export default defineConfig({
     command: 'node --disable-warning=ExperimentalWarning server/index.js',
     url: 'http://localhost:8098/healthz',
     reuseExistingServer: false,
-    env: { PORT: '8098', DATA_DIR: ':memory:', LOOKUP_LIMIT: '1000' },
+    env: { PORT: '8098', DATA_DIR: ':memory:', LOOKUP_LIMIT: '1000', CREATE_LIMIT: '1000' },
   },
 });

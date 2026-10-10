@@ -84,6 +84,7 @@ export function editItem(item, fields, { learn } = {}) {
 }
 
 export function toggleItem(item) {
+  if (!item.checked) navigator.vibrate?.(8);
   editItem(item, { checked: !item.checked });
 }
 

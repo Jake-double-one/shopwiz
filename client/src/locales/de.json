@@ -68,6 +68,7 @@
   "status.limited": "Von dieser Verbindung wurden zu viele unbekannte IDs probiert. Bitte ein paar Minuten warten.",
 
   "list.menu": "Listen-Optionen",
+  "list.none": "Diese ID hat noch keine Liste.",
   "list.name": "Name der Liste",
   "list.empty": "Noch leer. Füge unten den ersten Artikel hinzu – oder lege Gruppen wie „Kühlwaren“ oder „Bäcker“ an.",
   "list.emptyEyebrow": "Leere Liste",
@@ -101,6 +102,7 @@
   "group.delete": "Gruppe löschen",
   "group.deleteHint": "Die Artikel bleiben ohne Gruppe auf der Liste.",
   "group.exists": "„{name}“ gibt es hier schon.",
+  "group.empty": "Leer – auf + tippen oder Artikel hierher ziehen",
   "group.drag": "Ziehen zum Sortieren",
   "group.addItemTo": "Artikel zu {name} hinzufügen",
   "group.menu": "Optionen für {name}",

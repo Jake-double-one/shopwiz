@@ -68,6 +68,7 @@
   "status.limited": "Too many unknown IDs were tried from this connection. Please wait a few minutes.",
 
   "list.menu": "List options",
+  "list.none": "This ID has no list yet.",
   "list.name": "List name",
   "list.empty": "Nothing here yet. Add your first item below – or create groups like “Fridge” or “Bakery”.",
   "list.emptyEyebrow": "Empty list",
@@ -101,6 +102,7 @@
   "group.delete": "Delete group",
   "group.deleteHint": "Items stay on the list without a group.",
   "group.exists": "“{name}” already exists here.",
+  "group.empty": "Empty – tap + or drag items here",
   "group.drag": "Drag to reorder",
   "group.addItemTo": "Add item to {name}",
   "group.menu": "Options for {name}",
