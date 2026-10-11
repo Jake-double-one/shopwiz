@@ -26,7 +26,7 @@
   const stored = $derived(travel ? v.translations?.[`${normalizeName(name.trim() || item.name)}|${travel.lang}`] : null);
   let translating = $state(false);
   let fresh = $state(''); // what the service answered just now – saved as a machine translation if kept as is
-  const service = $derived(translatorName(sync.features.translator));
+  let freshBy = $state(null); // …and which service it was
   // where the text in the field comes from
   const origin = $derived(
     !tr.trim() ? '' : fresh && tr === fresh ? 'fresh' : stored && tr === stored.text ? (stored.auto ? 'machine' : 'manual') : 'typing',
@@ -40,7 +40,10 @@
     const r = await translateNames([n], travel.lang, { force: true });
     translating = false;
     const text = Object.values(r.translations)[0];
-    if (text) tr = fresh = text;
+    if (text) {
+      tr = fresh = text;
+      freshBy = Object.values(r.by)[0] ?? null;
+    }
     else trError = t({ quota: 'travel.errQuota', translate_limit: 'travel.errLimit', not_configured: 'travel.errOff', offline: 'travel.errOffline' }[r.error] ?? 'travel.errFailed');
   }
 
@@ -58,7 +61,7 @@
       const text = tr.trim().slice(0, 120);
       const auto = !!fresh && text === fresh;
       const cur = stored && normalizeName(finalName) === stored.norm ? stored : null;
-      if (text !== (cur?.text ?? '') || (cur && auto !== cur.auto)) setTranslation(finalName, travel.lang, text, auto);
+      if (text !== (cur?.text ?? '') || (cur && auto !== cur.auto)) setTranslation(finalName, travel.lang, text, auto, auto ? freshBy : null);
     }
   }
 
@@ -92,8 +95,8 @@
           {/if}
         </div>
         {#if trError}<p class="micro tr-note alert-text">{trError}</p>
-        {:else if origin === 'fresh'}<p class="micro tr-note">{t('travel.fromService', { service })}</p>
-        {:else if origin === 'machine'}<p class="micro tr-note">{t('travel.machine')}</p>
+        {:else if origin === 'fresh'}<p class="micro tr-note">{t('travel.fromService', { service: translatorName(freshBy) || '?' })}</p>
+        {:else if origin === 'machine'}<p class="micro tr-note">{stored.by ? t('travel.machineBy', { service: translatorName(stored.by) }) : t('travel.machine')}</p>
         {:else if origin === 'manual'}<p class="micro tr-note">{t('travel.manual')}</p>{/if}
       </div>
     {/if}

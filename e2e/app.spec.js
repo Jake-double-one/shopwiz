@@ -593,7 +593,7 @@ test('travel mode: country from the address, bulk translation, own corrections, 
 
   // correct a machine translation in the item details
   await page.getByRole('button', { name: 'Edit Käse' }).click();
-  await expect(page.getByText('Machine translation – check if unsure.')).toBeVisible();
+  await expect(page.getByText('Machine translation by LibreTranslate')).toBeVisible();
   await page.getByLabel('Translation · Italian').fill('Formaggio');
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(item(page, 'Käse').locator('.tr')).toHaveText('Formaggio');
@@ -604,7 +604,7 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await expect(page.getByText('Just translated by LibreTranslate')).toBeVisible();
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Edit Milch' }).click();
-  await expect(page.getByText('Machine translation – check if unsure.')).toBeVisible();
+  await expect(page.getByText('Machine translation by LibreTranslate')).toBeVisible();
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Edit Käse' }).click();
   await expect(page.getByText('Typed in by hand.')).toBeVisible();

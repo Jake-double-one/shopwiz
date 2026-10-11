@@ -184,7 +184,7 @@ function reduce(v, op, at, me) {
     case 'translation.set': {
       const norm = normalizeName(op.name);
       const key = `${norm}|${op.lang}`;
-      if (op.text) v.translations[key] = { norm, lang: op.lang, text: op.text, auto: !!op.auto, at };
+      if (op.text) v.translations[key] = { norm, lang: op.lang, text: op.text, auto: !!op.auto, by: op.auto ? (op.provider ?? null) : null, at };
       else delete v.translations[key];
       break;
     }

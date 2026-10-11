@@ -35,8 +35,10 @@ export async function buildApp(config) {
   const limiter = new Limiter({ limit: config.lookupLimit, windowMs: config.lookupWindowMin * 60_000 });
   // creating ids is cheap for clients – cap it per address to keep spam out of the database
   const createLimiter = new Limiter({ limit: config.createLimit, windowMs: 3_600_000 });
-  const translator = createTranslator(config, config.fetch);
-  if (translator.problem) app.log.warn(`translation (${translator.provider}) is off: ${translator.problem}`);
+  const translator = createTranslator(config, config.fetch, (provider, e) => {
+    if (e.code !== 'quota') app.log.warn({ provider, err: e.message }, 'translation service failed – trying the next one');
+  });
+  for (const p of translator.problems) app.log.warn(`translation service "${p.provider}" is off: ${p.problem}`);
   // names sent to the translation provider per ID and hour – remembered ones are free
   const trUsage = new Map();
   app.decorate('store', store);
@@ -217,20 +219,20 @@ export async function buildApp(config) {
     if (use.count + todo.length > config.translateLimit) return reply.code(429).send({ error: 'translate_limit', translations: out });
     use.count += todo.length;
 
-    let texts;
+    let res;
     try {
-      texts = await translator.translate(todo.map(([, name]) => name), from, lang);
+      res = await translator.translate(todo.map(([, name]) => name), from, lang);
     } catch (e) {
       if (!(e instanceof TranslateError)) throw e;
-      if (e.code !== 'quota') app.log.warn({ provider: translator.provider, err: e.message }, 'translation failed');
       const code = e.code === 'config' ? 501 : 503;
       return reply.code(code).send({ error: e.code === 'config' ? 'not_configured' : e.code, translations: out });
     }
-    const pairs = todo.map(([norm], i) => [norm, texts[i]]);
-    const changes = store.saveAutoTranslations(uid, lang, pairs);
+    const { texts, providers } = res;
+    const changes = store.saveAutoTranslations(uid, lang, todo.map(([norm], i) => [norm, texts[i], providers[i]]));
     if (changes.length) hub.broadcast(uid, { t: 'patch', changes });
-    todo.forEach(([, name], i) => texts[i] && (out[name] = texts[i]));
-    return { translations: out, failed: texts.filter((t) => !t).length };
+    const by = {};
+    todo.forEach(([, name], i) => texts[i] && ((out[name] = texts[i]), (by[name] = providers[i])));
+    return { translations: out, by, failed: texts.filter((t) => !t).length };
   });
 
   app.post('/api/spaces/:id/transfer', async (req, reply) => {
@@ -389,7 +391,7 @@ export async function buildApp(config) {
         serverTime: Date.now(),
         me: { devId: dev.dev_id, name: dev.name },
         online: hub.online(conn.uid),
-        features: { translate: translator.available, translator: translator.available ? translator.provider : 'none' },
+        features: { translate: translator.available, translators: translator.providers },
         snapshot: store.snapshot(conn.uid),
       });
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);

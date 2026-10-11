@@ -431,13 +431,13 @@ describe('travel mode', () => {
     expect(() => op(devA, { k: 'list.update', id: listId, travel: { country: 'XX', lang: 'it' } })).toThrow(OpError);
 
     // a machine translation, then a person corrects it – machines never overwrite people
-    const changes = store.saveAutoTranslations(uid, 'it', [['milch', 'Latte'], ['brot', 'Pane']]);
+    const changes = store.saveAutoTranslations(uid, 'it', [['milch', 'Latte'], ['brot', 'Pane', 'deepl']]);
     expect(changes).toHaveLength(2);
     op(devA, { k: 'translation.set', name: 'Milch', lang: 'it', text: 'Latte intero' });
     expect(store.saveAutoTranslations(uid, 'it', [['milch', 'Latte']])).toHaveLength(0);
     const tr = store.snapshot(uid).translations;
     expect(tr).toContainEqual(expect.objectContaining({ norm: 'milch', lang: 'it', text: 'Latte intero', auto: false }));
-    expect(tr).toContainEqual(expect.objectContaining({ norm: 'brot', text: 'Pane', auto: true }));
+    expect(tr).toContainEqual(expect.objectContaining({ norm: 'brot', text: 'Pane', auto: true, by: 'deepl' }));
     expect(store.knownTranslations(uid, 'it', ['milch', 'eier'])).toEqual(new Map([['milch', 'Latte intero']]));
 
     // a machine translation kept as is stays marked as one

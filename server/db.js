@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS translations (
   lang       TEXT NOT NULL,
   text       TEXT NOT NULL,
   auto       INTEGER NOT NULL DEFAULT 0,   -- 1 = machine translation, not checked by a person
+  provider   TEXT,                         -- the service that translated it (auto only)
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (space_uid, norm, lang)
 );
@@ -185,6 +186,8 @@ function migrate(db) {
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
   if (!listCols.includes('travel_country')) db.exec('ALTER TABLE lists ADD COLUMN travel_country TEXT');
   if (!listCols.includes('travel_lang')) db.exec('ALTER TABLE lists ADD COLUMN travel_lang TEXT');
+  const trCols = db.prepare('PRAGMA table_info(translations)').all().map((c) => c.name);
+  if (!trCols.includes('provider')) db.exec('ALTER TABLE translations ADD COLUMN provider TEXT');
 }
 
 export function openDb(dataDir) {

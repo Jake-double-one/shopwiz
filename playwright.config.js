@@ -31,7 +31,7 @@ export default defineConfig({
         LOOKUP_LIMIT: '1000',
         CREATE_LIMIT: '1000',
         TRANSLATE_PROVIDER: 'libretranslate',
-        TRANSLATE_URL: 'http://127.0.0.1:8099',
+        LIBRETRANSLATE_URL: 'http://127.0.0.1:8099',
       },
     },
   ],

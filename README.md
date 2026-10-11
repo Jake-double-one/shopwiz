@@ -147,17 +147,20 @@ For when the shop staff don't speak your language. In the list menu (⋯ next to
 - Translations are remembered per name for the whole ID: once “Milch” is “Latte”, it is “Latte” on every list and every device, without asking the translation service again. A translation you typed is never overwritten by a machine.
 - Turning travel mode off only hides the translations.
 
-Machine translation runs on the ShopWiz server – the translation service only ever sees item names, never your device or address. The provider is set with `TRANSLATE_PROVIDER` (see [Configuration](#configuration)):
+Machine translation runs on the ShopWiz server – a translation service only ever sees item names, never your device or address. `TRANSLATE_PROVIDER` names one service or several in order, e.g. `deepl,azure`: when one is used up, down or rejects its key, the next one steps in. Every service has its own settings (see [Configuration](#configuration)):
 
-| Provider | Cost | Needs |
+| Service | Free | Needs |
 |---|---|---|
-| `mymemory` (default) | free, about 5,000 characters a day (about 50,000 with `TRANSLATE_EMAIL`) | nothing |
-| `libretranslate` | free, self-hosted (open source, needs 1–2 GB RAM) | `TRANSLATE_URL`, see the example in `docker-compose.yml` |
-| `deepl` | DeepL API Free: 500,000 characters a month | `TRANSLATE_API_KEY` |
-| `google` | Google Cloud Translation, about 500,000 characters a month covered by the monthly credit | `TRANSLATE_API_KEY` |
+| `mymemory` (default) | about 5,000 characters a day, about 50,000 with `MYMEMORY_EMAIL`; quality for single words varies | nothing |
+| `deepl` | DeepL API (Developer plan): 1,000,000 characters once – they don't renew | `DEEPL_API_KEY` |
+| `azure` | Microsoft Translator, free tier “F0”: about 2,000,000 characters a month | `AZURE_TRANSLATOR_KEY`, usually `AZURE_TRANSLATOR_REGION` |
+| `google` | Google Cloud Translation: about 500,000 characters a month covered by the monthly credit | `GOOGLE_API_KEY` |
+| `libretranslate` | unlimited, self-hosted (open source, 1–2 GB RAM) – clearly weaker with compound words | `LIBRETRANSLATE_URL`, see the example in `docker-compose.yml` |
 | `none` | – | translations are only typed in by hand |
 
-Item names are short – a free quota goes a long way, and remembered translations don't count. MyMemory is free but its quality for single words varies; **DeepL API Free** gives clearly better results for the price of a free sign-up. “Translate” in the item details always asks the service again; the list menu can delete all translations of the list to start over. The active service is shown in the list menu and in the help next to the version.
+A good free setup: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – DeepL's quality first, Microsoft as long-term fallback, MyMemory as the last resort.
+
+Item names are short (10–15 characters) and every name is translated only once per ID – remembered translations cost nothing. Even DeepL's one-time million lasts for tens of thousands of items. “Translate” in the item details always asks again; the list menu can delete all translations of the list to start over. The item details say which service translated an item, and the help shows the services in use next to the version.
 
 ### Sync and conflicts
 
@@ -249,11 +252,17 @@ All settings are environment variables. The defaults are fine for most setups.
 | `CREATE_LIMIT` | `30` | New IDs per client address and hour |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in at the shop ends after this many minutes without activity |
 | `SIGNAL_TTL_MIN` | `30` | How long a call waits for a device that is offline |
-| `TRANSLATE_PROVIDER` | `mymemory` | Travel mode translations: `mymemory`, `libretranslate`, `deepl`, `google` or `none` |
-| `TRANSLATE_API_KEY` | – | Key for DeepL (keys ending in `:fx` use DeepL API Free) or Google; optional for LibreTranslate and MyMemory |
-| `TRANSLATE_URL` | `http://libretranslate:5000` | Address of your LibreTranslate |
-| `TRANSLATE_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
-| `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to the translation service |
+| `TRANSLATE_PROVIDER` | `mymemory` | Travel mode translation: one service or several in order, e.g. `deepl,azure,mymemory` – `mymemory`, `deepl`, `azure`, `google`, `libretranslate` or `none` |
+| `DEEPL_API_KEY` | – | DeepL key (keys ending in `:fx` use the free API host) |
+| `AZURE_TRANSLATOR_KEY` | – | Microsoft Translator key (Azure “Translator” resource) |
+| `AZURE_TRANSLATOR_REGION` | – | Region of that resource, e.g. `westeurope` (leave empty for a “global” resource) |
+| `GOOGLE_API_KEY` | – | Google Cloud Translation key |
+| `LIBRETRANSLATE_URL` | `http://libretranslate:5000` | Address of your LibreTranslate |
+| `LIBRETRANSLATE_API_KEY` | – | Only if your LibreTranslate requires keys |
+| `MYMEMORY_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
+| `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to translation services |
+
+Settings of v0.2.0/0.2.1 keep working: `TRANSLATE_API_KEY` is used for the first listed service that has no own key, `TRANSLATE_URL` and `TRANSLATE_EMAIL` count as `LIBRETRANSLATE_URL` and `MYMEMORY_EMAIL`.
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |
 

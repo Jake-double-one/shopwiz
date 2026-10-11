@@ -156,12 +156,14 @@ export const setAddress = (list, address) => sync.send({ k: 'list.update', id: l
 // ----- travel mode -----
 
 /** Display name of the server's translation service */
-export const translatorName = (p) => ({ mymemory: 'MyMemory', libretranslate: 'LibreTranslate', deepl: 'DeepL', google: 'Google' })[p] ?? '';
+export const translatorName = (p) => ({ mymemory: 'MyMemory', libretranslate: 'LibreTranslate', deepl: 'DeepL', google: 'Google', azure: 'Microsoft' })[p] ?? '';
+/** "DeepL → Microsoft": the services in the order they are asked ('' = none) */
+export const translatorChain = () => (sync.features.translators ?? []).map(translatorName).filter(Boolean).join(' → ');
 
 /** travel: { country, lang } or null (off) */
 export const setTravel = (list, travel) => sync.send({ k: 'list.update', id: list.id, travel });
 /** auto: the text is an unchanged machine translation */
-export const setTranslation = (name, lang, text, auto = false) => sync.send({ k: 'translation.set', name, lang, text, auto });
+export const setTranslation = (name, lang, text, auto = false, provider = null) => sync.send({ k: 'translation.set', name, lang, text, auto, provider });
 export const clearTranslations = (names, lang) => sync.send({ k: 'translation.clear', names, lang });
 
 /** Names on the list (active and inactive) that have no translation yet. */
@@ -191,11 +193,12 @@ export function translatedNames(list) {
  * → { translations: {name: text}, failed, error }
  */
 export async function translateNames(names, lang, { force = false } = {}) {
-  const out = { translations: {}, failed: 0, error: null };
+  const out = { translations: {}, by: {}, failed: 0, error: null };
   for (let i = 0; i < names.length; i += 50) {
     try {
       const r = await api.translate(sync.spaceId, { lang, from: i18n.lang, names: names.slice(i, i + 50), force });
       Object.assign(out.translations, r.translations);
+      Object.assign(out.by, r.by);
       out.failed += r.failed ?? 0;
     } catch (e) {
       out.error = e.code ?? 'error';

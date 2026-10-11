@@ -428,5 +428,6 @@
   "travel.fromService": "Gerade von {service} übersetzt – „Fertig“ speichert.",
   "travel.manual": "Von Hand eingetragen. „Übersetzen“ ersetzt sie durch eine maschinelle Übersetzung.",
   "help.translator": "Übersetzung",
-  "help.translatorOff": "aus"
+  "help.translatorOff": "aus",
+  "travel.machineBy": "Maschinell übersetzt von {service} – im Zweifel prüfen. „Übersetzen“ fragt neu an."
 }

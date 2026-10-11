@@ -24,11 +24,24 @@ export function loadConfig(env = process.env) {
     shoppingIdleMin: Math.max(int(env.SHOPPING_IDLE_MIN, 60), 1),
     // undelivered "find each other" signals wait this long for a device to come back
     signalTtlMin: Math.max(int(env.SIGNAL_TTL_MIN, 30), 1),
-    // travel mode: machine translation of item names (mymemory | libretranslate | deepl | google | none)
-    translateProvider: (env.TRANSLATE_PROVIDER || 'mymemory').toLowerCase(),
+    // travel mode: machine translation of item names. One service or several in order –
+    // the next one steps in when one is used up or down, e.g. "deepl,azure,mymemory".
+    translateProviders: (env.TRANSLATE_PROVIDER || 'mymemory')
+      .toLowerCase()
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean),
+    // one key per service
+    deeplApiKey: env.DEEPL_API_KEY || '',
+    googleApiKey: env.GOOGLE_API_KEY || '',
+    azureTranslatorKey: env.AZURE_TRANSLATOR_KEY || '',
+    azureTranslatorRegion: env.AZURE_TRANSLATOR_REGION || '',
+    libretranslateUrl: env.LIBRETRANSLATE_URL || env.TRANSLATE_URL || '',
+    libretranslateApiKey: env.LIBRETRANSLATE_API_KEY || '',
+    mymemoryEmail: env.MYMEMORY_EMAIL || env.TRANSLATE_EMAIL || '',
+    mymemoryApiKey: env.MYMEMORY_API_KEY || '',
+    // older single key (v0.2.x): used for the first service in the list that has no own key
     translateApiKey: env.TRANSLATE_API_KEY || '',
-    translateUrl: env.TRANSLATE_URL || '',
-    translateEmail: env.TRANSLATE_EMAIL || '',
     // item names per ID and hour sent to the provider (remembered translations don't count)
     translateLimit: Math.max(int(env.TRANSLATE_LIMIT, 300), 1),
     logLevel: env.LOG_LEVEL || 'warn',

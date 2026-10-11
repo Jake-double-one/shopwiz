@@ -21,14 +21,18 @@ services:
       # Set to "true" behind a reverse proxy so rate limiting sees the real client address
       TRUST_PROXY: "false"
       LOG_LEVEL: "warn"
-      # Travel mode translations: mymemory (free, no key) | libretranslate | deepl | google | none
+      # Travel mode translations: one service or several in order – the next one steps in
+      # when one is used up or down. mymemory (free, no key) | deepl | azure | google | libretranslate | none
       TRANSLATE_PROVIDER: "mymemory"
-      # Key for deepl / google
-      TRANSLATE_API_KEY: ""
+      # One key per service – only for the ones listed above
+      DEEPL_API_KEY: ""
+      AZURE_TRANSLATOR_KEY: ""
+      AZURE_TRANSLATOR_REGION: ""        # e.g. westeurope
+      GOOGLE_API_KEY: ""
       # Optional for mymemory: raises the free quota (~5,000 → ~50,000 characters a day)
-      TRANSLATE_EMAIL: ""
+      MYMEMORY_EMAIL: ""
       # For libretranslate: address of your instance (see the service below)
-      # TRANSLATE_URL: "http://libretranslate:5000"
+      # LIBRETRANSLATE_URL: "http://libretranslate:5000"
     volumes:
       - shopwiz-data:/data
     read_only: true
@@ -40,7 +44,7 @@ services:
       - no-new-privileges:true
 
   # Optional: your own translation service, free and private (needs 1–2 GB RAM).
-  # Uncomment it and set TRANSLATE_PROVIDER: "libretranslate" + TRANSLATE_URL above.
+  # Uncomment it, add "libretranslate" to TRANSLATE_PROVIDER and set LIBRETRANSLATE_URL above.
   # libretranslate:
   #   image: libretranslate/libretranslate:latest
   #   restart: unless-stopped

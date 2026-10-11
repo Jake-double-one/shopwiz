@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import Flag from './Flag.svelte';
-  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorName } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain } from '../lib/actions.js';
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -136,7 +136,7 @@
         {:else}
           <p class="micro">{t('travel.allDone')}</p>
         {/if}
-        <p class="micro">{t('travel.autoNote', { service: translatorName(sync.features.translator) })}</p>
+        <p class="micro">{t('travel.autoNote', { service: translatorChain() })}</p>
       {:else}
         <p class="micro">{t('travel.manualOnly')}</p>
       {/if}

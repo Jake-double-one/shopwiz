@@ -3,6 +3,7 @@ import { randomSpaceId, randomEntityId, ENTITY_ID_RE } from '../shared/ids.js';
 import { normalizeName, addAmounts } from '../shared/parse.js';
 import { MAX_SPACE_TTL_DAYS } from './config.js';
 import { COUNTRY_LANGS, LANG_RE } from '../shared/countries.js';
+import { PROVIDERS } from './translate.js';
 
 const DAY = 86_400_000;
 const MIN_SPACE_TTL_DAYS = 7;
@@ -106,7 +107,7 @@ export const mapItem = (r) => ({
   createdAt: r.created_at,
 });
 export const mapMemory = (r) => ({ scope: r.scope, norm: r.norm, group: r.group_name, subgroup: r.subgroup_name });
-export const mapTranslation = (r) => ({ norm: r.norm, lang: r.lang, text: r.text, auto: !!r.auto, at: r.updated_at });
+export const mapTranslation = (r) => ({ norm: r.norm, lang: r.lang, text: r.text, auto: !!r.auto, by: r.auto ? (r.provider ?? null) : null, at: r.updated_at });
 export const mapSuggestion = (r) => ({ norm: r.norm, name: r.name, uses: r.uses, lastUsedAt: r.last_used_at });
 export const mapConflict = (r) => ({
   id: r.id,
@@ -372,16 +373,16 @@ export class Store {
     return out;
   }
 
-  /** Store machine translations (never over one a person wrote) → patch changes. */
+  /** Store machine translations [norm, text, provider] (never over one a person wrote) → patch changes. */
   saveAutoTranslations(uid, lang, pairs) {
     const changes = [];
     const now = Date.now();
-    const q = this.db.q(`INSERT INTO translations (space_uid, norm, lang, text, auto, updated_at) VALUES (?, ?, ?, ?, 1, ?)
-      ON CONFLICT(space_uid, norm, lang) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at WHERE auto = 1 RETURNING *`);
+    const q = this.db.q(`INSERT INTO translations (space_uid, norm, lang, text, auto, provider, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)
+      ON CONFLICT(space_uid, norm, lang) DO UPDATE SET text = excluded.text, provider = excluded.provider, updated_at = excluded.updated_at WHERE auto = 1 RETURNING *`);
     this.db.tx(() => {
-      for (const [norm, text] of pairs) {
+      for (const [norm, text, provider = null] of pairs) {
         if (!text) continue;
-        const r = q.get(uid, norm, lang, text.slice(0, LIMITS.translation), now);
+        const r = q.get(uid, norm, lang, text.slice(0, LIMITS.translation), provider, now);
         if (r) changes.push({ e: 'translation', row: mapTranslation(r) });
       }
     });
@@ -953,10 +954,11 @@ const OPS = {
       ctx.changes.push({ e: 'translation', del: `${norm}|${lang}` });
       return;
     }
+    const provider = op.auto && PROVIDERS.includes(op.provider) ? op.provider : null;
     const row = this.db
-      .q(`INSERT INTO translations (space_uid, norm, lang, text, auto, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-          ON CONFLICT(space_uid, norm, lang) DO UPDATE SET text = excluded.text, auto = excluded.auto, updated_at = excluded.updated_at RETURNING *`)
-      .get(ctx.uid, norm, lang, text, op.auto ? 1 : 0, ctx.now);
+      .q(`INSERT INTO translations (space_uid, norm, lang, text, auto, provider, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(space_uid, norm, lang) DO UPDATE SET text = excluded.text, auto = excluded.auto, provider = excluded.provider, updated_at = excluded.updated_at RETURNING *`)
+      .get(ctx.uid, norm, lang, text, op.auto ? 1 : 0, provider, ctx.now);
     ctx.changes.push({ e: 'translation', row: mapTranslation(row) });
   },
 
