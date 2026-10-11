@@ -155,9 +155,14 @@ export const setAddress = (list, address) => sync.send({ k: 'list.update', id: l
 
 // ----- travel mode -----
 
+/** Display name of the server's translation service */
+export const translatorName = (p) => ({ mymemory: 'MyMemory', libretranslate: 'LibreTranslate', deepl: 'DeepL', google: 'Google' })[p] ?? '';
+
 /** travel: { country, lang } or null (off) */
 export const setTravel = (list, travel) => sync.send({ k: 'list.update', id: list.id, travel });
-export const setTranslation = (name, lang, text) => sync.send({ k: 'translation.set', name, lang, text });
+/** auto: the text is an unchanged machine translation */
+export const setTranslation = (name, lang, text, auto = false) => sync.send({ k: 'translation.set', name, lang, text, auto });
+export const clearTranslations = (names, lang) => sync.send({ k: 'translation.clear', names, lang });
 
 /** Names on the list (active and inactive) that have no translation yet. */
 export function missingTranslations(list) {
@@ -170,14 +175,13 @@ export function missingTranslations(list) {
   return [...names.values()];
 }
 
-/** Names on the list whose translation came from a machine (can be renewed). */
-export function machineTranslated(list) {
+/** Names on the list that have a translation (to clear them). */
+export function translatedNames(list) {
   const lang = list.travel?.lang;
   if (!lang) return [];
   const names = new Map();
   for (const it of Object.values(v().items)) {
-    const tr = it.listId === list.id && v().translations[`${normalizeName(it.name)}|${lang}`];
-    if (tr?.auto) names.set(tr.norm, it.name);
+    if (it.listId === list.id && translationOf(v(), it.name, lang)) names.set(normalizeName(it.name), it.name);
   }
   return [...names.values()];
 }

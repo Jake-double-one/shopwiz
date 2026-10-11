@@ -583,7 +583,7 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await page.getByRole('button', { name: 'Translate 3 items' }).click();
   await expect(page.locator('.toast', { hasText: '3 items translated.' })).toBeVisible();
   await expect(page.getByText('Every item has a translation.')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Translate 3 machine translations again' })).toBeVisible();
+  await expect(page.locator('.travel')).toContainText('Translated with LibreTranslate.');
   await page.getByRole('button', { name: 'Close' }).first().click();
 
   // under each item: flag + translation
@@ -598,6 +598,18 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(item(page, 'Käse').locator('.tr')).toHaveText('Formaggio');
 
+  // "Translate" asks the service again; kept as is it stays a machine translation
+  await page.getByRole('button', { name: 'Edit Milch' }).click();
+  await page.getByRole('button', { name: 'Translate' }).click();
+  await expect(page.getByText('Just translated by LibreTranslate')).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Edit Milch' }).click();
+  await expect(page.getByText('Machine translation – check if unsure.')).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Edit Käse' }).click();
+  await expect(page.getByText('Typed in by hand.')).toBeVisible();
+  await page.getByRole('button', { name: 'Done' }).click();
+
   // show it big to the staff, step to the next item
   await item(page, 'Milch').locator('.tr').click();
   const show = page.getByRole('dialog', { name: 'Translation for the staff' });
@@ -607,6 +619,19 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await expect(show.locator('.amount')).toHaveText('2×');
   await page.keyboard.press('Escape');
   await expect(show).toHaveCount(0);
+
+  // delete the list's translations (after asking) → everything can be translated again
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByRole('button', { name: 'Delete 3 translations of this list' }).click();
+  await page.locator('.travel').getByRole('button', { name: 'Delete 3 translations of this list' }).click();
+  await expect(page.getByRole('button', { name: 'Translate 3 items' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await expect(page.locator('.item .tr')).toHaveCount(0);
+
+  // the service is named in the help
+  await page.getByRole('button', { name: 'How ShopWiz works' }).first().click();
+  await expect(page.getByText('Translation: LibreTranslate')).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // the flags' license ships with the app
   expect(await (await page.request.get('/licenses.txt')).text()).toContain('flag-icons');

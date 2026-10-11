@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import Flag from './Flag.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
-  import { editItem, deleteItems, setParked, setTranslation, translateNames } from '../lib/actions.js';
+  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName } from '../lib/actions.js';
   import { groupOptions, translationOf } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { langName } from '../../../shared/countries.js';
@@ -25,6 +25,12 @@
   let tr = $state(untrack(() => (list.travel ? translationOf(v, initial.name, list.travel.lang) : '')));
   const stored = $derived(travel ? v.translations?.[`${normalizeName(name.trim() || item.name)}|${travel.lang}`] : null);
   let translating = $state(false);
+  let fresh = $state(''); // what the service answered just now – saved as a machine translation if kept as is
+  const service = $derived(translatorName(sync.features.translator));
+  // where the text in the field comes from
+  const origin = $derived(
+    !tr.trim() ? '' : fresh && tr === fresh ? 'fresh' : stored && tr === stored.text ? (stored.auto ? 'machine' : 'manual') : 'typing',
+  );
   let trError = $state('');
   async function autoTranslate() {
     translating = true;
@@ -34,7 +40,7 @@
     const r = await translateNames([n], travel.lang, { force: true });
     translating = false;
     const text = Object.values(r.translations)[0];
-    if (text) tr = text;
+    if (text) tr = fresh = text;
     else trError = t({ quota: 'travel.errQuota', translate_limit: 'travel.errLimit', not_configured: 'travel.errOff', offline: 'travel.errOffline' }[r.error] ?? 'travel.errFailed');
   }
 
@@ -50,7 +56,9 @@
     if (travel) {
       const finalName = fields.name ?? item.name;
       const text = tr.trim().slice(0, 120);
-      if (text !== translationOf(v, finalName, travel.lang)) setTranslation(finalName, travel.lang, text);
+      const auto = !!fresh && text === fresh;
+      const cur = stored && normalizeName(finalName) === stored.norm ? stored : null;
+      if (text !== (cur?.text ?? '') || (cur && auto !== cur.auto)) setTranslation(finalName, travel.lang, text, auto);
     }
   }
 
@@ -84,7 +92,9 @@
           {/if}
         </div>
         {#if trError}<p class="micro tr-note alert-text">{trError}</p>
-        {:else if stored?.auto && tr === stored.text}<p class="micro tr-note">{t('travel.machine')}</p>{/if}
+        {:else if origin === 'fresh'}<p class="micro tr-note">{t('travel.fromService', { service })}</p>
+        {:else if origin === 'machine'}<p class="micro tr-note">{t('travel.machine')}</p>
+        {:else if origin === 'manual'}<p class="micro tr-note">{t('travel.manual')}</p>{/if}
       </div>
     {/if}
     <div class="amount">

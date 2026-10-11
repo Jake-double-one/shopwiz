@@ -36,6 +36,7 @@ export async function buildApp(config) {
   // creating ids is cheap for clients – cap it per address to keep spam out of the database
   const createLimiter = new Limiter({ limit: config.createLimit, windowMs: 3_600_000 });
   const translator = createTranslator(config, config.fetch);
+  if (translator.problem) app.log.warn(`translation (${translator.provider}) is off: ${translator.problem}`);
   // names sent to the translation provider per ID and hour – remembered ones are free
   const trUsage = new Map();
   app.decorate('store', store);
@@ -388,7 +389,7 @@ export async function buildApp(config) {
         serverTime: Date.now(),
         me: { devId: dev.dev_id, name: dev.name },
         online: hub.online(conn.uid),
-        features: { translate: translator.available },
+        features: { translate: translator.available, translator: translator.available ? translator.provider : 'none' },
         snapshot: store.snapshot(conn.uid),
       });
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);

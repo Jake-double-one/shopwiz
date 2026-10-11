@@ -188,6 +188,9 @@ function reduce(v, op, at, me) {
       else delete v.translations[key];
       break;
     }
+    case 'translation.clear':
+      for (const n of op.names ?? []) delete v.translations[`${normalizeName(n)}|${op.lang}`];
+      break;
     case 'suggestion.delete':
       delete v.suggestions[normalizeName(op.norm)];
       break;

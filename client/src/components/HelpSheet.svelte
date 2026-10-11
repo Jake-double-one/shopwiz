@@ -3,6 +3,8 @@
   import Icon from './Icon.svelte';
   import { t, i18n } from '../lib/i18n.svelte.js';
   import { build, versionUrl } from '../lib/build.js';
+  import { sync } from '../lib/sync.svelte.js';
+  import { translatorName } from '../lib/actions.js';
 
   let { onclose } = $props();
   const TOPICS = ['start', 'add', 'check', 'groups', 'shop', 'travel', 'lists', 'offline', 'backup', 'privacy'];
@@ -41,6 +43,9 @@
       {#if build.sha}<span class="mono muted">· {build.sha.slice(0, 7)}</span>{/if}
     </p>
     <p class="muted small">{[versionNote, builtAt && t('help.built', { date: builtAt })].filter(Boolean).join(' · ')}</p>
+    {#if sync.spaceId && sync.features.translator}
+      <p class="muted small">{t('help.translator')}: {translatorName(sync.features.translator) || t('help.translatorOff')}</p>
+    {/if}
     <a class="btn small" href={build.repo} target="_blank" rel="noopener noreferrer"><Icon name="code" size={16} />{t('help.source')}</a>
     <p class="muted small"><a href="/licenses.txt" target="_blank" rel="noopener">{t('help.licenses')}</a></p>
   </footer>

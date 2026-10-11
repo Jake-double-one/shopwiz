@@ -193,7 +193,7 @@ describe('websocket sync', () => {
     const { id } = await (await post('/api/spaces', { name: 'Trip', token: TA, deviceName: 'A' })).json();
     const a = client();
     await a.send({ t: 'hello', space: id, token: TA, name: 'A' });
-    expect((await a.wait((m) => m.t === 'welcome')).features).toEqual({ translate: true });
+    expect((await a.wait((m) => m.t === 'welcome')).features).toEqual({ translate: true, translator: 'mymemory' });
 
     const r1 = await (await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Milch', 'Brot', 'milch'] }, TA)).json();
     expect(r1.translations).toEqual({ milch: 'milch (it)', Brot: 'Brot (it)' });

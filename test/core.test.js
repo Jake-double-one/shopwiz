@@ -440,6 +440,13 @@ describe('travel mode', () => {
     expect(tr).toContainEqual(expect.objectContaining({ norm: 'brot', text: 'Pane', auto: true }));
     expect(store.knownTranslations(uid, 'it', ['milch', 'eier'])).toEqual(new Map([['milch', 'Latte intero']]));
 
+    // a machine translation kept as is stays marked as one
+    op(devA, { k: 'translation.set', name: 'Eier', lang: 'it', text: 'Uova', auto: true });
+    expect(store.snapshot(uid).translations).toContainEqual(expect.objectContaining({ norm: 'eier', auto: true }));
+    // "delete the translations of this list"
+    const r = op(devA, { k: 'translation.clear', lang: 'it', names: ['Eier', 'Gibt es nicht'] });
+    expect(r.changes).toEqual([{ e: 'translation', del: 'eier|it' }]);
+
     // clearing removes it; switching travel mode off keeps the translations
     op(devA, { k: 'translation.set', name: 'Brot', lang: 'it', text: '' });
     op(devA, { k: 'list.update', id: listId, travel: null });

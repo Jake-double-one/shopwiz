@@ -50,6 +50,8 @@ function pickMyMemory(data, fallback) {
 export function createTranslator(config, fetchImpl = globalThis.fetch) {
   const provider = PROVIDERS.includes(config.translateProvider) ? config.translateProvider : 'none';
   const key = config.translateApiKey || '';
+  // DeepL and Google don't work without a key – say so instead of failing on every request
+  const missingKey = ['deepl', 'google'].includes(provider) && !key;
   const timeout = 10_000;
 
   async function call(url, init) {
@@ -116,9 +118,10 @@ export function createTranslator(config, fetchImpl = globalThis.fetch) {
 
   return {
     provider,
-    available: provider !== 'none',
+    available: provider !== 'none' && !missingKey,
+    problem: missingKey ? 'TRANSLATE_API_KEY is missing' : null,
     async translate(texts, from, to) {
-      if (provider === 'none') throw new TranslateError('config', 'no translation provider configured');
+      if (provider === 'none' || missingKey) throw new TranslateError('config', 'no translation provider configured');
       if (!texts.length) return [];
       if (base(from) === base(to) && from === to) return [...texts];
       const res = await impl[provider](texts, from, to);

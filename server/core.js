@@ -960,6 +960,19 @@ const OPS = {
     ctx.changes.push({ e: 'translation', row: mapTranslation(row) });
   },
 
+  /** Forget the translations of these names (e.g. everything on a list) – they can be fetched again. */
+  'translation.clear'(ctx, op) {
+    const lang = String(op.lang ?? '');
+    if (!LANG_RE.test(lang)) throw new OpError('invalid', 'lang');
+    const names = Array.isArray(op.names) ? op.names.slice(0, LIMITS.itemsPerList) : [];
+    const del = this.db.q('DELETE FROM translations WHERE space_uid = ? AND norm = ? AND lang = ? RETURNING norm');
+    for (const n of names) {
+      if (typeof n !== 'string' || !n.trim()) continue;
+      const r = del.get(ctx.uid, normalizeName(n.slice(0, LIMITS.itemName)), lang);
+      if (r) ctx.changes.push({ e: 'translation', del: `${r.norm}|${lang}` });
+    }
+  },
+
   'suggestion.delete'(ctx, op) {
     const norm = normalizeName(str(op.norm, LIMITS.itemName, { required: true }));
     this.db.q('DELETE FROM suggestions WHERE space_uid = ? AND norm = ?').run(ctx.uid, norm);

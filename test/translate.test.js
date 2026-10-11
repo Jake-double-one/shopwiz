@@ -59,6 +59,8 @@ describe('translation providers', () => {
   it('DeepL and Google need a key', async () => {
     for (const p of ['deepl', 'google']) {
       const tr = createTranslator({ translateProvider: p }, fakeFetch(() => ({ json: {} })));
+      expect(tr.available).toBe(false);
+      expect(tr.problem).toMatch(/TRANSLATE_API_KEY/);
       await expect(tr.translate(['Milch'], 'de', 'it')).rejects.toBeInstanceOf(TranslateError);
     }
   });
