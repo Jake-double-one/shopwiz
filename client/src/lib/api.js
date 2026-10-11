@@ -26,4 +26,5 @@ export const api = {
   continueSpace: (id, deviceName) => call('POST', `/api/spaces/${id}/continue`, { deviceName }),
   transfer: (id, body) => call('POST', `/api/spaces/${id}/transfer`, body),
   translate: (id, body) => call('POST', `/api/spaces/${id}/translate`, body),
+  translateUsage: (id) => call('GET', `/api/spaces/${id}/translate/usage`),
 };

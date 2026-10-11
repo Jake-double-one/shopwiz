@@ -58,6 +58,18 @@ describe('translation services', () => {
     expect(f.calls[0].body).toMatchObject({ text: ['Milch', 'Brot'], source_lang: 'DE', target_lang: 'EN-GB' });
   });
 
+  it('DeepL: tells how much of its quota is used', async () => {
+    const f = fakeFetch((url) => ({ json: url.endsWith('/v2/usage') ? { character_count: 180118, character_limit: 1000000 } : {} }));
+    const tr = createTranslator(cfg('deepl,mymemory', { deeplApiKey: 'abc:fx' }), f);
+    expect(await tr.usage()).toEqual([{ provider: 'deepl', used: 180118, limit: 1000000 }]);
+    expect(f.calls[0].url).toBe('https://api-free.deepl.com/v2/usage');
+    expect(f.calls[0].init.headers.authorization).toBe('DeepL-Auth-Key abc:fx');
+    // services without a usage API, or DeepL being down: nothing to show
+    expect(await createTranslator(cfg('mymemory'), f).usage()).toEqual([]);
+    const down = createTranslator(cfg('deepl', { deeplApiKey: 'x' }), fakeFetch(() => ({ status: 503, json: {} })));
+    expect(await down.usage()).toEqual([]);
+  });
+
   it('Microsoft (Azure): key and region headers, one array request', async () => {
     const f = fakeFetch(() => ({ json: [{ translations: [{ text: 'Tovagliette per fasciatoio', to: 'it' }] }] }));
     const tr = createTranslator(cfg('azure', { azureTranslatorKey: 'k', azureTranslatorRegion: 'westeurope' }), f);

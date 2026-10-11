@@ -429,5 +429,6 @@
   "travel.manual": "Typed in by hand. “Translate” replaces it with a machine translation.",
   "help.translator": "Translation",
   "help.translatorOff": "off",
-  "travel.machineBy": "Machine translation by {service} – check if unsure. “Translate” asks again."
+  "travel.machineBy": "Machine translation by {service} – check if unsure. “Translate” asks again.",
+  "help.usage": "{service}: {used} of {limit} characters used ({pct} %)"
 }

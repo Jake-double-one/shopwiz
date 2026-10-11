@@ -160,7 +160,7 @@ Machine translation runs on the ShopWiz server – a translation service only ev
 
 A good free setup: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – DeepL's quality first, Microsoft as long-term fallback, MyMemory as the last resort.
 
-Item names are short (10–15 characters) and every name is translated only once per ID – remembered translations cost nothing. Even DeepL's one-time million lasts for tens of thousands of items. “Translate” in the item details always asks again; the list menu can delete all translations of the list to start over. The item details say which service translated an item, and the help shows the services in use next to the version.
+Item names are short (10–15 characters) and every name is translated only once per ID – remembered translations cost nothing. Even DeepL's one-time million lasts for tens of thousands of items. “Translate” in the item details always asks again; the list menu can delete all translations of the list to start over. The item details say which service translated an item, and the help shows the services in use next to the version – for DeepL also how much of its quota is used (“180,118 of 1,000,000 characters used”).
 
 ### Sync and conflicts
 

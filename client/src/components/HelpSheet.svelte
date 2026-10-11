@@ -4,7 +4,8 @@
   import { t, i18n } from '../lib/i18n.svelte.js';
   import { build, versionUrl } from '../lib/build.js';
   import { sync } from '../lib/sync.svelte.js';
-  import { translatorChain } from '../lib/actions.js';
+  import { translatorChain, translatorName } from '../lib/actions.js';
+  import { api } from '../lib/api.js';
 
   let { onclose } = $props();
   const TOPICS = ['start', 'add', 'check', 'groups', 'shop', 'travel', 'lists', 'offline', 'backup', 'privacy'];
@@ -15,6 +16,14 @@
       : '',
   );
   const versionNote = $derived(build.version === 'latest' ? t('help.versionLatest') : build.version === 'dev' ? t('help.versionDev') : '');
+
+  // quota of services that report it (DeepL)
+  let usage = $state([]);
+  if (sync.spaceId && sync.features.translators?.includes('deepl')) {
+    api.translateUsage(sync.spaceId).then((r) => (usage = r.usage ?? [])).catch(() => {});
+  }
+  const fmt = (n) => n.toLocaleString(i18n.lang);
+  const pct = (u) => (u.limit ? Math.round((u.used / u.limit) * 1000) / 10 : 0).toLocaleString(i18n.lang);
 </script>
 
 <Sheet title={t('help.title')} eyebrow="ShopWiz" {onclose}>
@@ -45,6 +54,16 @@
     <p class="muted small">{[versionNote, builtAt && t('help.built', { date: builtAt })].filter(Boolean).join(' · ')}</p>
     {#if sync.spaceId && sync.features.translators}
       <p class="muted small">{t('help.translator')}: {translatorChain() || t('help.translatorOff')}</p>
+      {#each usage as u (u.provider)}
+        <div class="usage">
+          <p class="muted small">
+            {t('help.usage', { service: translatorName(u.provider), used: fmt(u.used), limit: fmt(u.limit), pct: pct(u) })}
+          </p>
+          <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={u.limit} aria-valuenow={u.used} aria-label={translatorName(u.provider)}>
+            <span style:width="{Math.min(100, (u.used / u.limit) * 100)}%" class:warn={u.used / u.limit > 0.8}></span>
+          </div>
+        </div>
+      {/each}
     {/if}
     <a class="btn small" href={build.repo} target="_blank" rel="noopener noreferrer"><Icon name="code" size={16} />{t('help.source')}</a>
     <p class="muted small"><a href="/licenses.txt" target="_blank" rel="noopener">{t('help.licenses')}</a></p>
@@ -52,6 +71,27 @@
 </Sheet>
 
 <style>
+  .usage {
+    margin: 4px 0 8px;
+  }
+  .usage p {
+    margin: 0 0 4px;
+  }
+  .bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--dusk);
+  }
+  .bar span.warn {
+    background: var(--alert);
+  }
   .topics {
     border: 1px solid var(--line);
     border-radius: 14px;

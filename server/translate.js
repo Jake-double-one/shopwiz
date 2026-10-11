@@ -169,7 +169,26 @@ export function createTranslator(config, fetchImpl = globalThis.fetch, onError =
     },
   };
 
+  /** Used / available characters where a service tells (DeepL) → [{ provider, used, limit }] */
+  async function usage() {
+    const out = [];
+    for (const s of chain) {
+      if (s.name !== 'deepl') continue;
+      const host = s.key.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
+      try {
+        const d = await call(`${host}/v2/usage`, { headers: { authorization: `DeepL-Auth-Key ${s.key}` } });
+        const used = Number(d?.character_count);
+        const limit = Number(d?.character_limit);
+        if (Number.isFinite(used) && Number.isFinite(limit)) out.push({ provider: 'deepl', used, limit });
+      } catch {
+        /* not available right now – just not shown */
+      }
+    }
+    return out;
+  }
+
   return {
+    usage,
     providers: chain.map((c) => c.name),
     problems,
     available: chain.length > 0,

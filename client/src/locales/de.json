@@ -429,5 +429,6 @@
   "travel.manual": "Von Hand eingetragen. „Übersetzen“ ersetzt sie durch eine maschinelle Übersetzung.",
   "help.translator": "Übersetzung",
   "help.translatorOff": "aus",
-  "travel.machineBy": "Maschinell übersetzt von {service} – im Zweifel prüfen. „Übersetzen“ fragt neu an."
+  "travel.machineBy": "Maschinell übersetzt von {service} – im Zweifel prüfen. „Übersetzen“ fragt neu an.",
+  "help.usage": "{service}: {used} von {limit} Zeichen genutzt ({pct} %)"
 }

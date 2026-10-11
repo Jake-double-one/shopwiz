@@ -209,6 +209,11 @@ describe('websocket sync', () => {
     await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Brot'], force: true }, TA);
     expect(providerCalls.length).toBe(before + 1);
 
+    // quota display: only services that report it (none here)
+    const get = (path, token) => fetch(`http://${base}${path}`, { headers: token ? { 'x-shopwiz-token': token } : {} });
+    expect(await (await get(`/api/spaces/${id}/translate/usage`, TA)).json()).toEqual({ usage: [] });
+    expect((await get(`/api/spaces/${id}/translate/usage`)).status).toBe(403);
+
     // members only, valid languages only
     expect((await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['X'] })).status).toBe(403);
     expect((await post(`/api/spaces/${id}/translate`, { lang: 'italian', from: 'de', names: ['X'] }, TA)).status).toBe(400);
