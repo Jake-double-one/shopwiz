@@ -430,5 +430,11 @@
   "help.translator": "Translation",
   "help.translatorOff": "off",
   "travel.machineBy": "Machine translation by {service} – check if unsure. “Translate” asks again.",
-  "help.usage": "{service}: {used} of {limit} characters used ({pct} %)"
+  "help.usage": "{service}: {used} of {limit} characters used ({pct} %)",
+  "help.svc.ok": "works",
+  "help.svc.missing_key": "key missing ({detail})",
+  "help.svc.unknown": "unknown service – check TRANSLATE_PROVIDER",
+  "help.svc.quota": "quota used up",
+  "help.svc.rejected": "key rejected – check it",
+  "help.svc.unreachable": "not reachable right now"
 }

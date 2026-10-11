@@ -430,5 +430,11 @@
   "help.translator": "Übersetzung",
   "help.translatorOff": "aus",
   "travel.machineBy": "Maschinell übersetzt von {service} – im Zweifel prüfen. „Übersetzen“ fragt neu an.",
-  "help.usage": "{service}: {used} von {limit} Zeichen genutzt ({pct} %)"
+  "help.usage": "{service}: {used} von {limit} Zeichen genutzt ({pct} %)",
+  "help.svc.ok": "funktioniert",
+  "help.svc.missing_key": "Schlüssel fehlt ({detail})",
+  "help.svc.unknown": "unbekannter Dienst – TRANSLATE_PROVIDER prüfen",
+  "help.svc.quota": "Kontingent aufgebraucht",
+  "help.svc.rejected": "Schlüssel abgelehnt – bitte prüfen",
+  "help.svc.unreachable": "gerade nicht erreichbar"
 }

@@ -17,11 +17,14 @@
   );
   const versionNote = $derived(build.version === 'latest' ? t('help.versionLatest') : build.version === 'dev' ? t('help.versionDev') : '');
 
-  // quota of services that report it (DeepL)
-  let usage = $state([]);
-  if (sync.spaceId && sync.features.translators?.includes('deepl')) {
-    api.translateUsage(sync.spaceId).then((r) => (usage = r.usage ?? [])).catch(() => {});
+  // do the translation services work? (green/red dot, DeepL's quota) – checked by the server
+  let services = $state(null);
+  if (sync.spaceId) {
+    api.translateStatus(sync.spaceId).then((r) => (services = r.services ?? [])).catch(() => (services = null));
   }
+  const usage = $derived((services ?? []).filter((x) => x.usage).map((x) => ({ provider: x.provider, ...x.usage })));
+  const serviceName = (p) => translatorName(p) || p;
+  const problemText = (x) => t(`help.svc.${x.problem}`, { detail: x.detail ?? '' });
   const fmt = (n) => n.toLocaleString(i18n.lang);
   const pct = (u) => (u.limit ? Math.round((u.used / u.limit) * 1000) / 10 : 0).toLocaleString(i18n.lang);
 </script>
@@ -52,8 +55,17 @@
       {#if build.sha}<span class="mono muted">· {build.sha.slice(0, 7)}</span>{/if}
     </p>
     <p class="muted small">{[versionNote, builtAt && t('help.built', { date: builtAt })].filter(Boolean).join(' · ')}</p>
-    {#if sync.spaceId && sync.features.translators}
-      <p class="muted small">{t('help.translator')}: {translatorChain() || t('help.translatorOff')}</p>
+    {#if services?.length}
+      <p class="muted small services">
+        {t('help.translator')}:
+        {#each services as x, i (x.provider)}
+          {#if i}<span aria-hidden="true">→</span>{/if}
+          <span class="svc">{serviceName(x.provider)}<span class="dot" class:ok={x.ok} role="img" aria-label={x.ok ? t('help.svc.ok') : problemText(x)} title={x.ok ? t('help.svc.ok') : problemText(x)}></span></span>
+        {/each}
+      </p>
+      {#each services.filter((x) => !x.ok) as x (x.provider)}
+        <p class="small problem">{serviceName(x.provider)}: {problemText(x)}</p>
+      {/each}
       {#each usage as u (u.provider)}
         <div class="usage">
           <p class="muted small">
@@ -64,6 +76,8 @@
           </div>
         </div>
       {/each}
+    {:else if sync.spaceId && sync.features.translators}
+      <p class="muted small">{t('help.translator')}: {translatorChain() || t('help.translatorOff')}</p>
     {/if}
     <a class="btn small" href={build.repo} target="_blank" rel="noopener noreferrer"><Icon name="code" size={16} />{t('help.source')}</a>
     <p class="muted small"><a href="/licenses.txt" target="_blank" rel="noopener">{t('help.licenses')}</a></p>
@@ -71,6 +85,31 @@
 </Sheet>
 
 <style>
+  .services {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+  }
+  .svc {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--ink);
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--alert);
+  }
+  .dot.ok {
+    background: var(--ok, #2f8a4e);
+  }
+  .problem {
+    margin: 0 0 4px;
+    color: var(--alert);
+  }
   .usage {
     margin: 4px 0 8px;
   }

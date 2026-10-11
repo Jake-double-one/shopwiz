@@ -159,7 +159,7 @@ Die maschinelle Übersetzung läuft über den ShopWiz-Server – ein Übersetzun
 
 Eine gute kostenlose Kombination: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – zuerst DeepLs Qualität, Microsoft als dauerhafte Reserve, MyMemory als letzter Ausweg.
 
-Artikelnamen sind kurz (10–15 Zeichen), und jeder Name wird pro ID nur einmal übersetzt – gemerkte Übersetzungen kosten nichts. Selbst DeepLs einmalige Million reicht für zehntausende Artikel. „Übersetzen“ in den Artikeldetails fragt immer neu an; im Listenmenü lassen sich alle Übersetzungen der Liste löschen, um neu anzufangen. Die Artikeldetails zeigen, welcher Dienst übersetzt hat, und die Hilfe nennt die aktiven Dienste neben der Version – bei DeepL auch, wie viel vom Kontingent verbraucht ist („180.118 von 1.000.000 Zeichen genutzt“).
+Artikelnamen sind kurz (10–15 Zeichen), und jeder Name wird pro ID nur einmal übersetzt – gemerkte Übersetzungen kosten nichts. Selbst DeepLs einmalige Million reicht für zehntausende Artikel. „Übersetzen“ in den Artikeldetails fragt immer neu an; im Listenmenü lassen sich alle Übersetzungen der Liste löschen, um neu anzufangen. Die Artikeldetails zeigen, welcher Dienst übersetzt hat, und die Hilfe nennt die Dienste neben der Version, jeweils mit grünem oder rotem Punkt – der Server prüft jeden Dienst (Schlüssel fehlt oder falsch, aufgebraucht, nicht erreichbar) und nennt den Grund. Bei DeepL steht dort auch, wie viel vom Kontingent verbraucht ist („271 von 1.000.000 Zeichen genutzt“).
 
 ### Synchronisation und Konflikte
 

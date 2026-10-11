@@ -235,13 +235,14 @@ export async function buildApp(config) {
     return { translations: out, by, failed: texts.filter((t) => !t).length };
   });
 
-  // How much of a service's quota is used (DeepL tells) – shown in the help. Cached for a minute.
-  let usageCache = { at: 0, data: null };
-  app.get('/api/spaces/:id/translate/usage', async (req, reply) => {
+  // Do the translation services work (and how much of DeepL's quota is used)? Shown in the help.
+  // One check per service and minute at most, whoever asks.
+  let statusCache = { at: 0, data: null };
+  app.get('/api/spaces/:id/translate/status', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
-    if (Date.now() - usageCache.at > 60_000) usageCache = { at: Date.now(), data: await translator.usage() };
-    return { usage: usageCache.data };
+    if (Date.now() - statusCache.at > 60_000) statusCache = { at: Date.now(), data: translator.status() };
+    return { services: await statusCache.data };
   });
 
   app.post('/api/spaces/:id/transfer', async (req, reply) => {

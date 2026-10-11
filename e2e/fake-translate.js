@@ -4,7 +4,8 @@ import { createServer } from 'node:http';
 const IT = { milch: 'Latte', brot: 'Pane', eier: 'Uova' };
 
 createServer((req, res) => {
-  if (req.method === 'GET') return res.end('ok');
+  // GET /languages: the status check in the help
+  if (req.method === 'GET') return res.end(JSON.stringify([{ code: 'it', name: 'Italian' }]));
   let body = '';
   req.on('data', (c) => (body += c));
   req.on('end', () => {

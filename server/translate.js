@@ -89,11 +89,11 @@ export function createTranslator(config, fetchImpl = globalThis.fetch, onError =
   const chain = [];
   for (const name of [...new Set(wanted)]) {
     if (!PROVIDERS.includes(name)) {
-      problems.push({ provider: name, problem: 'unknown service' });
+      problems.push({ provider: name, code: 'unknown', problem: 'unknown service' });
       continue;
     }
     const s = settingsOf(name, config, name === legacyFor ? config.translateApiKey : '');
-    if (s.missing) problems.push({ provider: name, problem: `${s.missing} is missing` });
+    if (s.missing) problems.push({ provider: name, code: 'missing_key', detail: s.missing, problem: `${s.missing} is missing` });
     else chain.push({ name, ...s });
   }
 
@@ -107,7 +107,11 @@ export function createTranslator(config, fetchImpl = globalThis.fetch, onError =
     if (res.status === 429 || res.status === 456) throw new TranslateError('quota');
     if (res.status === 401 || res.status === 403) throw new TranslateError('config', `answered ${res.status}`);
     if (!res.ok) throw new TranslateError('unavailable', `answered ${res.status}`);
-    return res.json();
+    try {
+      return await res.json();
+    } catch {
+      throw new TranslateError('unavailable', 'answer is not JSON');
+    }
   }
 
   const impl = {
@@ -169,26 +173,60 @@ export function createTranslator(config, fetchImpl = globalThis.fetch, onError =
     },
   };
 
-  /** Used / available characters where a service tells (DeepL) → [{ provider, used, limit }] */
-  async function usage() {
-    const out = [];
-    for (const s of chain) {
-      if (s.name !== 'deepl') continue;
+  /** Cheap checks that a service works with its settings – no or a single character used. */
+  const checks = {
+    async deepl(s) {
       const host = s.key.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com';
+      const d = await call(`${host}/v2/usage`, { headers: { authorization: `DeepL-Auth-Key ${s.key}` } });
+      const used = Number(d?.character_count);
+      const limit = Number(d?.character_limit);
+      if (!Number.isFinite(used) || !Number.isFinite(limit)) return {};
+      if (limit && used >= limit) throw new TranslateError('quota');
+      return { usage: { used, limit } };
+    },
+    async google(s) {
+      await call(`https://translation.googleapis.com/language/translate/v2/languages?key=${encodeURIComponent(s.key)}`);
+      return {};
+    },
+    async libretranslate(s) {
+      await call(`${s.url}/languages`);
+      return {};
+    },
+    async azure(s) {
+      const r = await impl.azure(s, ['a'], 'de', 'en');
+      if (!r[0]) throw new TranslateError('unavailable');
+      return {};
+    },
+    async mymemory(s) {
+      await impl.mymemory(s, ['a'], 'de', 'en');
+      return {};
+    },
+  };
+
+  /**
+   * State of every listed service, in order: [{ provider, ok, problem?, detail?, usage? }]
+   * problem: 'missing_key' (detail = variable) | 'unknown' | 'quota' | 'rejected' | 'unreachable'
+   */
+  async function status() {
+    const out = [];
+    for (const name of [...new Set(wanted)]) {
+      const p = problems.find((x) => x.provider === name);
+      if (p) {
+        out.push({ provider: name, ok: false, problem: p.code, ...(p.detail && { detail: p.detail }) });
+        continue;
+      }
+      const s = chain.find((c) => c.name === name);
       try {
-        const d = await call(`${host}/v2/usage`, { headers: { authorization: `DeepL-Auth-Key ${s.key}` } });
-        const used = Number(d?.character_count);
-        const limit = Number(d?.character_limit);
-        if (Number.isFinite(used) && Number.isFinite(limit)) out.push({ provider: 'deepl', used, limit });
-      } catch {
-        /* not available right now – just not shown */
+        out.push({ provider: name, ok: true, ...(await checks[name](s)) });
+      } catch (e) {
+        out.push({ provider: name, ok: false, problem: { quota: 'quota', config: 'rejected' }[e?.code] ?? 'unreachable' });
       }
     }
     return out;
   }
 
   return {
-    usage,
+    status,
     providers: chain.map((c) => c.name),
     problems,
     available: chain.length > 0,

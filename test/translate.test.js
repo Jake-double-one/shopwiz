@@ -58,16 +58,29 @@ describe('translation services', () => {
     expect(f.calls[0].body).toMatchObject({ text: ['Milch', 'Brot'], source_lang: 'DE', target_lang: 'EN-GB' });
   });
 
-  it('DeepL: tells how much of its quota is used', async () => {
-    const f = fakeFetch((url) => ({ json: url.endsWith('/v2/usage') ? { character_count: 180118, character_limit: 1000000 } : {} }));
-    const tr = createTranslator(cfg('deepl,mymemory', { deeplApiKey: 'abc:fx' }), f);
-    expect(await tr.usage()).toEqual([{ provider: 'deepl', used: 180118, limit: 1000000 }]);
+  it('status: green/red per listed service, with the reason and DeepL\'s quota', async () => {
+    const f = fakeFetch((url) => {
+      if (url.endsWith('/v2/usage')) return { json: { character_count: 271, character_limit: 1000000 } };
+      if (url.includes('libretranslate')) return { status: 502, json: {} };
+      return { json: { responseStatus: 200, responseData: { translatedText: 'a' } } };
+    });
+    const tr = createTranslator(cfg('deepl,azure,libretranslate,mymemory,nope', { deeplApiKey: 'abc:fx', libretranslateUrl: 'http://libretranslate:5000' }), f);
+    expect(await tr.status()).toEqual([
+      { provider: 'deepl', ok: true, usage: { used: 271, limit: 1000000 } },
+      { provider: 'azure', ok: false, problem: 'missing_key', detail: 'AZURE_TRANSLATOR_KEY' },
+      { provider: 'libretranslate', ok: false, problem: 'unreachable' },
+      { provider: 'mymemory', ok: true },
+      { provider: 'nope', ok: false, problem: 'unknown' },
+    ]);
     expect(f.calls[0].url).toBe('https://api-free.deepl.com/v2/usage');
     expect(f.calls[0].init.headers.authorization).toBe('DeepL-Auth-Key abc:fx');
-    // services without a usage API, or DeepL being down: nothing to show
-    expect(await createTranslator(cfg('mymemory'), f).usage()).toEqual([]);
-    const down = createTranslator(cfg('deepl', { deeplApiKey: 'x' }), fakeFetch(() => ({ status: 503, json: {} })));
-    expect(await down.usage()).toEqual([]);
+  });
+
+  it('status: a wrong key shows as rejected, a full DeepL quota as used up', async () => {
+    const wrong = createTranslator(cfg('deepl', { deeplApiKey: 'bad' }), fakeFetch(() => ({ status: 403, json: {} })));
+    expect(await wrong.status()).toEqual([{ provider: 'deepl', ok: false, problem: 'rejected' }]);
+    const full = createTranslator(cfg('deepl', { deeplApiKey: 'k' }), fakeFetch(() => ({ json: { character_count: 1000000, character_limit: 1000000 } })));
+    expect(await full.status()).toEqual([{ provider: 'deepl', ok: false, problem: 'quota' }]);
   });
 
   it('Microsoft (Azure): key and region headers, one array request', async () => {
@@ -131,7 +144,7 @@ describe('translation services', () => {
 
   it('"none" is not available; when every service fails the last error is reported', async () => {
     expect(createTranslator(cfg('none')).available).toBe(false);
-    expect(createTranslator(cfg('whatever')).problems).toEqual([{ provider: 'whatever', problem: 'unknown service' }]);
+    expect(createTranslator(cfg('whatever')).problems).toEqual([{ provider: 'whatever', code: 'unknown', problem: 'unknown service' }]);
     const down = createTranslator(cfg('mymemory'), async () => {
       throw new Error('ECONNREFUSED');
     });

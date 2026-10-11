@@ -630,7 +630,9 @@ test('travel mode: country from the address, bulk translation, own corrections, 
 
   // the service is named in the help
   await page.getByRole('button', { name: 'How ShopWiz works' }).first().click();
-  await expect(page.getByText('Translation: LibreTranslate')).toBeVisible();
+  await expect(page.locator('.services')).toContainText('Translation:');
+  await expect(page.locator('.services .svc')).toHaveText('LibreTranslate');
+  await expect(page.locator('.services .dot.ok')).toHaveCount(1);
   await page.keyboard.press('Escape');
 
   // the flags' license ships with the app
