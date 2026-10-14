@@ -208,3 +208,72 @@ Bewusst **nicht** geplant: Preise/Budget, Rezepte, Benutzerkonten, Push-Benachri
 6. Löschen mit doppelter Bestätigung; Mitglieder können mit neuer ID fortsetzen, bis das letzte Gerät abgelaufen ist.
 7. Englisch als Hauptsprache, Deutsch dazu, Sprache pro Gerät, Texte in Sprachdateien.
 8. Kamera-Knopf nur unter HTTPS.
+
+## 10. KI-Anbindung (MCP) und REST-Schnittstelle – geplant, noch nicht umgesetzt
+
+**Ziel:** KI-Assistenten und Sprachassistenten können Listen lesen und – wenn erlaubt – bearbeiten:
+„Plan mir Essen für die Woche und schreib die Zutaten auf die Einkaufsliste“, „Was steht noch für den Baumarkt drauf?“, „Hey Siri, Milch auf die Liste“.
+
+### 10.1 Grundidee: Jede KI ist ein eigenes Gerät
+- In den Einstellungen: **„KI / Assistent verbinden“** → Name eingeben (z. B. „Claude“, „Grok“, „ChatGPT“, „Siri“) → ShopWiz erzeugt **einen eigenen geheimen Verbindungslink bzw. Schlüssel pro KI**.
+- Die KI erscheint bei den Teilnehmern unter diesem Namen (mit kleinem KI-Kennzeichen), ihre Aktionen stehen im Verlauf („Claude hat 8 Artikel hinzugefügt“), alles ist rückgängig zu machen und synchronisiert live.
+- Jede Verbindung ist **einzeln widerrufbar** (wie ein Gerät entfernen). Der Link ist unabhängig vom Teilen-Link und von der ID selbst; „ID erneuern“ trennt alle KI-Verbindungen (sie müssen neu verbunden werden).
+- Inaktive KI-Verbindungen verfallen wie Geräte nach 30 Tagen ohne Nutzung (`DEVICE_TTL_DAYS`).
+
+### 10.2 Rechte: pro ID einstellbar
+- Einstellung pro ID: **„KI darf: nur lesen“** oder **„lesen und schreiben“** (Standard: nur lesen).
+- Gilt für alle KI-Verbindungen dieser ID; serverseitig erzwungen (schreibende Werkzeuge/Endpunkte antworten mit „nur Lesen erlaubt“).
+- Nie erlaubt, unabhängig von der Einstellung: ID löschen/erneuern, Geräte oder KI-Verbindungen verwalten, Einstellungen ändern, Artikel endgültig löschen.
+
+### 10.3 Werkzeuge / Funktionen (MCP und REST gleich)
+
+| Funktion | Recht | Zweck |
+|---|---|---|
+| Listen anzeigen | lesen | Listen der ID mit Name, Anzahl offen/erledigt, Reisemodus |
+| Liste lesen | lesen | Offene und erledigte Artikel mit Menge, Notiz, Gruppe (optional inaktive) |
+| Artikel hinzufügen | schreiben | Mehrere auf einmal, Schnelleingabe wie „200g Hack“, gelernte Gruppe, Doppelte werden zusammengeführt |
+| Abhaken / zurücknehmen | schreiben | Per Name oder ID |
+| Artikel ändern | schreiben | Menge, Notiz, Gruppe |
+| Entfernen | schreiben | Schiebt auf „inaktiv“ (nie endgültig löschen) |
+
+Intern laufen alle Funktionen über die vorhandenen Operationen (`store.applyOp`) – dieselben Regeln, Konflikterkennung, Verlauf und Live-Sync wie bei Menschen.
+
+### 10.4 Anbindung je Assistent
+
+| Assistent | Weg |
+|---|---|
+| **Claude** (Web, Desktop, App) | Remote-MCP: Endpunkt `https://<server>/mcp` (Streamable HTTP) als „Custom Connector“ eintragen, Verbindungsschlüssel im Link |
+| **ChatGPT** | MCP-Connector (sofern im Konto verfügbar) oder als Custom GPT mit „Actions“ über die REST-Schnittstelle (OpenAPI-Beschreibung unter `/api/v1/openapi.json`) |
+| **Grok** | MCP, sofern die App/API Remote-MCP unterstützt; sonst REST |
+| **Siri** | Apple **Kurzbefehle**: Diktat → „Inhalt von URL abrufen“ (POST an die REST-Schnittstelle). ShopWiz liefert eine Anleitung bzw. einen fertigen Kurzbefehl zum Importieren („Auf die Einkaufsliste“, „Was steht auf der Liste?“) |
+| **Home Assistant, Skripte, sonstige** | REST |
+
+Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT und Grok (ändert sich schnell), Authentifizierungs-Anforderungen der Claude-Connectoren (geheimer Link vs. OAuth).
+
+### 10.5 REST-Schnittstelle
+- Versioniert unter `/api/v1/…`, Authentifizierung per `Authorization: Bearer <KI-Schlüssel>`; der Schlüssel bestimmt ID, Namen und Rechte.
+- Einfache, gut dokumentierte JSON-Endpunkte, z. B.:
+  - `GET /api/v1/lists`
+  - `GET /api/v1/lists/{list}/items`
+  - `POST /api/v1/lists/{list}/items` (`{"items": ["2 Milch", "200g Hack"]}` oder strukturiert)
+  - `POST /api/v1/lists/{list}/items/{item}/check`
+- `{list}` darf auch der Listenname sein („Wocheneinkauf“) – praktisch für Sprachassistenten; ohne Angabe die zuletzt genutzte bzw. erste Liste.
+- OpenAPI-Beschreibung für ChatGPT-Actions und eigene Tools.
+
+### 10.6 Sicherheit und Datenschutz
+- Standardmäßig **aus**: `AI_ENABLED=false` (bzw. `MCP_ENABLED`/`API_ENABLED`) – wer es nicht will, hat keinen offenen Endpunkt.
+- Schlüssel werden wie Geräte-Token nur als Hash gespeichert; Anzeige nur einmal beim Anlegen (mit Kopieren-Knopf und QR-Code).
+- Mengenbegrenzung pro Schlüssel (Anfragen pro Minute) wie bei der ID-Suche.
+- **Prompt Injection**: Artikelnamen stammen auch von anderen Teilnehmern. Deshalb nur Listen-Funktionen innerhalb dieser einen ID, nichts Unumkehrbares, Ausgaben klar als Daten gekennzeichnet.
+- Die KI sieht Listeninhalte nur, wenn jemand sie bewusst verbindet und fragt – passt zu „ohne Tracking“. In der Hilfe/README klar erklären, dass der jeweilige KI-Anbieter dann die abgefragten Listen sieht.
+
+### 10.7 Offene Punkte
+- Darf die KI auch Gruppen anlegen und den Reisemodus/Übersetzungen nutzen?
+- Kurzbefehl für Siri als Datei mitliefern oder nur Anleitung?
+- Soll eine KI-Verbindung auf einzelne Listen beschränkt werden können?
+
+### 10.8 Umsetzungsschritte (Vorschlag)
+1. KI-Verbindungen: Datenmodell (Schlüssel-Hash, Name, Rechte über die ID), Einstellungen-UI, Anzeige bei Teilnehmern, Widerrufen.
+2. REST `/api/v1` + OpenAPI + Tests.
+3. MCP-Endpunkt `/mcp` (offizielles SDK, Streamable HTTP) auf denselben Funktionen + Tests.
+4. Anleitungen: Claude, ChatGPT, Grok, Siri-Kurzbefehl, Home Assistant (README + Hilfe).
