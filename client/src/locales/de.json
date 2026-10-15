@@ -448,7 +448,7 @@
   "prio.style.badge": "Pfeil am Kästchen-Eck",
   "prio.style.gap": "Pfeil vor dem Namen",
   "prio.shortcuts": "Kürzel „!“ und „?“ beim Hinzufügen",
-  "prio.shortcutsHint": "„!Windeln“ oder „! Windeln“ fügt einen wichtigen Artikel hinzu, „?Basilikum“ einen unwichtigen. Das Zeichen landet nicht im Namen.",
+  "prio.shortcutsHint": "„!Windeln“ fügt einen wichtigen Artikel hinzu, „?Basilikum“ einen unwichtigen. Leerzeichen werden ignoriert.",
   "help.prio.title": "Wichtig & unwichtig",
   "help.prio.body": "In den Artikeldetails markieren: ↑ Wichtig („nicht ohne nach Hause kommen“) oder ↓ Unwichtig („nicht schlimm, wenn es fehlt“). Wichtige Artikel sind hervorgehoben, unwichtige grau.\nBeim Hinzufügen wählt der kleine Knopf neben der Gruppe die Wichtigkeit des nächsten Artikels. Mit „Kürzel ! und ?“ im Listenmenü geht auch „!Windeln“ oder „? Basilikum“ – das Zeichen wird nicht im Namen gespeichert.\nWie die Markierung aussieht (im Kästchen, am Kästchen-Eck oder vor dem Namen), stellst du pro Gerät in den Einstellungen ein."
 }
