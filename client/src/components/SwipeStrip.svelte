@@ -41,19 +41,11 @@
   }
   .swipe-strip.check.armed {
     background: var(--dusk);
-    color: #fff;
-  }
-  :global(:root[data-theme='dark']) .swipe-strip.check.armed {
-    color: #10102a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :global(:root[data-theme='auto']) .swipe-strip.check.armed {
-      color: #10102a;
-    }
+    color: var(--on-dusk);
   }
   .swipe-strip.park.armed,
   .swipe-strip.unpark.armed {
     background: var(--sun);
-    color: #1d1a10;
+    color: var(--on-sun);
   }
 </style>

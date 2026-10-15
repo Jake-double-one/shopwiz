@@ -334,19 +334,11 @@
   }
   .sw-side.check {
     background: var(--dusk);
-    color: #fff;
-  }
-  :global(:root[data-theme='dark']) .sw-side.check {
-    color: #10102a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :global(:root[data-theme='auto']) .sw-side.check {
-      color: #10102a;
-    }
+    color: var(--on-dusk);
   }
   .sw-side.park {
     background: var(--sun);
-    color: #1d1a10;
+    color: var(--on-sun);
   }
   .sw-caption {
     display: flex;

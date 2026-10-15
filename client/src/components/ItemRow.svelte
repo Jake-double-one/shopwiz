@@ -165,7 +165,7 @@
     height: 24px;
     border-radius: 8px;
     border: 2px solid var(--control);
-    color: #fff;
+    color: var(--on-dusk);
     transition: all 0.15s ease;
   }
   .check:hover .box {
@@ -185,9 +185,6 @@
   .checked .box {
     background: var(--dusk);
     border-color: var(--dusk);
-  }
-  :global(:root[data-theme='dark']) .checked .box {
-    color: #10102a;
   }
   .main {
     flex: 1;
@@ -309,7 +306,7 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     background: var(--sun);
-    color: #201503;
+    color: var(--on-sun);
     border-radius: 999px;
     padding: 1px 7px;
     vertical-align: 2px;
@@ -317,7 +314,7 @@
   }
   .badge.warn {
     background: var(--alert);
-    color: #fff;
+    color: var(--on-alert);
   }
   .fresh {
     background: color-mix(in srgb, var(--sun-soft) 55%, var(--surface));

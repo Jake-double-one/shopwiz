@@ -7,7 +7,7 @@
   import { listTree } from '../lib/model.js';
   import FocusItem from './FocusItem.svelte';
   import { prefs } from '../lib/prefs.svelte.js';
-  import { setBarColors } from '../lib/theme.js';
+  import { setFocusBars } from '../lib/theme.js';
 
   /** children: calls from the others in the shop still show up; ontogglescreen: keep the screen on (if the browser can) */
   let { v, list, onclose, screenOn = false, ontogglescreen = null, children } = $props();
@@ -24,10 +24,10 @@
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     // status and navigation bar in the same black / white
-    setBarColors({ light: '#ffffff', dark: '#000000' });
+    setFocusBars(true);
     return () => {
       document.body.style.overflow = prev;
-      setBarColors(null);
+      setFocusBars(false);
     };
   });
 </script>
@@ -56,9 +56,9 @@
 
 <style>
   .focus {
-    --f-bg: #fff;
-    --f-ink: #000;
-    --f-dim: #8a8a8a;
+    --f-bg: var(--focus-bg);
+    --f-ink: var(--focus-ink);
+    --f-dim: var(--focus-dim);
     position: fixed;
     inset: 0;
     z-index: 55;
@@ -68,18 +68,6 @@
     color: var(--f-ink);
     padding: max(18px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom));
     outline: none;
-  }
-  :global(:root[data-theme='dark']) .focus {
-    --f-bg: #000;
-    --f-ink: #fff;
-    --f-dim: #7a7a7a;
-  }
-  @media (prefers-color-scheme: dark) {
-    :global(:root[data-theme='auto']) .focus {
-      --f-bg: #000;
-      --f-ink: #fff;
-      --f-dim: #7a7a7a;
-    }
   }
   /* the way out: a banner across the top (plus "keep the screen on") */
   .banner {

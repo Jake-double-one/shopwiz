@@ -1,7 +1,15 @@
-/* Feierabend design system v2 – tokens taken 1:1 */
+/* Feierabend design system v2 – fonts and sizes; colors come from the skins below */
 :root {
+  --page-dusk: var(--dusk);
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 18px;
+  --bar-h: 76px;
+}
+/* skins:start – generated from shared/skins.js by scripts/skins-css.js, do not edit by hand */
+/* no saved choice: light, or dark when the browser is dark ([data-theme="auto"]) */
+:root,
+[data-skin='light'] {
   --bg: #e9ede6;
   --surface: #fbfcf9;
   --surface-2: #e1e7dd;
@@ -14,15 +22,19 @@
   --sun-soft: #f6e4be;
   --alert: #a33a22;
   --ok: #2f7d4f;
-  /* drag handles, checkboxes, small buttons – more contrast than --line */
-  --control: #8e9d92;
+  --control: #83928a;
   --control-ink: #3f4e44;
+  --on-dusk: #ffffff;
+  --on-sun: #201503;
+  --on-alert: #ffffff;
+  --focus-bg: #ffffff;
+  --focus-ink: #000000;
+  --focus-dim: #8a8a8a;
   --shadow: 0 1px 2px rgba(22, 33, 27, 0.06), 0 12px 32px -18px rgba(22, 33, 27, 0.35);
-  --radius: 18px;
-  --bar-h: 76px;
   color-scheme: light;
 }
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+[data-skin='dark'] {
   --bg: #101714;
   --surface: #18211d;
   --surface-2: #212c27;
@@ -37,6 +49,12 @@
   --ok: #6fcf97;
   --control: #71857a;
   --control-ink: #c3d0c6;
+  --on-dusk: #10102a;
+  --on-sun: #201503;
+  --on-alert: #1c0a04;
+  --focus-bg: #000000;
+  --focus-ink: #ffffff;
+  --focus-dim: #7a7a7a;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -22px rgba(0, 0, 0, 0.9);
   color-scheme: dark;
 }
@@ -56,12 +74,67 @@
     --ok: #6fcf97;
     --control: #71857a;
     --control-ink: #c3d0c6;
-  --control: #71857a;
-  --control-ink: #c3d0c6;
+    --on-dusk: #10102a;
+    --on-sun: #201503;
+    --on-alert: #1c0a04;
+    --focus-bg: #000000;
+    --focus-ink: #ffffff;
+    --focus-dim: #7a7a7a;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 16px 40px -22px rgba(0, 0, 0, 0.9);
     color-scheme: dark;
   }
 }
+:root[data-theme='amoled'],
+[data-skin='amoled'] {
+  --bg: #000000;
+  --surface: #0b0d0c;
+  --surface-2: #161a18;
+  --ink: #eef3ee;
+  --muted: #9aab9f;
+  --line: #232a26;
+  --dusk: #a59dff;
+  --dusk-soft: #1d1b40;
+  --sun: #f2b93a;
+  --sun-soft: #3a2c10;
+  --alert: #ff9478;
+  --ok: #74d49c;
+  --control: #73867b;
+  --control-ink: #cbd6ce;
+  --on-dusk: #0c0a24;
+  --on-sun: #201503;
+  --on-alert: #1c0a04;
+  --focus-bg: #000000;
+  --focus-ink: #ffffff;
+  --focus-dim: #7a7a7a;
+  --shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+  color-scheme: dark;
+}
+:root[data-theme='cream'],
+[data-skin='cream'] {
+  --bg: #f4ede0;
+  --surface: #fffbf3;
+  --surface-2: #ece3d2;
+  --ink: #2a2119;
+  --muted: #67584a;
+  --line: #ddd1bc;
+  --dusk: #15666a;
+  --dusk-soft: #d3e7e3;
+  --sun: #e3a23c;
+  --sun-soft: #f7e3c0;
+  --alert: #a33a22;
+  --ok: #2f7d4f;
+  --control: #9a8b73;
+  --control-ink: #4b3f32;
+  --on-dusk: #ffffff;
+  --on-sun: #241605;
+  --on-alert: #ffffff;
+  --focus-bg: #fffaf0;
+  --focus-ink: #1e1712;
+  --focus-dim: #8c7f6d;
+  --shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 12px 32px -18px rgba(60, 40, 20, 0.3);
+  color-scheme: light;
+}
+/* skins:end */
 
 * {
   box-sizing: border-box;
@@ -231,7 +304,7 @@ h2 {
 .btn.main {
   background: var(--sun);
   border-color: var(--sun);
-  color: #201503;
+  color: var(--on-sun);
   font-weight: 600;
 }
 .btn.main:hover {
@@ -240,15 +313,7 @@ h2 {
 .btn.dusk {
   background: var(--dusk);
   border-color: var(--dusk);
-  color: #fff;
-}
-:root[data-theme='dark'] .btn.dusk {
-  color: #10102a;
-}
-@media (prefers-color-scheme: dark) {
-  :root[data-theme='auto'] .btn.dusk {
-    color: #10102a;
-  }
+  color: var(--on-dusk);
 }
 .btn.danger {
   color: var(--alert);
@@ -257,7 +322,7 @@ h2 {
 .btn.danger.solid {
   background: var(--alert);
   border-color: var(--alert);
-  color: #fff;
+  color: var(--on-alert);
 }
 .btn.block {
   width: 100%;
@@ -324,7 +389,7 @@ h2 {
 .chip.main[aria-pressed='true'] {
   background: var(--sun);
   border-color: var(--sun);
-  color: #201503;
+  color: var(--on-sun);
 }
 .input,
 .select,
@@ -372,30 +437,6 @@ label.field > span {
 }
 .stack > * + * {
   margin-top: 10px;
-}
-
-.themeswitch {
-  display: inline-flex;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 2px;
-}
-.themeswitch button {
-  font-family: var(--mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  background: none;
-  border: 0;
-  border-radius: 999px;
-  padding: 6px 10px;
-}
-.themeswitch button[aria-pressed='true'] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
 /* progress rail */

@@ -831,7 +831,7 @@ test('installed app: system bars follow the phone, not the skin, so the navigati
   await createList(page);
   const barColor = () => page.locator('meta[name="theme-color"]').getAttribute('content');
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('button', { name: 'Light' }).click();
+  await page.getByRole('radio', { name: 'Light', exact: true }).click();
   expect(await barColor()).toBe('#101714');
   await page.getByRole('button', { name: 'Close' }).first().click();
   await page.getByRole('button', { name: 'Focus mode' }).click();
@@ -851,7 +851,7 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await add(page, '2 Milk');
   await add(page, 'Tea');
   const barColor = () => page.locator('meta[name="theme-color"]').getAttribute('content');
-  expect(await barColor()).toBe('#E9EDE6');
+  expect(await barColor()).toBe('#e9ede6');
   await page.getByRole('button', { name: 'Focus mode' }).click();
   const focus = page.getByRole('dialog', { name: 'Weekly – focus mode' });
   await expect(focus.locator('h2')).toHaveText(['Bakery']);
@@ -882,13 +882,40 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await expect(focus).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
   // the app's own dark choice colors the bars, too – not only the system setting
-  expect(await barColor()).toBe('#E9EDE6');
+  expect(await barColor()).toBe('#e9ede6');
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('button', { name: 'Dark' }).click();
+  await page.getByRole('radio', { name: 'Dark', exact: true }).click();
   expect(await barColor()).toBe('#101714');
   await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1);
   // no theme_color in the manifest: Android then colors the installed app's navigation bar after the phone
   const manifest = await (await page.request.get('/manifest.webmanifest')).json();
   expect(manifest.theme_color).toBeUndefined();
+  await ctx.close();
+});
+
+test('skins: the browser decides until one is picked, then the pick stays', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', colorScheme: 'dark' });
+  const page = await ctx.newPage();
+  await page.goto('/');
+  const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  // first visit, dark browser: the standard dark skin, nothing saved
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'auto');
+  expect(await bg()).toBe('rgb(16, 23, 20)');
+  await expect(page.getByRole('radio', { name: 'Dark', exact: true })).toHaveAttribute('aria-checked', 'true');
+  // start screen: one dot per skin
+  await page.getByRole('radio', { name: 'AMOLED' }).click();
+  expect(await bg()).toBe('rgb(0, 0, 0)');
+  await createList(page);
+  // settings: preview tiles in the skins' own colors
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('radio', { name: 'AMOLED' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Cream' }).click();
+  expect(await bg()).toBe('rgb(244, 237, 224)');
+  expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe('#f4ede0');
+  const tileBg = await page.locator('.tile[data-skin="amoled"]').evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(tileBg).toBe('rgb(0, 0, 0)');
+  // the pick survives a reload, whatever the browser says
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
   await ctx.close();
 });

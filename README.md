@@ -63,7 +63,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Renew ID** | Creates a new ID, the old one stops working. All participating devices move along automatically. |
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
 | **Languages** | English and German, per device. Your entries are only translated if you turn on travel mode for a list. |
-| **Light & dark** | Follows the system or can be set per device. Design: *Feierabend design system v2*. |
+| **Skins** | Dark, AMOLED (true black), Light and Cream – picked per device in the settings, with previews. On the first visit ShopWiz follows the browser (dark or light). Every skin meets the WCAG AA contrast level (tested automatically). Design: *Feierabend design system v2*. |
 | **Built-in help** | A (?) in the header (and “How ShopWiz works” on the start screen) explains every feature in short topics – offline and in the device's language. New users get a one-time hint. |
 | **Installable** | Works as an app on the home screen (PWA). |
 
@@ -356,6 +356,14 @@ npm run dev        # server on :8080 + Vite dev server on :5173 with hot reload
 | `npm run build` | Builds the client into `dist/` |
 
 **Tech:** Node.js + Fastify + WebSockets + SQLite on the server, Svelte 5 + Vite as an installable PWA on the client. Drag and drop uses SortableJS, QR codes use `qrcode` and `jsqr`.
+
+## Adding a skin
+
+1. Add the colors to `shared/skins.js` (copy a skin of the same kind, light or dark, and change the values) and its id to `SKIN_IDS`.
+2. Run `node scripts/skins-css.js` – it writes the colors into `client/src/styles.css`.
+3. Add the name as `theme.<id>` to the language files.
+
+`npm test` checks that every skin is readable: text at least 4.5:1, checkbox borders at least 3:1 (WCAG AA), and that `styles.css` matches `shared/skins.js`.
 
 ## Adding a language
 

@@ -62,7 +62,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **ID erneuern** | Neue ID, die alte funktioniert nicht mehr. Alle teilnehmenden Geräte ziehen automatisch mit um. |
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
 | **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nur übersetzt, wenn du für eine Liste den Reisemodus einschaltest. |
-| **Hell & Dunkel** | Folgt dem System oder pro Gerät einstellbar. Design: *Feierabend-Designsystem v2*. |
+| **Skins** | Dunkel, AMOLED (echtes Schwarz), Hell und Creme – pro Gerät in den Einstellungen wählbar, mit Vorschau. Beim ersten Besuch folgt ShopWiz dem Browser (Dunkel oder Hell). Alle Skins halten den Kontrast-Standard WCAG AA ein (automatisch getestet). Design: *Feierabend-Designsystem v2*. |
 | **Eingebaute Hilfe** | Ein (?) in der Kopfzeile (und „So funktioniert ShopWiz“ auf der Startseite) erklärt alle Funktionen in kurzen Themen – offline und in der Sprache des Geräts. Neue Nutzer bekommen einmalig einen Hinweis. |
 | **Installierbar** | Läuft als App auf dem Homescreen (PWA). |
 
@@ -372,6 +372,14 @@ npm run dev        # Server auf :8080 + Vite-Dev-Server auf :5173 mit Hot Reload
 | `npm run build` | Baut den Client nach `dist/` |
 
 **Technik:** Node.js + Fastify + WebSockets + SQLite auf dem Server, Svelte 5 + Vite als installierbare PWA im Client.
+
+## Skin hinzufügen
+
+1. Die Farben in `shared/skins.js` eintragen (einen Skin gleicher Art – hell oder dunkel – kopieren und die Werte ändern) und die Kennung in `SKIN_IDS` aufnehmen.
+2. `node scripts/skins-css.js` ausführen – es schreibt die Farben in `client/src/styles.css`.
+3. Den Namen als `theme.<kennung>` in den Sprachdateien ergänzen.
+
+`npm test` prüft, dass jeder Skin gut lesbar ist – Text mindestens 4,5:1, Kästchen-Ränder mindestens 3:1 (WCAG AA) – und dass `styles.css` zu `shared/skins.js` passt.
 
 ## Sprache hinzufügen
 

@@ -8,11 +8,10 @@
   "save": "Save",
   "undo": "Undo",
   "time.now": "just now",
-  "theme.auto": "Auto",
   "theme.light": "Light",
   "theme.dark": "Dark",
   "prefs.language": "Language",
-  "prefs.theme": "Theme",
+  "prefs.theme": "Appearance",
   "start.title": "Shop together.",
   "start.lede": "Shared shopping lists without sign-up or tracking. Everyone with the ID shops along – in real time, on every device.",
   "start.recent": "Your lists on this device",
@@ -359,7 +358,7 @@
   "help.hint": "New here? Tap (?) for a short guide.",
   "help.hintOpen": "Open guide",
   "help.start.title": "Getting started",
-  "help.start.body": "A list lives behind a 10-character ID like K7QM-2XPA-9F. Whoever knows it can see and edit the lists – no account needed.\nShare the ID with ⤴: QR code, share menu or link. Opening the link is all it takes to join.\nYour device remembers the ID. Settings ⚙ → “Forget ID on this device” removes it from this device only.\nYour device name is what others see. Change it any time in Settings ⚙ → “This device”.",
+  "help.start.body": "A list lives behind a 10-character ID like K7QM-2XPA-9F. Whoever knows it can see and edit the lists – no account needed.\nShare the ID with ⤴: QR code, share menu or link. Opening the link is all it takes to join.\nYour device remembers the ID. Settings ⚙ → “Forget ID on this device” removes it from this device only.\nYour device name is what others see. Change it any time in Settings ⚙ → “This device”.\nPick the look under Settings ⚙ → “Appearance”: Dark, AMOLED (true black, easy on OLED screens), Light or Cream. Until you pick one, ShopWiz follows your browser's light/dark setting.",
   "help.add.title": "Adding items",
   "help.add.body": "Type into the field at the bottom and press Enter or ＋.\nAmounts are recognised: “2 milk”, “500g minced meat”, “milk x2”.\nWhile typing, things you added before are suggested – tap one to add it.\nPaste several lines at once (e.g. from a chat) to add several items.\nIf an item is already on the list, ShopWiz asks whether to increase the amount instead.",
   "help.check.title": "Checking off & inactive items",
@@ -519,5 +518,9 @@
   "focus.title": "{list} – focus mode",
   "focus.exit": "Leave focus mode",
   "focus.empty": "Nothing left to get.",
-  "device.default": "Device"
+  "device.default": "Device",
+  "theme.amoled": "AMOLED",
+  "theme.cream": "Cream",
+  "prefs.sample1": "Bread",
+  "prefs.sample2": "Milk"
 }
