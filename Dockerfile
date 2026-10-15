@@ -17,6 +17,13 @@ ENV VITE_APP_VERSION=$APP_VERSION \
     VITE_REPO_URL=$REPO_URL
 RUN npm run build
 
+# ---- production dependencies: pure JavaScript (no native modules), so they are installed once
+#      natively and copied into every platform's image – npm never runs under emulation ----
+FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund
+
 # ---- runtime: server + built client, production deps only ----
 FROM node:22-alpine
 ENV NODE_ENV=production \
@@ -25,7 +32,7 @@ ENV NODE_ENV=production \
     STATIC_DIR=/app/dist
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+COPY --from=deps /app/node_modules ./node_modules
 COPY server ./server
 COPY shared ./shared
 COPY --from=build /app/dist ./dist
