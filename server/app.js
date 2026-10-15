@@ -301,6 +301,12 @@ export async function buildApp(config) {
   app.post('/api/v1/lists/:list/check', rest((ctx, req) => ai.setDone(ctx, req.params.list, itemsOf(req.body), req.body?.done !== false)));
   app.post('/api/v1/lists/:list/remove', rest((ctx, req) => ai.removeItems(ctx, req.params.list, itemsOf(req.body))));
   app.patch('/api/v1/lists/:list/items/:item', rest((ctx, req) => ai.updateItem(ctx, req.params.list, req.params.item, req.body ?? {})));
+  app.post('/api/v1/lists/:list/groups', rest((ctx, req) => ai.addGroups(ctx, req.params.list, req.body?.groups ?? req.body?.group)));
+  app.put('/api/v1/lists/:list/groups', rest((ctx, req) => ai.orderGroups(ctx, req.params.list, req.body?.groups)));
+  app.patch('/api/v1/lists/:list/groups/:group', rest((ctx, req) => ai.renameGroup(ctx, req.params.list, req.params.group, req.body?.name)));
+  app.delete('/api/v1/lists/:list/groups/:group', rest((ctx, req) => ai.deleteGroup(ctx, req.params.list, req.params.group)));
+  app.put('/api/v1/lists/:list/translations', rest((ctx, req) => ai.setTranslations(ctx, req.params.list, req.body?.translations, req.body?.language)));
+  app.put('/api/v1/lists/:list/travel', rest((ctx, req) => ai.setTravelMode(ctx, req.params.list, req.body ?? {})));
 
   app.post('/api/spaces/:id/transfer', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });

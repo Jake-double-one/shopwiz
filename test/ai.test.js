@@ -86,7 +86,9 @@ describe('AI assistants', () => {
     expect(init.status).toBe(200);
     expect(init.body.result.serverInfo.name).toBe('shopwiz');
     const tools = await mcp(`/mcp/${key}`, 'tools/list', {});
-    expect(tools.body.result.tools.map((t) => t.name)).toEqual(['list_lists', 'read_list', 'add_items', 'check_items', 'update_item', 'remove_items']);
+    expect(tools.body.result.tools.map((t) => t.name)).toEqual([
+      'list_lists', 'read_list', 'add_items', 'check_items', 'update_item', 'add_groups', 'order_groups', 'rename_group', 'delete_group', 'set_travel_mode', 'set_translations', 'remove_items',
+    ]);
     const added = await mcp(`/mcp/${key}`, 'tools/call', { name: 'add_items', arguments: { items: [{ name: 'apples', quantity: 6 }] } });
     expect(toolData(added).added).toEqual(['apples']);
     const read = await mcp(`/mcp/${key}`, 'tools/call', { name: 'read_list', arguments: {} });
@@ -96,6 +98,57 @@ describe('AI assistants', () => {
     const ro = await mcp(`/mcp/${key}`, 'tools/list', {});
     expect(ro.body.result.tools.map((t) => t.name)).toEqual(['list_lists', 'read_list']);
     expect((await mcp('/mcp/swk_nonononononononononononono', 'tools/list', {})).status).toBe(401);
+  });
+
+  it('creates, sorts and fills groups; travel mode and own translations', async () => {
+    app.store.db.q('UPDATE spaces SET ai_write = 1').run();
+    const call = async (name, args) => toolData(await mcp(`/mcp/${key}`, 'tools/call', { name, arguments: args }));
+    expect(await call('add_groups', { groups: ['Dairy', 'Bakery', 'dairy', '  Bakery '] })).toMatchObject({ created: ['Dairy', 'Bakery'], alreadyThere: ['dairy', 'Bakery'] });
+    // into a group: new items, and items that are already on the list move there
+    const add = await call('add_items', { items: [{ name: 'butter', group: 'Dairy' }, { name: 'milk', group: 'Dairy' }, { name: 'rolls', group: 'Bakery' }] });
+    expect(add).toMatchObject({ added: ['butter', 'rolls'], merged: ['milk'], movedToGroup: ['milk'] });
+    expect(await call('order_groups', { groups: ['bakery', 'Fruit'] })).toMatchObject({ groups: ['Bakery', 'Dairy'], notFound: ['Fruit'] });
+    let list = await call('read_list', {});
+    expect(list.groups).toEqual(['Bakery', 'Dairy']);
+    expect(list.items.find((i) => i.name === 'milk').group).toBe('Dairy');
+    // moving an item into a group that doesn't exist yet creates it at the end
+    expect(await call('update_item', { item: 'apples', group: 'Fruit & veg' })).toMatchObject({ item: { group: 'Fruit & veg' } });
+    expect((await call('read_list', {})).groups).toEqual(['Bakery', 'Dairy', 'Fruit & veg']);
+    expect(await call('rename_group', { group: 'Fruit & veg', name: 'Produce' })).toMatchObject({ renamed: { from: 'Fruit & veg', to: 'Produce' } });
+
+    // translations need a language
+    const noLang = await mcp(`/mcp/${key}`, 'tools/call', { name: 'set_translations', arguments: { translations: [{ item: 'milk', text: 'latte' }] } });
+    expect(noLang.body.result.isError).toBe(true);
+    const travel = await call('set_travel_mode', { country: 'it' });
+    expect(travel.travelMode).toMatchObject({ country: 'IT', language: 'it', countryName: 'Italy' });
+    expect(travel.untranslated).toEqual(expect.arrayContaining(['milk', 'butter', 'rolls']));
+    expect(await call('set_translations', { translations: [{ item: 'milk', text: 'latte' }, { item: 'Butter', text: 'burro' }, { item: 'caviar', text: 'caviale' }] })).toMatchObject({
+      language: 'it',
+      translated: ['milk', 'butter'],
+      notFound: ['caviar'],
+    });
+    await call('add_items', { items: [{ name: 'pasta', translation: 'pasta', group: 'Pantry' }] });
+    list = await call('read_list', {});
+    expect(list.list.travelMode).toEqual({ country: 'IT', language: 'it' });
+    expect(Object.fromEntries(list.items.filter((i) => i.translation).map((i) => [i.name, i.translation]))).toEqual({ milk: 'latte', butter: 'burro', pasta: 'pasta' });
+    // manual translations: the app does not replace them with machine ones
+    const uid = app.store.resolve(id, null).space.uid;
+    expect(app.store.snapshot(uid).translations.find((t) => t.norm === 'milk')).toMatchObject({ auto: false, text: 'latte' });
+
+    // the same over REST
+    expect((await (await req('POST', '/api/v1/lists/default/groups', { auth: key, body: { groups: ['Drinks'] } })).json()).created).toEqual(['Drinks']);
+    expect((await (await req('PUT', '/api/v1/lists/default/groups', { auth: key, body: { groups: ['Drinks'] } })).json()).groups[0]).toBe('Drinks');
+    await req('PATCH', '/api/v1/lists/default/items/rolls', { auth: key, body: { group: '', translation: 'panini' } });
+    await req('PUT', '/api/v1/lists/default/translations', { auth: key, body: { translations: [{ item: 'pasta', text: '' }] } });
+    expect((await req('DELETE', '/api/v1/lists/default/groups/Produce', { auth: key })).status).toBe(200);
+    list = await (await req('GET', '/api/v1/lists/default', { auth: key })).json();
+    expect(list.groups).toEqual(['Drinks', 'Bakery', 'Dairy', 'Pantry']);
+    expect(list.items.find((i) => i.name === 'rolls')).toMatchObject({ translation: 'panini' });
+    expect(list.items.find((i) => i.name === 'rolls').group).toBeUndefined();
+    expect(list.items.find((i) => i.name === 'pasta').translation).toBeUndefined();
+    expect(list.items.find((i) => i.name === 'apples').group).toBeUndefined(); // its group is gone, the item stays
+    expect((await (await req('PUT', '/api/v1/lists/default/travel', { auth: key, body: { off: true } })).json()).travelMode).toBeNull();
+    expect((await req('PUT', '/api/v1/lists/default/travel', { auth: key, body: { country: 'XX' } })).status).toBe(400);
   });
 
   it('a new ID cuts the assistants', async () => {

@@ -13,6 +13,8 @@ export function openApi(publicUrl) {
     description: 'Item names, e.g. "2 l milk" or "!diapers" ("!" important, "?" not important)',
     items: { type: 'string' },
   };
+  const groupParam = { name: 'group', in: 'path', required: true, description: 'Group name or id', schema: { type: 'string' } };
+  const names = { type: 'array', items: { type: 'string' } };
   const ok = { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'object' } } } } };
   return {
     openapi: '3.1.0',
@@ -77,7 +79,7 @@ export function openApi(publicUrl) {
       '/api/v1/lists/{list}/items/{item}': {
         patch: {
           operationId: 'updateItem',
-          summary: 'Change amount, unit, note, priority or name of an item',
+          summary: 'Change amount, unit, note, priority, name, group or translation of an item',
           parameters: [listParam, { name: 'item', in: 'path', required: true, schema: { type: 'string' }, description: 'Item name or id' }],
           requestBody: {
             required: true,
@@ -91,6 +93,88 @@ export function openApi(publicUrl) {
                     note: { type: 'string' },
                     priority: { type: 'string', enum: ['important', 'normal', 'not important'] },
                     name: { type: 'string' },
+                    group: { type: 'string', description: 'Move to this group (created if missing); "" = no group' },
+                    translation: { type: 'string', description: 'Translation of the name ("" removes it)' },
+                    language: { type: 'string', description: 'Language of the translation; default: the travel mode language' },
+                  },
+                },
+              },
+            },
+          },
+          responses: ok,
+        },
+      },
+      '/api/v1/lists/{list}/groups': {
+        post: {
+          operationId: 'addGroups',
+          summary: 'Create groups (categories / aisles), appended in this order',
+          parameters: [listParam],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { groups: names } } } } },
+          responses: ok,
+        },
+        put: {
+          operationId: 'orderGroups',
+          summary: 'Sort groups (e.g. the way through the shop); groups not named follow in their order',
+          parameters: [listParam],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { groups: names } } } } },
+          responses: ok,
+        },
+      },
+      '/api/v1/lists/{list}/groups/{group}': {
+        patch: {
+          operationId: 'renameGroup',
+          summary: 'Rename a group',
+          parameters: [listParam, groupParam],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' } } } } } },
+          responses: ok,
+        },
+        delete: {
+          operationId: 'deleteGroup',
+          summary: 'Delete a group – its items stay on the list without a group (restorable from the history)',
+          parameters: [listParam, groupParam],
+          responses: ok,
+        },
+      },
+      '/api/v1/lists/{list}/travel': {
+        put: {
+          operationId: 'setTravelMode',
+          summary: 'Travel mode: show a translation under every item. Returns the items still to translate',
+          parameters: [listParam],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    country: { type: 'string', description: 'ISO country code, e.g. "IT"' },
+                    language: { type: 'string', description: 'Language code if not the main one of the country' },
+                    off: { type: 'boolean', description: 'true = end travel mode' },
+                  },
+                },
+              },
+            },
+          },
+          responses: ok,
+        },
+      },
+      '/api/v1/lists/{list}/translations': {
+        put: {
+          operationId: 'setTranslations',
+          summary: 'Write translations of item names (remembered for the whole ID)',
+          parameters: [listParam],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    translations: {
+                      type: 'array',
+                      items: { type: 'object', properties: { item: { type: 'string' }, text: { type: 'string', description: '"" removes it' } }, required: ['item', 'text'] },
+                    },
+                    language: { type: 'string', description: 'Default: the travel mode language' },
                   },
                 },
               },

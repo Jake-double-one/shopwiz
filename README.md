@@ -186,7 +186,7 @@ Assistants can read the lists and – if you allow it – change them: “Plan d
 
 1. Switch it on for the server: `MCP_ENABLED: "true"` (see [Configuration](#configuration)). ShopWiz must be reachable from the internet over **HTTPS** – the assistants' servers call it.
 2. In ShopWiz: **Settings → AI assistants**.
-   - **Assistants may change lists** – off by default: assistants can only read. On: they can add, check off, change and remove items (removing moves to “inactive”, nothing is deleted for good). Applies to all assistants of this ID.
+   - **Assistants may change lists** – off by default: assistants can only read. On: they can add, check off, change and remove items, manage groups, set travel mode and write translations (removing moves to “inactive”, nothing is deleted for good). Applies to all assistants of this ID.
    - **Connect an assistant**: Claude, ChatGPT, Grok, Siri or another name. Every assistant gets its own secret key and shows up as its own participant (marked “AI”) – in the history, too (“Claude added 8 items”). The key is shown once; remove the assistant (here or under participants) to cut it off.
 3. Add it to the assistant:
 
@@ -198,9 +198,11 @@ Assistants can read the lists and – if you allow it – change them: “Plan d
 | **Siri** | Shortcuts app: *Dictate text* → *Get contents of URL*: `https://<your-server>/api/v1/lists/default/items`, method POST, header `Authorization: Bearer swk_…`, JSON body field `text` = dictated text. ShopWiz shows these steps when connecting. |
 | **Other** (Home Assistant, scripts …) | MCP address, or the REST API with `Authorization: Bearer swk_…` – description at `/api/v1/openapi.json` |
 
-**What assistants can do** (MCP tools / REST): `list_lists` (`GET /api/v1/lists`), `read_list` (`GET /api/v1/lists/{list}`), and with permission `add_items` (`POST …/{list}/items`, e.g. `{"text": "milk, bread and 200g minced meat"}` or `{"items": ["2 l milk", "!diapers"]}`), `check_items` (`POST …/{list}/check`), `update_item` (`PATCH …/{list}/items/{item}`), `remove_items` (`POST …/{list}/remove`). `{list}` is the id, the name or `default` (the first list). Items added by an assistant behave like typed ones: same item → amount added, a checked one comes back, learned groups apply.
+**What assistants can do** (MCP tools / REST): `list_lists` (`GET /api/v1/lists`), `read_list` (`GET /api/v1/lists/{list}`), and with permission `add_items` (`POST …/{list}/items`, e.g. `{"text": "milk, bread and 200g minced meat"}` or `{"items": ["2 l milk", "!diapers"]}`), `check_items` (`POST …/{list}/check`), `update_item` (`PATCH …/{list}/items/{item}` – amount, note, priority, name, group, translation), `remove_items` (`POST …/{list}/remove`).
 
-Never possible for assistants: deleting or renewing the ID, managing devices, changing settings, deleting items for good. **Renewing the ID cuts all assistants.** Privacy: the assistant's provider sees the lists whenever you ask it about them; item names typed by others are passed on as data.
+Groups (categories) and travel mode: `add_groups` (`POST …/{list}/groups`), `order_groups` (`PUT …/{list}/groups`, e.g. the way through the shop), `rename_group` (`PATCH …/{list}/groups/{group}`), `delete_group` (`DELETE …/{list}/groups/{group}` – items stay, restorable from the history), `set_travel_mode` (`PUT …/{list}/travel`, `{"country": "IT"}` or `{"off": true}`) and `set_translations` (`PUT …/{list}/translations`, `{"translations": [{"item": "milk", "text": "latte"}]}`). Items in `add_items` can carry a `group` (created if missing; an item already on the list moves there) and a `translation`. Translations written by an assistant count as typed by hand – machine translation never replaces them. So you can ask: “Sort the list into aisles for an Italian supermarket and translate everything.” `{list}` is the id, the name or `default` (the first list). Items added by an assistant behave like typed ones: same item → amount added, a checked one comes back, learned groups apply.
+
+Never possible for assistants: deleting or renewing the ID, managing devices, changing the settings of the ID, deleting items for good. **Renewing the ID cuts all assistants.** Privacy: the assistant's provider sees the lists whenever you ask it about them; item names typed by others are passed on as data.
 
 ### Sync and conflicts
 
