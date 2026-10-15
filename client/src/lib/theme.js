@@ -1,5 +1,5 @@
 import { load, save } from './storage.js';
-import { SKINS, SKIN_IDS, DEFAULT_SKIN } from '../../../shared/skins.js';
+import { SKINS, SKIN_IDS, DEFAULT_SKIN, RENAMED } from '../../../shared/skins.js';
 
 export { SKINS, SKIN_IDS };
 
@@ -7,7 +7,10 @@ const darkQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-color-
 const browserScheme = () => (darkQuery?.matches ? 'dark' : 'light');
 
 /** The skin someone picked on this device, or null (then the standard light/dark one, like the browser) */
-export const savedSkin = () => (SKIN_IDS.includes(load('theme')) ? load('theme') : null);
+export const savedSkin = () => {
+  const s = RENAMED[load('theme')] ?? load('theme');
+  return SKIN_IDS.includes(s) ? s : null;
+};
 /** The skin that is shown right now */
 export const currentSkin = () => savedSkin() ?? DEFAULT_SKIN[browserScheme()];
 

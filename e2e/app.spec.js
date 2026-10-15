@@ -909,13 +909,13 @@ test('skins: the browser decides until one is picked, then the pick stays', asyn
   // settings: preview tiles in the skins' own colors
   await page.getByRole('button', { name: 'Settings' }).click();
   await expect(page.getByRole('radio', { name: 'AMOLED' })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('radio', { name: 'Cream' }).click();
-  expect(await bg()).toBe('rgb(244, 237, 224)');
-  expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe('#f4ede0');
+  await page.getByRole('radio', { name: 'Mango' }).click();
+  expect(await bg()).toBe('rgb(255, 223, 158)');
+  expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe('#ffdf9e');
   const tileBg = await page.locator('.tile[data-skin="amoled"]').evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(tileBg).toBe('rgb(0, 0, 0)');
   // the pick survives a reload, whatever the browser says
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'cream');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'mango');
   await ctx.close();
 });

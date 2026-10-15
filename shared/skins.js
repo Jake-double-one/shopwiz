@@ -24,17 +24,19 @@ export const SKINS = {
     control: '#83928a', 'control-ink': '#3f4e44', 'on-dusk': '#ffffff', 'on-sun': '#201503', 'on-alert': '#ffffff',
     'focus-bg': '#ffffff', 'focus-ink': '#000000', 'focus-dim': '#8a8a8a',
   },
-  cream: {
+  mango: {
     scheme: 'light',
-    bg: '#f4ede0', surface: '#fffbf3', 'surface-2': '#ece3d2', ink: '#2a2119', muted: '#67584a', line: '#ddd1bc',
-    dusk: '#15666a', 'dusk-soft': '#d3e7e3', sun: '#e3a23c', 'sun-soft': '#f7e3c0', alert: '#a33a22', ok: '#2f7d4f',
-    control: '#9a8b73', 'control-ink': '#4b3f32', 'on-dusk': '#ffffff', 'on-sun': '#241605', 'on-alert': '#ffffff',
-    'focus-bg': '#fffaf0', 'focus-ink': '#1e1712', 'focus-dim': '#8c7f6d',
+    bg: '#ffdf9e', surface: '#fff6e2', 'surface-2': '#ffe8b8', ink: '#2b1708', muted: '#6b4419', line: '#f0c97c',
+    dusk: '#b23c0a', 'dusk-soft': '#ffd3b8', sun: '#2f7a2c', 'sun-soft': '#d6ecc9', alert: '#a3271a', ok: '#2f7a2c',
+    control: '#b07a35', 'control-ink': '#5a3a12', 'on-dusk': '#ffffff', 'on-sun': '#ffffff', 'on-alert': '#ffffff',
+    'focus-bg': '#fff6e2', 'focus-ink': '#2b1708', 'focus-dim': '#9a7a52',
   },
 };
 
 /** Order in the settings: the dark ones, then the light ones */
-export const SKIN_IDS = ['dark', 'amoled', 'light', 'cream'];
+export const SKIN_IDS = ['dark', 'amoled', 'light', 'mango'];
+/** skins that were renamed – a saved old name keeps working */
+export const RENAMED = { cream: 'mango' };
 export const DEFAULT_SKIN = { dark: 'dark', light: 'light' };
 
 /** WCAG contrast ratio of two #rrggbb colors */

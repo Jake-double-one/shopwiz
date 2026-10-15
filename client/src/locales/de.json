@@ -358,7 +358,7 @@
   "help.hint": "Neu hier? Tippe auf (?) für eine kurze Anleitung.",
   "help.hintOpen": "Anleitung öffnen",
   "help.start.title": "Los geht's",
-  "help.start.body": "Eine Liste steckt hinter einer 10-stelligen ID wie K7QM-2XPA-9F. Wer sie kennt, kann die Listen sehen und bearbeiten – ganz ohne Konto.\nGeteilt wird mit ⤴: QR-Code, Teilen-Menü oder Link. Wer den Link öffnet, ist dabei.\nDein Gerät merkt sich die ID. Einstellungen ⚙ → „ID auf diesem Gerät vergessen“ entfernt sie nur von diesem Gerät.\nDein Gerätename ist das, was andere sehen. Ändern jederzeit unter Einstellungen ⚙ → „Dieses Gerät“.\nWie ShopWiz aussieht, wählst du unter Einstellungen ⚙ → „Erscheinungsbild“: Dunkel, AMOLED (echtes Schwarz, schont OLED-Displays), Hell oder Creme. Bis du etwas wählst, folgt ShopWiz dem Hell/Dunkel deines Browsers.",
+  "help.start.body": "Eine Liste steckt hinter einer 10-stelligen ID wie K7QM-2XPA-9F. Wer sie kennt, kann die Listen sehen und bearbeiten – ganz ohne Konto.\nGeteilt wird mit ⤴: QR-Code, Teilen-Menü oder Link. Wer den Link öffnet, ist dabei.\nDein Gerät merkt sich die ID. Einstellungen ⚙ → „ID auf diesem Gerät vergessen“ entfernt sie nur von diesem Gerät.\nDein Gerätename ist das, was andere sehen. Ändern jederzeit unter Einstellungen ⚙ → „Dieses Gerät“.\nWie ShopWiz aussieht, wählst du unter Einstellungen ⚙ → „Erscheinungsbild“: Dunkel, AMOLED (echtes Schwarz, schont OLED-Displays), Hell oder Mango (kräftig und fruchtig). Bis du etwas wählst, folgt ShopWiz dem Hell/Dunkel deines Browsers.",
   "help.add.title": "Artikel hinzufügen",
   "help.add.body": "Unten ins Feld tippen und Enter oder ＋ drücken.\nMengen werden erkannt: „2 Milch“, „500g Hack“, „Milch x2“.\nBeim Tippen werden frühere Artikel vorgeschlagen – antippen genügt.\nMehrere Zeilen auf einmal einfügen (z. B. aus einem Chat) legt mehrere Artikel an.\nSteht ein Artikel schon drauf, fragt ShopWiz, ob die Menge erhöht werden soll.",
   "help.check.title": "Abhaken & inaktive Artikel",
@@ -520,7 +520,7 @@
   "focus.empty": "Nichts mehr offen.",
   "device.default": "Gerät",
   "theme.amoled": "AMOLED",
-  "theme.cream": "Creme",
   "prefs.sample1": "Brot",
-  "prefs.sample2": "Milch"
+  "prefs.sample2": "Milch",
+  "theme.mango": "Mango"
 }
