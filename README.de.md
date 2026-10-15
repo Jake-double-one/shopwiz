@@ -62,7 +62,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **ID erneuern** | Neue ID, die alte funktioniert nicht mehr. Alle teilnehmenden Geräte ziehen automatisch mit um. |
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
 | **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nur übersetzt, wenn du für eine Liste den Reisemodus einschaltest. |
-| **Skins** | Dunkel, AMOLED (echtes Schwarz), Hell und Mango (kräftig und fruchtig) – pro Gerät in den Einstellungen wählbar, mit Vorschau. Beim ersten Besuch folgt ShopWiz dem Browser (Dunkel oder Hell). Alle Skins halten den Kontrast-Standard WCAG AA ein (automatisch getestet). Design: *Feierabend-Designsystem v2*. |
+| **Skins** | Dunkel, AMOLED (echtes Schwarz), Hell und Mango (kräftig und fruchtig) – pro Gerät in den Einstellungen wählbar. Weitere lassen sich als CSS-Datei ablegen, auch auf einem laufenden Server. Beim ersten Besuch folgt ShopWiz dem Browser (Dunkel oder Hell). Alle Skins halten den Kontrast-Standard WCAG AA ein (automatisch getestet). Design: *Feierabend-Designsystem v2*. |
 | **Eingebaute Hilfe** | Ein (?) in der Kopfzeile (und „So funktioniert ShopWiz“ auf der Startseite) erklärt alle Funktionen in kurzen Themen – offline und in der Sprache des Geräts. Neue Nutzer bekommen einmalig einen Hinweis. |
 | **Installierbar** | Läuft als App auf dem Homescreen (PWA). |
 
@@ -306,6 +306,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 
 Einstellungen aus v0.2.0/0.2.1 funktionieren weiter: `TRANSLATE_API_KEY` gilt für den ersten genannten Dienst ohne eigenen Schlüssel, `TRANSLATE_URL` und `TRANSLATE_EMAIL` zählen als `LIBRETRANSLATE_URL` und `MYMEMORY_EMAIL`.
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
+| `SKINS_DIR` | `$DATA_DIR/skins` | Ordner für eigene Skins (CSS-Dateien, siehe [Skin hinzufügen](#skin-hinzufügen)) – wird im Betrieb gelesen |
 | `DATA_DIR` | `/data` | Ort der Datenbank (in Docker: das Volume) |
 
 ## Ohne Docker starten
@@ -375,11 +376,12 @@ npm run dev        # Server auf :8080 + Vite-Dev-Server auf :5173 mit Hot Reload
 
 ## Skin hinzufügen
 
-1. Die Farben in `shared/skins.js` eintragen (einen Skin gleicher Art – hell oder dunkel – kopieren und die Werte ändern) und die Kennung in `SKIN_IDS` aufnehmen.
-2. `node scripts/skins-css.js` ausführen – es schreibt die Farben in `client/src/styles.css`.
-3. Den Namen als `theme.<kennung>` in den Sprachdateien ergänzen.
+Ein Skin ist eine CSS-Datei mit ein paar Kopfzeilen und seinen Farben – Format und ein Beispiel zum Kopieren stehen in [`skins/README.md`](skins/README.md).
 
-`npm test` prüft, dass jeder Skin gut lesbar ist – Text mindestens 4,5:1, Kästchen-Ränder mindestens 3:1 (WCAG AA) – und dass `styles.css` zu `shared/skins.js` passt.
+- **Fest in ShopWiz:** die Datei nach `skins/` legen (z. B. `skins/ocean.css`).
+- **Auf deinem Server, ohne neu zu bauen:** nach `/data/skins` (oder in den Ordner aus `SKINS_DIR`), z. B. mit `- ./my-skins:/data/skins:ro` in Docker Compose. Eine Datei mit dem Namen eines eingebauten Skins ersetzt ihn.
+
+Der Server liest die Skins im laufenden Betrieb: Eine neue oder geänderte Datei erscheint nach ein paar Sekunden in der App. Er prüft jeden Skin auf WCAG AA (Text mindestens 4,5:1, Kästchen-Ränder mindestens 3:1) und schreibt Mängel ins Log; `npm test` stellt sicher, dass die eingebauten Skins bestehen.
 
 ## Sprache hinzufügen
 

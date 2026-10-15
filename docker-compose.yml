@@ -38,6 +38,8 @@ services:
       # LIBRETRANSLATE_URL: "http://libretranslate:5000"
     volumes:
       - shopwiz-data:/data
+      # your own skins: a folder with CSS files (see skins/README.md), picked up while running
+      # - ./my-skins:/data/skins:ro
     read_only: true
     tmpfs:
       - /tmp

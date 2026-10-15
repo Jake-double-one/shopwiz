@@ -35,8 +35,10 @@ COPY package.json package-lock.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY server ./server
 COPY shared ./shared
+COPY skins ./skins
 COPY --from=build /app/dist ./dist
-RUN mkdir -p /data && chown node:node /data
+# your own skins go into /data/skins (see skins/README.md)
+RUN mkdir -p /data/skins && chown -R node:node /data
 USER node
 VOLUME /data
 EXPOSE 8080

@@ -48,5 +48,7 @@ export function loadConfig(env = process.env) {
     mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
+    // your own skins (CSS files, see skins/README.md) – read at runtime, no rebuild needed
+    skinsDir: env.SKINS_DIR || (env.DATA_DIR === ':memory:' ? '' : `${env.DATA_DIR || './data'}/skins`),
   };
 }

@@ -1,29 +1,65 @@
 import { load, save } from './storage.js';
-import { SKINS, SKIN_IDS, DEFAULT_SKIN, RENAMED } from '../../../shared/skins.js';
 
-export { SKINS, SKIN_IDS };
+// The skins come from the server (skins/ and SKINS_DIR, see skins/README.md): their colors as a <style> and
+// the list as JSON in the page. The Vite dev server has no such page, so there they are fetched.
+let list = { defaults: { light: 'light', dark: 'dark' }, skins: [] };
+const listeners = new Set();
+function readList() {
+  try {
+    const el = typeof document !== 'undefined' && document.getElementById('skin-list');
+    if (el) list = JSON.parse(el.textContent);
+  } catch {
+    /* keep the fallback */
+  }
+}
+readList();
+
+/** In dev: get the skins from the server and add their colors to the page */
+export async function ensureSkins() {
+  if (list.skins.length) return list;
+  try {
+    const r = await fetch('/api/skins');
+    const data = await r.json();
+    const style = Object.assign(document.createElement('style'), { id: 'skins', textContent: data.css });
+    document.head.append(style);
+    list = { defaults: data.defaults, skins: data.skins };
+    syncThemeColor();
+    for (const fn of listeners) fn(list);
+  } catch {
+    /* offline in dev – the page keeps its fallback colors */
+  }
+  return list;
+}
+
+/** All skins: { id, names, scheme, bg, accent, ink, focusBg } */
+export const skinList = () => list.skins;
+export const onSkinList = (fn) => (listeners.add(fn), () => listeners.delete(fn));
+export const skinName = (skin, lang) => skin.names[lang] ?? skin.names[''] ?? skin.id;
 
 const darkQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
 const browserScheme = () => (darkQuery?.matches ? 'dark' : 'light');
+/** skins that were renamed – a saved old name keeps working */
+const RENAMED = { cream: 'mango' };
+const known = (id) => !list.skins.length || list.skins.some((s) => s.id === id);
 
 /** The skin someone picked on this device, or null (then the standard light/dark one, like the browser) */
 export const savedSkin = () => {
   const s = RENAMED[load('theme')] ?? load('theme');
-  return SKIN_IDS.includes(s) ? s : null;
+  return typeof s === 'string' && s !== 'auto' && known(s) ? s : null;
 };
 /** The skin that is shown right now */
-export const currentSkin = () => savedSkin() ?? DEFAULT_SKIN[browserScheme()];
+export const currentSkin = () => savedSkin() ?? list.defaults[browserScheme()];
 
 /** data-theme="auto" (nothing saved) lets the CSS follow the browser; otherwise it names the skin */
 export function applyTheme(skin = savedSkin()) {
-  const t = SKIN_IDS.includes(skin) ? skin : 'auto';
+  const t = skin && known(skin) ? skin : 'auto';
   document.documentElement.dataset.theme = t;
   syncThemeColor();
   return t;
 }
 
 export function setTheme(skin) {
-  if (!SKIN_IDS.includes(skin)) return currentSkin();
+  if (!known(skin)) return currentSkin();
   save('theme', skin);
   applyTheme(skin);
   return skin;
@@ -45,9 +81,11 @@ let focusBars = false;
 const installed = () => typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches;
 
 export function syncThemeColor() {
-  let skin = currentSkin();
-  if (installed() && SKINS[skin].scheme !== browserScheme()) skin = DEFAULT_SKIN[browserScheme()];
-  const color = SKINS[skin][focusBars ? 'focus-bg' : 'bg'];
+  const skins = list.skins;
+  let skin = skins.find((x) => x.id === currentSkin());
+  if (installed() && skin && skin.scheme !== browserScheme()) skin = skins.find((x) => x.id === list.defaults[browserScheme()]);
+  // before the list is there (dev only): the standard colors
+  const color = skin ? (focusBars ? skin.focusBg : skin.bg) : focusBars ? (browserScheme() === 'dark' ? '#000000' : '#ffffff') : browserScheme() === 'dark' ? '#101714' : '#e9ede6';
   const tags = [...document.querySelectorAll('meta[name="theme-color"]')];
   const tag = tags[0] ?? document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color' }));
   for (const extra of tags.slice(1)) extra.remove();

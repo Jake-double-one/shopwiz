@@ -63,7 +63,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Renew ID** | Creates a new ID, the old one stops working. All participating devices move along automatically. |
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
 | **Languages** | English and German, per device. Your entries are only translated if you turn on travel mode for a list. |
-| **Skins** | Dark, AMOLED (true black), Light and Mango (bright and fruity) – picked per device in the settings, with previews. On the first visit ShopWiz follows the browser (dark or light). Every skin meets the WCAG AA contrast level (tested automatically). Design: *Feierabend design system v2*. |
+| **Skins** | Dark, AMOLED (true black), Light and Mango (bright and fruity) – picked per device in the settings. More can be dropped in as CSS files, also on a running server. On the first visit ShopWiz follows the browser (dark or light). Every skin meets the WCAG AA contrast level (tested automatically). Design: *Feierabend design system v2*. |
 | **Built-in help** | A (?) in the header (and “How ShopWiz works” on the start screen) explains every feature in short topics – offline and in the device's language. New users get a one-time hint. |
 | **Installable** | Works as an app on the home screen (PWA). |
 
@@ -307,6 +307,7 @@ All settings are environment variables. The defaults are fine for most setups.
 
 Settings of v0.2.0/0.2.1 keep working: `TRANSLATE_API_KEY` is used for the first listed service that has no own key, `TRANSLATE_URL` and `TRANSLATE_EMAIL` count as `LIBRETRANSLATE_URL` and `MYMEMORY_EMAIL`.
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
+| `SKINS_DIR` | `$DATA_DIR/skins` | Folder for your own skins (CSS files, see [Adding a skin](#adding-a-skin)) – read while running |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |
 
 ## Run without Docker
@@ -359,11 +360,12 @@ npm run dev        # server on :8080 + Vite dev server on :5173 with hot reload
 
 ## Adding a skin
 
-1. Add the colors to `shared/skins.js` (copy a skin of the same kind, light or dark, and change the values) and its id to `SKIN_IDS`.
-2. Run `node scripts/skins-css.js` – it writes the colors into `client/src/styles.css`.
-3. Add the name as `theme.<id>` to the language files.
+A skin is one CSS file with a few lines of header and its colors – see [`skins/README.md`](skins/README.md) for the format and an example to copy.
 
-`npm test` checks that every skin is readable: text at least 4.5:1, checkbox borders at least 3:1 (WCAG AA), and that `styles.css` matches `shared/skins.js`.
+- **Into ShopWiz itself:** put the file into `skins/` (e.g. `skins/ocean.css`).
+- **On your server, without rebuilding:** put it into `/data/skins` (or the folder in `SKINS_DIR`), e.g. with `- ./my-skins:/data/skins:ro` in Docker Compose. A file with the name of a built-in skin replaces it.
+
+The server reads the skins while it runs: a new or changed file shows up in the app after a few seconds. It checks every skin against WCAG AA (text at least 4.5:1, checkbox borders at least 3:1) and writes shortfalls to the log; `npm test` makes sure the built-in skins pass.
 
 ## Adding a language
 
@@ -399,6 +401,8 @@ client/        Svelte app
   src/components UI components
   src/locales/   translations
   public/        icons, manifest, service worker, link preview image
+skins/         Skins – one CSS file each, read by the server at runtime (format in skins/README.md)
+scripts/       Build helpers (third-party license list)
 test/          Vitest tests
 e2e/           Playwright tests
 docs/          Screenshots and the original plan (German)

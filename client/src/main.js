@@ -7,10 +7,11 @@ import '@fontsource/ibm-plex-mono/500.css';
 import '@fontsource/ibm-plex-mono/600.css';
 import './styles.css';
 import App from './App.svelte';
-import { applyTheme, applyPrioStyle } from './lib/theme.js';
+import { applyTheme, applyPrioStyle, ensureSkins } from './lib/theme.js';
 import { i18n } from './lib/i18n.svelte.js';
 
 applyTheme();
+ensureSkins().then(() => applyTheme()); // dev server only – the real page has them already
 applyPrioStyle();
 
 // On-screen keyboards (iOS Safari in particular) cover the page instead of shrinking it.

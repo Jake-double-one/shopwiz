@@ -6,6 +6,7 @@ import { resolve, join } from 'node:path';
 import { openDb } from './db.js';
 import { Store, OpError, hashToken, mapDevice, LIMITS, newEntityId } from './core.js';
 import { Hub } from './hub.js';
+import { createSkins } from './skins.js';
 import { Limiter } from './limiter.js';
 import { createTranslator, TranslateError } from './translate.js';
 import { createAi, AiError } from './ai.js';
@@ -533,6 +534,22 @@ export async function buildApp(config) {
     }
   });
 
+  // ---------- skins ----------
+  const skins = createSkins({ customDir: config.skinsDir || null, log: app.log });
+  skins(); // read once at start – problems show up in the log right away
+  // the dev server (Vite) has no server-made index.html, so the app can ask for them, too
+  app.get('/api/skins', async (req, reply) => {
+    reply.header('Cache-Control', 'no-cache');
+    const { css, list } = skins();
+    return { css, ...list };
+  });
+  const skinsHtml = () => {
+    const { css, list } = skins();
+    // JSON in a <script> tag: "<" escaped, so a name can never end the tag
+    const json = JSON.stringify(list).replace(/</g, '\\u003c');
+    return `<style id="skins">\n${css}\n</style>\n    <script type="application/json" id="skin-list">${json}</script>`;
+  };
+
   // ---------- static client + link previews ----------
   const staticDir = resolve(config.staticDir);
   const indexFile = join(staticDir, 'index.html');
@@ -580,7 +597,8 @@ export async function buildApp(config) {
     ].join('\n    ');
     return template
       .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`)
-      .replace('<!--og-->', meta);
+      .replace('<!--og-->', meta)
+      .replace('<!--skins-->', skinsHtml);
   }
 
   app.setNotFoundHandler((req, reply) => {
