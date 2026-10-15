@@ -103,7 +103,7 @@ it('semantics: lists, groups, translations, permissions', async () => {
   await call('add_groups', { list: 'Wein', groups: ['Weiß'] });
   expect((await call('rename_group', { list: 'Wein', group: 'Rot', name: 'weiß' })).data.error).toBe('exists');
   // the assistant can never delete items: inactive only, and back with one tap
-  await call('remove_items', { list: 'Wein', items: ['Rotwein'] });
+  await call('move_to_inactive', { list: 'Wein', items: ['Rotwein'] });
   const snap = app.store.snapshot(uid);
   expect(snap.items.find((i) => i.name === 'Rotwein')).toMatchObject({ parked: true });
   // read-only: write tools are not even offered, a call is refused cleanly

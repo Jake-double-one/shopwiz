@@ -42,7 +42,7 @@ export function openApi(publicUrl) {
       '/api/v1/lists/{list}/items': {
         post: {
           operationId: 'addItems',
-          summary: 'Add items (needs "assistants may change lists")',
+          summary: 'Add items (needs "assistants may change lists"); an inactive or checked item with that name comes back onto the list',
           parameters: [listParam],
           requestBody: {
             required: true,
@@ -50,7 +50,11 @@ export function openApi(publicUrl) {
               'application/json': {
                 schema: {
                   type: 'object',
-                  properties: { items, text: { type: 'string', description: 'Alternative: spoken text like "milk, bread and 200g minced meat"' } },
+                  properties: {
+                    items,
+                    text: { type: 'string', description: 'Alternative: spoken text like "milk, bread and 200g minced meat"' },
+                    forLater: { type: 'boolean', description: 'true = new items go straight to "Inactive" (remembered, not needed now)' },
+                  },
                 },
               },
             },
@@ -67,10 +71,28 @@ export function openApi(publicUrl) {
           responses: ok,
         },
       },
+      '/api/v1/lists/{list}/inactive': {
+        post: {
+          operationId: 'moveToInactive',
+          summary: 'Take items off the list into "Inactive" (kept with group, amount and note – never deleted). allChecked: everything checked',
+          parameters: [listParam],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { items, allChecked: { type: 'boolean' } } } } } },
+          responses: ok,
+        },
+      },
+      '/api/v1/lists/{list}/bring-back': {
+        post: {
+          operationId: 'bringBack',
+          summary: 'Put inactive (or checked) items back on the list as needed',
+          parameters: [listParam],
+          requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { items } } } } },
+          responses: ok,
+        },
+      },
       '/api/v1/lists/{list}/remove': {
         post: {
           operationId: 'removeItems',
-          summary: 'Move items to "inactive" (nothing is deleted for good)',
+          summary: 'Same as /inactive (older name)',
           parameters: [listParam],
           requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { items } } } } },
           responses: ok,

@@ -70,10 +70,10 @@ it('a standard MCP client connects, sees valid schemas and runs a whole shopping
   ]);
   // check off while shopping, take something off
   await run('check_items', { items: ['Tomaten', 'Spaghetti'] });
-  await run('remove_items', { items: ['Basilikum'] });
+  await run('move_to_inactive', { items: ['Basilikum'] });
   const after = await run('read_list', { includeInactive: true });
   expect(after.items.filter((i) => i.done).map((i) => i.name)).toEqual(['Tomaten', 'Spaghetti']);
-  expect(after.inactive).toEqual(['Basilikum']);
+  expect(after.inactive).toEqual([expect.objectContaining({ name: 'Basilikum', group: 'Gemüse', translation: 'basilico' })]);
   // errors arrive as readable tool errors, not as protocol failures
   const bad = await client.callTool({ name: 'rename_group', arguments: { group: 'Fleisch', name: 'Metzger' } });
   expect(bad.isError).toBe(true);

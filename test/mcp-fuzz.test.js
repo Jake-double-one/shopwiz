@@ -56,7 +56,7 @@ const goodish = {
 const TOOLS = {
   list_lists: () => ({}),
   read_list: () => ({ list: goodish.list(), includeInactive: pick([true, false, undefined, 'yes']) }),
-  add_items: () => ({ list: goodish.list(), items: goodish.items() }),
+  add_items: () => ({ list: goodish.list(), items: goodish.items(), ...(rand() < 0.3 && { forLater: pick([true, false, 1]) }) }),
   check_items: () => ({ list: goodish.list(), items: goodish.names(), done: pick([true, false, undefined, 'no']) }),
   update_item: () => ({ list: goodish.list(), item: goodish.str(), ...(rand() < 0.5 && { quantity: pick([2, '2,5', 'abc', -1, 1e9]) }), ...(rand() < 0.4 && { unit: pick(['l', 'kg', '', 'x'.repeat(40)]) }), ...(rand() < 0.3 && { note: goodish.str() }), ...(rand() < 0.3 && { priority: pick(['important', 'normal', 'not important', 'mega']) }), ...(rand() < 0.3 && { name: goodish.str() }), ...(rand() < 0.4 && { group: goodish.str() }), ...(rand() < 0.4 && { translation: goodish.str() }), ...(rand() < 0.3 && { language: pick(['it', 'de', 'xx-YY', 'IT', '']) }) }),
   add_groups: () => ({ list: goodish.list(), groups: goodish.groups() }),
@@ -65,7 +65,8 @@ const TOOLS = {
   delete_group: () => ({ list: goodish.list(), group: goodish.str() }),
   set_travel_mode: () => ({ list: goodish.list(), ...(rand() < 0.7 && { country: pick(['IT', 'it', 'ES', 'XX', '', ...JUNK]) }), ...(rand() < 0.3 && { language: pick(['it', 'ca', 'xx-YY', 'IT', '']) }), ...(rand() < 0.2 && { off: pick([true, false, 'yes']) }) }),
   set_translations: () => ({ list: goodish.list(), translations: goodish.translations(), ...(rand() < 0.3 && { language: pick(['it', 'de', 'bad lang', '']) }) }),
-  remove_items: () => ({ list: goodish.list(), items: goodish.names() }),
+  move_to_inactive: () => ({ list: goodish.list(), ...(rand() < 0.8 && { items: goodish.names() }), ...(rand() < 0.3 && { allChecked: pick([true, false, 'yes']) }) }),
+  bring_back: () => ({ list: goodish.list(), items: goodish.names() }),
 };
 
 it('MCP tools never fail with an internal error, whatever the arguments', async () => {

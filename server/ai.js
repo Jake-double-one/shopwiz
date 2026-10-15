@@ -162,13 +162,14 @@ export function createAi({ store, hub, config, log }) {
       assistantsMayChange: ctx.write,
       lists: lists(ctx.uid).map((l) => {
         const c = db
-          .q('SELECT SUM(checked = 0) AS open, SUM(checked = 1) AS done FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL AND parked = 0')
+          .q('SELECT SUM(parked = 0 AND checked = 0) AS open, SUM(parked = 0 AND checked = 1) AS done, SUM(parked = 1) AS inactive FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL')
           .get(ctx.uid, l.id);
         return {
           id: l.id,
           name: l.name,
           open: c.open ?? 0,
           done: c.done ?? 0,
+          inactive: c.inactive ?? 0,
           ...(l.address && { address: l.address }),
           ...(l.travel_lang && { travelMode: { country: l.travel_country, language: l.travel_lang } }),
         };
@@ -194,11 +195,14 @@ export function createAi({ store, hub, config, log }) {
       },
       groups: groupsOf(ctx.uid, list).map((g) => g.name),
       items: rows.filter((r) => !r.parked).map((r) => itemOut(ctx.uid, r, list)),
-      ...(inactive && { inactive: rows.filter((r) => r.parked).map((r) => itemOut(ctx.uid, r, list).name) }),
+      ...(inactive
+        ? { inactive: rows.filter((r) => r.parked).map((r) => (({ done: _d, ...rest }) => rest)(itemOut(ctx.uid, r, list))) }
+        : { inactiveCount: rows.filter((r) => r.parked).length }),
     };
   }
 
-  function addItems(ctx, ref, items) {
+  /** forLater: new items go straight to "inactive" (remembered, but not needed now) */
+  function addItems(ctx, ref, items, { forLater = false } = {}) {
     needWrite(ctx);
     const list = findList(ctx.uid, ref);
     const entries = (Array.isArray(items) ? items : [items]).flatMap((e) => (typeof e === 'string' ? splitSpoken(e) : [e])).map(entryOf).filter((e) => e?.name);
@@ -206,7 +210,11 @@ export function createAi({ store, hub, config, log }) {
     if (entries.length > 100) throw new AiError('invalid', 'at most 100 items at once');
     const withTranslation = entries.filter((e) => e.translation?.trim());
     const lang = withTranslation.length ? langFor(list) : null;
-    const result = run(ctx, { k: 'item.addMany', listId: list.id, items: entries.map(({ translation: _t, ...e }) => e) });
+    // for later: names the list already knows stay where they are (an inactive one must not come back)
+    const known = (e) => !!db.q('SELECT 1 FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL').get(ctx.uid, list.id, normalizeName(e.name));
+    const skipped = forLater ? entries.filter(known).map((e) => e.name) : [];
+    const toAdd = forLater ? entries.filter((e) => !skipped.includes(e.name)) : entries;
+    const result = toAdd.length ? run(ctx, { k: 'item.addMany', listId: list.id, items: toAdd.map(({ translation: _t, ...e }) => e) }) : { added: [], merged: [], reactivated: [] };
     // an item that was already there (or came back from inactive) moves to the group asked for, too
     const moved = [];
     for (const e of entries.filter((x) => x.group?.trim())) {
@@ -220,9 +228,17 @@ export function createAi({ store, hub, config, log }) {
       }
     }
     for (const e of withTranslation) run(ctx, { k: 'translation.set', name: e.name, lang, text: e.translation.trim(), auto: false });
+    if (forLater && result.added?.length) {
+      const ids = result.added
+        .map((n) => db.q('SELECT id FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL AND parked = 0 ORDER BY created_at DESC').get(ctx.uid, list.id, normalizeName(n))?.id)
+        .filter(Boolean);
+      if (ids.length) run(ctx, { k: 'item.setState', ids, checked: false, parked: true });
+    }
     return {
       list: list.name,
       ...result,
+      ...(forLater && result.added?.length && { addedToInactive: result.added }),
+      ...(skipped.length && { alreadyKnown: skipped }),
       ...(moved.length && { movedToGroup: moved }),
       ...(withTranslation.length && { translated: withTranslation.map((e) => e.name), language: lang }),
     };
@@ -255,13 +271,44 @@ export function createAi({ store, hub, config, log }) {
     return { list: list.name, [done ? 'checked' : 'unchecked']: change.map((i) => i.name), ...(missing.length && { notFound: missing }) };
   }
 
-  function removeItems(ctx, ref, refs) {
+  /** Take items off the list into "inactive" – nothing is deleted. allChecked: everything checked (after shopping). */
+  function moveToInactive(ctx, ref, refs, { allChecked = false } = {}) {
     needWrite(ctx);
     const list = findList(ctx.uid, ref);
+    if (allChecked) {
+      const names = db.q('SELECT name FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL AND parked = 0 AND checked = 1').all(ctx.uid, list.id).map((r) => r.name);
+      if (names.length) run(ctx, { k: 'list.clearChecked', listId: list.id });
+      return { list: list.name, movedToInactive: names };
+    }
+    if (!(Array.isArray(refs) ? refs : [refs]).some((r) => typeof r === 'string' && r.trim())) throw new AiError('invalid', 'name the items, or set allChecked');
     const { found, missing } = findItems(ctx, list, refs, (i) => !i.parked);
-    const ids = found.filter((i) => !i.parked).map((i) => i.id);
-    if (ids.length) run(ctx, { k: 'item.setState', ids, checked: false, parked: true });
-    return { list: list.name, movedToInactive: found.filter((i) => !i.parked).map((i) => i.name), ...(missing.length && { notFound: missing }) };
+    const moving = found.filter((i) => !i.parked);
+    if (moving.length) run(ctx, { k: 'item.setState', ids: moving.map((i) => i.id), checked: false, parked: true });
+    const already = found.filter((i) => i.parked).map((i) => i.name);
+    return { list: list.name, movedToInactive: moving.map((i) => i.name), ...(already.length && { alreadyInactive: already }), ...(missing.length && { notFound: missing }) };
+  }
+  const removeItems = (ctx, ref, refs) => moveToInactive(ctx, ref, refs);
+
+  /** Put inactive (or checked) items back on the list as needed – with their group, amount and note */
+  function bringBack(ctx, ref, refs) {
+    needWrite(ctx);
+    const list = findList(ctx.uid, ref);
+    const { found, missing } = findItems(ctx, list, refs, (i) => !!i.parked);
+    const back = [];
+    const already = [];
+    for (const it of found) {
+      if (!it.parked && !it.checked) already.push(it.name);
+      else {
+        run(ctx, { k: 'item.set', id: it.id, fields: it.parked ? { parked: false, checked: false } : { checked: false }, base: {} });
+        back.push(it.name);
+      }
+    }
+    return {
+      list: list.name,
+      backOnList: back,
+      ...(already.length && { alreadyOnList: already }),
+      ...(missing.length && { notFound: missing, hint: 'not on this list at all – use add_items for new items' }),
+    };
   }
 
   function updateItem(ctx, ref, itemRef, changes = {}) {
@@ -401,6 +448,10 @@ export function createAi({ store, hub, config, log }) {
 
   const INSTRUCTIONS = `ShopWiz is a shared shopping list. You are connected to one ShopWiz ID with several lists.
 Use list_lists first, then read_list. Items you add land in the group the list has learned for them.
+Every list has a part "Inactive" at the bottom: items the household buys now and then but doesn't need right now,
+kept with their group, amount and note. After shopping, checked items go there (move_to_inactive with allChecked).
+When someone needs something again, bring_back puts it on the list – add_items does that too for a name that is inactive.
+To take an item off the list use move_to_inactive; items are never deleted. read_list shows inactive items with includeInactive.
 Groups are the categories of a list, usually the aisles of the shop in walking order (e.g. Bakery, Fruit & veg, Dairy).
 An item put into a group (add_items with "group", or update_item) is remembered: next time it lands there by itself.
 Travel mode: a list can show every item's translation for shopping abroad (set_travel_mode, then set_translations
@@ -433,7 +484,7 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
       {
         title: 'Read a shopping list',
         description: 'Items of a list in shop order (by group), with amount, note, done and priority.',
-        inputSchema: { list: listArg, includeInactive: z.boolean().optional().describe('Also list "inactive" items (not needed right now).') },
+        inputSchema: { list: listArg, includeInactive: z.boolean().optional().describe('Also list the "inactive" items (known to the list, not needed right now).') },
         annotations: { readOnlyHint: true },
       },
       ({ list, includeInactive }) => readList(ctx, list, { inactive: includeInactive }),
@@ -456,10 +507,14 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
       'add_items',
       {
         title: 'Add items',
-        description: 'Add one or more items. An item already on the list gets the amount added; a checked one comes back.',
-        inputSchema: { list: listArg, items: z.array(itemSchema).min(1).max(100) },
+        description: 'Add one or more items. An item already on the list gets the amount added; a checked or inactive one comes back onto the list.',
+        inputSchema: {
+          list: listArg,
+          items: z.array(itemSchema).min(1).max(100),
+          forLater: z.boolean().optional().describe('true = put new items straight into "Inactive" (remember them for later, not needed now)'),
+        },
       },
-      ({ list, items }) => addItems(ctx, list, items),
+      ({ list, items, forLater }) => addItems(ctx, list, items, { forLater }),
     );
     tool(
       'check_items',
@@ -551,14 +606,24 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
       ({ list, translations, language }) => setTranslations(ctx, list, translations, language),
     );
     tool(
-      'remove_items',
+      'move_to_inactive',
       {
         title: 'Move items to inactive',
-        description: 'Take items off the list: they move to "Inactive" (nothing is deleted – people bring them back with one tap). Use this when someone wants an item off the list.',
-        inputSchema: { list: listArg, items: z.array(z.string()).min(1).max(100) },
+        description:
+          'Take items off the list: they move to "Inactive" with group, amount and note (nothing is deleted – bring_back puts them on the list again). allChecked: true moves everything checked, e.g. after shopping.',
+        inputSchema: { list: listArg, items: z.array(z.string()).max(100).optional(), allChecked: z.boolean().optional() },
         annotations: { destructiveHint: false },
       },
-      ({ list, items }) => removeItems(ctx, list, items),
+      ({ list, items, allChecked }) => moveToInactive(ctx, list, items ?? [], { allChecked }),
+    );
+    tool(
+      'bring_back',
+      {
+        title: 'Bring items back',
+        description: 'Put inactive (or checked) items back on the list as needed, with their group, amount and note.',
+        inputSchema: { list: listArg, items: z.array(z.string()).min(1).max(100) },
+      },
+      ({ list, items }) => bringBack(ctx, list, items),
     );
     return server;
   }
@@ -595,5 +660,5 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
     }
   }
 
-  return { auth, connect, listLists, readList, addItems, setDone, removeItems, updateItem, addGroups, renameGroup, orderGroups, deleteGroup, setTranslations, setTravelMode, handleMcp };
+  return { auth, connect, listLists, readList, addItems, setDone, removeItems, moveToInactive, bringBack, updateItem, addGroups, renameGroup, orderGroups, deleteGroup, setTranslations, setTravelMode, handleMcp };
 }
