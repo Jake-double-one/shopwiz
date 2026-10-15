@@ -22,14 +22,17 @@ export const isDark = () => {
 };
 
 /**
- * Installed app (home screen): Android paints the navigation bar once at install, from the manifest's dark
- * background_color, and only picks the button color from theme-color. A light theme-color would put dark
- * buttons on the dark bar – so the installed app always reports dark bars, also in the light skin.
+ * Installed app (home screen, Chromium/Brave on Android): the manifest has no theme_color on purpose, so
+ * Android colors the navigation bar after the phone's light/dark mode. The status bar and the color of the
+ * navigation buttons follow theme-color – so there, the bars follow the phone, too, not the app's own choice.
+ * (No viewport-fit=cover either: with it, Chrome makes the navigation bar see-through over the manifest's
+ * background_color, which can't change with the theme.)
  */
 const installed = () => typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches;
 
 export function syncThemeColor() {
-  const color = (barOverride ?? BAR)[isDark() || installed() ? 'dark' : 'light'];
+  const dark = installed() ? !!darkQuery?.matches : isDark();
+  const color = (barOverride ?? BAR)[dark ? 'dark' : 'light'];
   const tags = [...document.querySelectorAll('meta[name="theme-color"]')];
   const tag = tags[0] ?? document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color' }));
   for (const extra of tags.slice(1)) extra.remove();

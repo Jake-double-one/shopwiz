@@ -816,9 +816,9 @@ test('swipe: direction per device, check off, inactive with undo, off', async ({
   await ctx.close();
 });
 
-test('installed app: system bars stay dark in the light skin, so the navigation buttons stay visible', async ({ browser }) => {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', colorScheme: 'light' });
-  // pretend to run from the home screen
+test('installed app: system bars follow the phone, not the skin, so the navigation buttons fit the bar', async ({ browser }) => {
+  // phone in dark mode, ShopWiz set to light – pretend to run from the home screen
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', colorScheme: 'dark' });
   await ctx.addInitScript(() => {
     const real = window.matchMedia.bind(window);
     window.matchMedia = (q) => (q === '(display-mode: standalone)' ? { ...real(q), matches: true, media: q } : real(q));
@@ -826,7 +826,10 @@ test('installed app: system bars stay dark in the light skin, so the navigation 
   const page = await ctx.newPage();
   await createList(page);
   const barColor = () => page.locator('meta[name="theme-color"]').getAttribute('content');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Light' }).click();
   expect(await barColor()).toBe('#101714');
+  await page.getByRole('button', { name: 'Close' }).first().click();
   await page.getByRole('button', { name: 'Focus mode' }).click();
   expect(await barColor()).toBe('#000000');
   await ctx.close();
@@ -880,9 +883,8 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await page.getByRole('button', { name: 'Dark' }).click();
   expect(await barColor()).toBe('#101714');
   await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1);
-  // the installed app (Android navigation bar) takes its colors from the manifest – dark, as browsers
-  // like Brave don't read a separate dark variant
+  // no theme_color in the manifest: Android then colors the installed app's navigation bar after the phone
   const manifest = await (await page.request.get('/manifest.webmanifest')).json();
-  expect(manifest).toMatchObject({ background_color: '#101714', theme_color: '#101714' });
+  expect(manifest.theme_color).toBeUndefined();
   await ctx.close();
 });
