@@ -127,12 +127,12 @@
     <form onsubmit={create}>
       <label class="field">
         <span>{t('start.listName')}</span>
-        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={listName} maxlength="80" placeholder={t('start.listNamePh')} required />
+        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={listName} maxlength="80" placeholder={t('start.listNamePh')} required />
       </label>
       {#if askName}
         <label class="field">
           <span>{t('name.label')}</span>
-          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:this={nameInput} bind:value={myName} maxlength="40" autocomplete="nickname" />
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" class="input" bind:this={nameInput} bind:value={myName} maxlength="40" autocomplete="nickname" />
         </label>
       {/if}
       {#if error}<p class="hint alert">{error}</p>{/if}

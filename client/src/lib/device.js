@@ -1,3 +1,4 @@
+import { t } from './i18n.svelte.js';
 import { load, save, remove } from './storage.js';
 
 function randomToken() {
@@ -26,7 +27,9 @@ export function suggestDeviceName() {
   if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Android' : 'Tablet';
   if (/Mac/.test(ua)) return 'Mac';
   if (/Windows/.test(ua)) return 'PC';
-  return 'Device';
+  if (/CrOS/.test(ua)) return 'Chromebook';
+  if (/Linux/.test(ua)) return 'Linux';
+  return t('device.default');
 }
 
 // ----- remembered spaces -----

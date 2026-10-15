@@ -25,7 +25,7 @@
         <span class="dot" class:on={online.includes(d.devId)} title={online.includes(d.devId) ? t('people.online') : t('people.offline')}></span>
         <div class="who">
           {#if isMe}
-            <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={myName} onblur={saveName} onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()} maxlength="40" aria-label={t('people.yourName')} />
+            <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={myName} onblur={saveName} onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()} maxlength="40" aria-label={t('people.yourName')} />
             <span class="micro">{t('people.you')}</span>
           {:else}
             <span class="name">{d.name}{#if d.ai} <span class="ai-tag">{t('people.ai')}</span>{/if}</span>

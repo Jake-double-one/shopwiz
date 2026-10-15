@@ -15,3 +15,8 @@ export function dismiss(id) {
   const i = toasts.findIndex((t) => t.id === id);
   if (i >= 0) toasts.splice(i, 1);
 }
+
+/** Plain notices (no action) from before are done when a dialog opens – they would cover its title. */
+export function dismissNotices() {
+  for (const t of toasts.filter((x) => !x.action && x.kind !== 'alert')) dismiss(t.id);
+}

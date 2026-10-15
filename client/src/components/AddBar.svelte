@@ -178,7 +178,7 @@
       </button>
     </div>
     <div class="row">
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false"
         bind:this={input}
         class="input"
         bind:value={text}

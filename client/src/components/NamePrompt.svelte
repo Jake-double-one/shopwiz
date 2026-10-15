@@ -21,7 +21,7 @@
     <label class="field">
       <span>{t('name.label')}</span>
       <!-- svelte-ignore a11y_autofocus -->
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:value={name} maxlength="40" autofocus autocomplete="nickname" required />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" class="input" bind:value={name} maxlength="40" autofocus autocomplete="nickname" required />
     </label>
     <button class="btn main block" type="submit">{t('name.continue')}</button>
   </form>

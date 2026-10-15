@@ -28,7 +28,7 @@
   import { setShopping, restoreItems, addList, finishShopping } from '../lib/actions.js';
   import { prefs, setHideChecked, setFocus } from '../lib/prefs.svelte.js';
   import { navUrl } from '../lib/nav.js';
-  import { toast } from '../lib/toast.svelte.js';
+  import { toast, dismissNotices } from '../lib/toast.svelte.js';
 
   let { id, onleave, onopen } = $props();
 
@@ -57,6 +57,39 @@
   const conflicts = $derived(list ? Object.values(v.conflicts).filter((c) => c.listId === list.id && v.items[c.itemId]) : []);
   const devices = $derived(Object.values(v.devices));
   const myDevId = $derived(sync.me?.devId);
+
+  // participants in one line: me first, then who is online; the rest as "+N"
+  const peopleOrder = $derived(
+    [...devices].sort((a, b) => (b.devId === myDevId) - (a.devId === myDevId) || sync.online.includes(b.devId) - sync.online.includes(a.devId)),
+  );
+  let peopleEl = $state();
+  let measureEl = $state();
+  let peopleFit = $state(99);
+  function fitPeople() {
+    if (!peopleEl || !measureEl) return;
+    const chips = [...measureEl.children];
+    const more = chips.pop()?.getBoundingClientRect().width ?? 40;
+    const gap = 6;
+    let room = peopleEl.clientWidth - 18 - gap; // the people icon
+    let n = 0;
+    for (const [i, c] of chips.entries()) {
+      const w = c.getBoundingClientRect().width + gap;
+      const rest = i < chips.length - 1 ? more + gap : 0;
+      if (w + rest > room) break;
+      room -= w;
+      n++;
+    }
+    peopleFit = Math.max(1, n);
+  }
+  $effect(() => {
+    peopleOrder;
+    if (!peopleEl) return;
+    fitPeople();
+    const ro = new ResizeObserver(fitPeople);
+    ro.observe(peopleEl);
+    if (measureEl) ro.observe(measureEl); // web fonts arriving change the widths
+    return () => ro.disconnect();
+  });
   // check-ins run out by themselves – look again every 30 s
   let clockNow = $state(Date.now());
   onMount(() => {
@@ -152,7 +185,10 @@
   // ----- sheets -----
   /** @type {null | {kind: string, [k: string]: any}} */
   let sheet = $state(null);
-  const open = (kind, extra = {}) => (sheet = { kind, ...extra });
+  const open = (kind, extra = {}) => {
+    dismissNotices();
+    sheet = { kind, ...extra };
+  };
   const closeSheet = () => (sheet = null);
 
   // one-time "new here?" hint, per device
@@ -312,14 +348,21 @@
       </div>
 
       <div class="row people-row">
-        <button class="people" onclick={() => open('people')} aria-label={t('people.title')}>
+        <button class="people" bind:this={peopleEl} onclick={() => open('people')} aria-label={t('people.title')}>
           <Icon name="users" size={18} />
-          {#each devices.slice(0, 4) as d (d.devId)}
+          {#each peopleOrder.slice(0, peopleFit) as d (d.devId)}
             <span class="person" class:me={d.devId === myDevId} title={d.name}>
               <span class="dot" class:on={sync.online.includes(d.devId)}></span><span class="pname">{d.name}</span>
             </span>
           {/each}
-          {#if devices.length > 4}<span class="person">+{devices.length - 4}</span>{/if}
+          {#if peopleOrder.length > peopleFit}<span class="person more">+{peopleOrder.length - peopleFit}</span>{/if}
+          <!-- all chips once more, invisible, to measure how many fit into one line -->
+          <span class="people-measure" bind:this={measureEl} aria-hidden="true">
+            {#each peopleOrder as d (d.devId)}
+              <span class="m-person"><span class="dot"></span><span class="pname">{d.name}</span></span>
+            {/each}
+            <span class="m-person">+{peopleOrder.length}</span>
+          </span>
         </button>
         <div class="toggles">
           {#if myShopping && shoppers.length}
@@ -641,6 +684,7 @@
     flex-wrap: wrap;
   }
   .people {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -649,9 +693,25 @@
     padding: 4px 0;
     color: var(--muted);
     min-width: 0;
-    flex-wrap: wrap;
+    flex: 1 1 220px;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
-  .person {
+  .people-measure {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    gap: 6px;
+    visibility: hidden;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .person.more {
+    flex: none;
+  }
+  .person,
+  .m-person {
     font-family: var(--mono);
     font-size: 0.72rem;
     display: inline-flex;

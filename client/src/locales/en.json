@@ -268,7 +268,7 @@
   "inactive.hint": "Not needed right now, and groups without items. Tap an item to put it back on the list – its group comes along.",
   "inactive.add": "Add inactive item",
   "inactive.addPh": "Add for later, e.g. Baking powder",
-  "inactive.empty": "Nothing here – drag items here or clear checked ones",
+  "inactive.empty": "Nothing here – drag items here or move checked ones here",
   "inactive.clear": "Delete all inactive",
   "inactive.activate": "Put {name} back on the list",
   "inactive.activateShort": "Back on the list",
@@ -518,5 +518,6 @@
   "focus.button": "Focus mode",
   "focus.title": "{list} – focus mode",
   "focus.exit": "Leave focus mode",
-  "focus.empty": "Nothing left to get."
+  "focus.empty": "Nothing left to get.",
+  "device.default": "Device"
 }

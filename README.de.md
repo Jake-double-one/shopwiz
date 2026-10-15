@@ -46,7 +46,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Fokus-Modus** | Nur noch die Liste: Kategorien und Artikel zum Abhaken, groß, je nach Skin schwarz auf weiß oder weiß auf schwarz. Wischen und „Bildschirm anlassen“ gehen dort auch. Ein Banner oben beendet ihn. |
 | **Suche** | Die Lupe neben dem Listennamen filtert die Liste – auch Notizen, Übersetzungen und inaktive Artikel. |
 | **Als Text teilen** | Die offenen Artikel untereinander in einen Chat oder eine Notiz schicken (Teilen-Menü des Geräts oder Zwischenablage). |
-| **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste, mit denselben Gruppen wie die Liste: Dinge, die gerade nicht gebraucht werden, und Gruppen ohne Artikel. „Erledigte entfernen“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
+| **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste, mit denselben Gruppen wie die Liste: Dinge, die gerade nicht gebraucht werden, und Gruppen ohne Artikel. „Abgehakte Artikel zu ‚Inaktiv‘ verschieben“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
 | **Adresse des Ladens** | Optional bekommt eine Liste die Adresse ihres Ladens – neben dem Listennamen erscheint dann „Navigation starten“ (auf dem Handy nur als Pfeil). |
 | **Backup & Import** | Listen (mit Reisemodus und Übersetzungen) als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Die Details eines Artikels zeigen, wer ihn hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
@@ -93,7 +93,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 
 Am Ende jeder Liste gibt es den eingeklappten Bereich **Inaktive Artikel**:
 
-- **Erledigte entfernen** verschiebt Abgehaktes dorthin – nichts geht verloren. Gruppe, Menge und Notiz bleiben erhalten.
+- **Abgehakte Artikel zu „Inaktiv“ verschieben** schiebt Abgehaktes dorthin – nichts geht verloren. Gruppe, Menge und Notiz bleiben erhalten.
 - Ein Tipp auf einen inaktiven Artikel (oder sein **+**) holt ihn unabgehakt zurück auf die Liste.
 - Dinge, die noch nicht gebraucht werden, direkt dort hinzufügen – oder Artikel am Griff hinein- und herausziehen.
 - Wer den Namen eines inaktiven Artikels normal eintippt, holt ihn zurück, statt ein Duplikat anzulegen.

@@ -153,7 +153,8 @@
 </div>
 
 <div class="footer row wrap-row">
-  <button class="btn small" onclick={onaddgroup}><Icon name="folder" size={16} />{t('group.add')}</button>
+  <!-- an empty list has the button in its empty card already -->
+  {#if !empty}<button class="btn small" onclick={onaddgroup}><Icon name="folder" size={16} />{t('group.add')}</button>{/if}
   {#if checkedCount && prefs.hideChecked && !nothingShown}
     <button class="btn small" onclick={() => setHideChecked(false)}><Icon name="eye" size={16} />{t('hideChecked.showCount', { count: checkedCount })}</button>
   {/if}
@@ -171,7 +172,7 @@
   {#if shadowOpen}
     <p class="hint-text">{t('inactive.hint')}</p>
     <form class="row add-inactive" onsubmit={addInactive}>
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
       <button class="btn" type="submit" disabled={!shadowText.trim()} aria-label={t('inactive.add')}><Icon name="plus" /></button>
     </form>
     <ul class="items shadow-items" data-parked="1" data-group="" data-empty={shadowEmpty ? t('inactive.empty') : ''} use:sortable={itemSort}>

@@ -38,7 +38,7 @@
     <label class="field">
       <span>{t('group.name')}</span>
       <!-- svelte-ignore a11y_autofocus -->
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} oninput={() => (error = '')} maxlength="60" required autofocus placeholder={t('group.namePh')} />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={name} oninput={() => (error = '')} maxlength="60" required autofocus placeholder={t('group.namePh')} />
     </label>
     {#if error}<p class="hint alert">{error}</p>{/if}
     <button class="btn main block" type="submit">{group ? t('save') : t('group.create')}</button>

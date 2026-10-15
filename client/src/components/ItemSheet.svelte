@@ -84,7 +84,7 @@
   <form onsubmit={(e) => (e.preventDefault(), close())}>
     <label class="field">
       <span>{t('item.name')}</span>
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={name} maxlength="120" required />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={name} maxlength="120" required />
     </label>
     {#if travel}
       <div class="field tr-field">
@@ -108,13 +108,13 @@
         <span>{t('item.qty')}</span>
         <div class="row">
           <button type="button" class="btn" onclick={() => step(-1)} aria-label="−1">−</button>
-          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input mono" bind:value={qty} inputmode="decimal" maxlength="12" />
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input mono" bind:value={qty} inputmode="decimal" maxlength="12" />
           <button type="button" class="btn" onclick={() => step(1)} aria-label="+1">+</button>
         </div>
       </label>
       <label class="field unit">
         <span>{t('item.unit')}</span>
-        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={unit} maxlength="16" placeholder="g, kg, l, …" />
+        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={unit} maxlength="16" placeholder="g, kg, l, …" />
       </label>
     </div>
     <div class="field prio-field">

@@ -116,7 +116,7 @@
       {#if target === 'new'}
         <label class="field">
           <span>{t('settings.spaceName')}</span>
-          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={newName} maxlength="80" placeholder={doc.spaceName || t('backup.defaultName')} />
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={newName} maxlength="80" placeholder={doc.spaceName || t('backup.defaultName')} />
         </label>
       {/if}
       {#if error}<p class="hint alert">{error}</p>{/if}
