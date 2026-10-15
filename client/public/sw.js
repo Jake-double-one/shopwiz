@@ -1,5 +1,5 @@
 // ShopWiz service worker: the app shell works offline. Data sync is handled by the app itself.
-const CACHE = 'shopwiz-v1';
+const CACHE = 'shopwiz-v2';
 const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -31,6 +31,20 @@ self.addEventListener('fetch', (event) => {
           return res;
         })
         .catch(() => caches.match('/')),
+    );
+    return;
+  }
+
+  // The manifest decides the installed app's colors: always the newest one, the cache only offline
+  if (url.pathname === '/manifest.webmanifest') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          if (res.ok) caches.open(CACHE).then((c) => c.put(req, copy));
+          return res;
+        })
+        .catch(() => caches.match(req)),
     );
     return;
   }
