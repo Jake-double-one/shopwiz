@@ -3,6 +3,7 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import Flag from './Flag.svelte';
+  import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
   import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName } from '../lib/actions.js';
   import { groupOptions, translationOf } from '../lib/model.js';
@@ -18,6 +19,7 @@
   let qty = $state(initial.qty);
   let unit = $state(initial.unit);
   let note = $state(initial.note);
+  let prio = $state(initial.prio ?? 0);
   const options = $derived(groupOptions(v, list));
 
   // travel mode: translation of this name (shared by every item with the same name)
@@ -55,6 +57,7 @@
     const validQty = q === '' || /^\d+(\.\d+)?$/.test(q);
     if (validQty && (q !== item.qty || unit.trim() !== item.unit)) fields.amount = { qty: q, unit: unit.trim().slice(0, 16) };
     if (note.trim() !== item.note) fields.note = note.trim();
+    if (prio !== (item.prio ?? 0)) fields.prio = prio;
     if (Object.keys(fields).length) editItem(item, fields);
     if (travel) {
       const finalName = fields.name ?? item.name;
@@ -114,6 +117,16 @@
         <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={unit} maxlength="16" placeholder="g, kg, l, …" />
       </label>
     </div>
+    <div class="field prio-field">
+      <span class="prio-label" id="prio-label">{t('prio.label')}</span>
+      <div class="prio-seg" role="radiogroup" aria-labelledby="prio-label">
+        {#each [0, 1, -1] as p (p)}
+          <button type="button" role="radio" aria-checked={prio === p} class:up={p > 0} class:down={p < 0} onclick={() => (prio = p)}>
+            {#if p}<PrioIcon prio={p} size={13} />{/if}{t(p > 0 ? 'prio.up' : p < 0 ? 'prio.down' : 'prio.normal')}
+          </button>
+        {/each}
+      </div>
+    </div>
     <label class="field">
       <span>{t('item.note')}</span>
       <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={note} rows="2" maxlength="500"></textarea>
@@ -163,6 +176,53 @@
   }
   textarea {
     resize: vertical;
+  }
+  .prio-field {
+    margin-bottom: 14px;
+  }
+  .prio-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .prio-seg {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .prio-seg button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    border: 0;
+    border-left: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--muted);
+    font-weight: 500;
+    padding: 0 6px;
+  }
+  .prio-seg button:first-child {
+    border-left: 0;
+  }
+  .prio-seg button[aria-checked='true'] {
+    background: var(--surface-2);
+    color: var(--ink);
+    box-shadow: inset 0 -2px 0 var(--dusk);
+  }
+  .prio-seg button.up[aria-checked='true'] {
+    background: color-mix(in srgb, var(--sun-soft) 60%, var(--surface));
+    box-shadow: inset 0 -2px 0 var(--sun);
+  }
+  .prio-seg button.up :global(svg) {
+    color: var(--sun);
   }
   .tr-field {
     margin-bottom: 14px;

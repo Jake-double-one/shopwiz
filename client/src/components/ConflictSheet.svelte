@@ -19,6 +19,8 @@
         return groupLabel(v, value) || t('item.noGroup');
       case 'note':
         return value || t('conflict.empty');
+      case 'prio':
+        return t(value > 0 ? 'prio.up' : value < 0 ? 'prio.down' : 'prio.normal');
       default:
         return value;
     }
@@ -28,7 +30,7 @@
     const it = v.items[c.itemId];
     if (!it) return false;
     const bool = c.field === 'checked' || c.field === 'parked';
-    const cur = c.field === 'amount' ? { qty: it.qty, unit: it.unit } : c.field === 'groupId' ? it.groupId : bool ? !!it[c.field] : it[c.field];
+    const cur = c.field === 'amount' ? { qty: it.qty, unit: it.unit } : c.field === 'groupId' ? it.groupId : c.field === 'prio' ? (it.prio ?? 0) : bool ? !!it[c.field] : it[c.field];
     return JSON.stringify(cur) === JSON.stringify(bool ? !!value : value);
   }
 

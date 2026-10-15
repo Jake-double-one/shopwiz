@@ -78,6 +78,7 @@ function reduce(v, op, at, me) {
           ...(op.pos !== undefined && { pos: op.pos }),
           ...(op.address !== undefined && { address: op.address }),
           ...(op.travel !== undefined && { travel: op.travel }),
+          ...(op.prioShortcuts !== undefined && { prioShortcuts: !!op.prioShortcuts }),
         };
       }
       break;
@@ -139,6 +140,7 @@ function reduce(v, op, at, me) {
         checked: !!op.checked && !op.parked,
         checkedBy: op.checked && !op.parked ? myName : null,
         parked: !!op.parked,
+        prio: op.prio > 0 ? 1 : op.prio < 0 ? -1 : 0,
         addedBy: myName,
         pos: op.pos,
         meta: {},
@@ -166,6 +168,7 @@ function reduce(v, op, at, me) {
       }
       if ('groupId' in f) next.groupId = f.groupId;
       if ('pos' in f) next.pos = f.pos;
+      if ('prio' in f) next.prio = f.prio > 0 ? 1 : f.prio < 0 ? -1 : 0;
       v.items[op.id] = next;
       if ('groupId' in f && op.learn !== false) learn(v, it.listId, next.name, f.groupId);
       if ('name' in f) {

@@ -87,6 +87,7 @@ export const mapList = (r) => ({
   groupMode: r.group_mode,
   address: r.address ?? '',
   travel: r.travel_country && r.travel_lang ? { country: r.travel_country, lang: r.travel_lang } : null,
+  prioShortcuts: !!r.prio_shortcuts,
   createdAt: r.created_at,
 });
 export const mapGroup = (r) => ({ id: r.id, listId: r.list_id, parentId: r.parent_id, name: r.name, pos: r.pos });
@@ -100,6 +101,7 @@ export const mapItem = (r) => ({
   note: r.note,
   checked: !!r.checked,
   parked: !!r.parked,
+  prio: r.prio ?? 0,
   checkedBy: r.checked_by,
   addedBy: r.added_by,
   pos: r.pos,
@@ -139,6 +141,9 @@ export const mapSpace = (r) => ({
   lastActiveAt: r.last_active_at,
 });
 
+/** 1 = important, -1 = not important, 0 = normal */
+const prioOf = (v) => (Number(v) > 0 ? 1 : Number(v) < 0 ? -1 : 0);
+
 const fieldValue = (item, f) => {
   switch (f) {
     case 'amount':
@@ -149,6 +154,8 @@ const fieldValue = (item, f) => {
       return !!item.parked;
     case 'groupId':
       return item.group_id;
+    case 'prio':
+      return item.prio ?? 0;
     default:
       return item[f];
   }
@@ -352,7 +359,7 @@ export class Store {
       };
       copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, created_at');
       copy('groups', 'id, list_id, parent_id, name, pos, created_at');
-      copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, checked_by, added_by, pos, meta, created_at');
+      copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, checked_by, added_by, pos, meta, created_at');
       copy('memory', 'scope, norm, group_name, subgroup_name, updated_at');
       copy('suggestions', 'norm, name, uses, last_used_at');
       copy('translations', 'norm, lang, text, auto, updated_at');
@@ -535,17 +542,17 @@ export class Store {
     for (const r of rows) ctx.changes.push({ e: 'conflict', del: r.id });
   }
 
-  _insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos, checked = false, parked = false }) {
+  _insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos, checked = false, parked = false, prio = 0 }) {
     const norm = normalizeName(name);
     const metaEntry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
-    const meta = { name: metaEntry, amount: metaEntry, note: metaEntry, checked: metaEntry, parked: metaEntry, groupId: metaEntry };
+    const meta = { name: metaEntry, amount: metaEntry, note: metaEntry, checked: metaEntry, parked: metaEntry, groupId: metaEntry, prio: metaEntry };
     const isChecked = checked && !parked;
     this.db
       .q(
-        `INSERT INTO items (space_uid, id, list_id, group_id, name, norm, qty, unit, note, checked, parked, checked_by, added_by, pos, meta, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (space_uid, id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, checked_by, added_by, pos, meta, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(ctx.uid, id, list.id, groupId, name, norm, qty, unit, n, isChecked ? 1 : 0, parked ? 1 : 0, isChecked ? ctx.dev.name : null, ctx.dev.name, pos, JSON.stringify(meta), ctx.now);
+      .run(ctx.uid, id, list.id, groupId, name, norm, qty, unit, n, isChecked ? 1 : 0, parked ? 1 : 0, prioOf(prio), isChecked ? ctx.dev.name : null, ctx.dev.name, pos, JSON.stringify(meta), ctx.now);
     return norm;
   }
 
@@ -630,6 +637,9 @@ const OPS = {
       const address = str(op.address, LIMITS.address);
       this.db.q('UPDATE lists SET address = ? WHERE space_uid = ? AND id = ?').run(address, ctx.uid, list.id);
       this._act(ctx, list.id, 'list.address', { address });
+    }
+    if (op.prioShortcuts !== undefined) {
+      this.db.q('UPDATE lists SET prio_shortcuts = ? WHERE space_uid = ? AND id = ?').run(op.prioShortcuts ? 1 : 0, ctx.uid, list.id);
     }
     if (op.travel !== undefined) {
       const t = op.travel;
@@ -809,7 +819,7 @@ const OPS = {
     const count = this.db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL').get(ctx.uid, list.id).c;
     if (count >= LIMITS.itemsPerList) throw new OpError('limit', 'too many items');
     const groupId = this._validGroup(ctx.uid, list, op.groupId);
-    this._insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos: num(op.pos ?? ctx.now), checked: !!op.checked, parked: !!op.parked });
+    this._insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos: num(op.pos ?? ctx.now), checked: !!op.checked, parked: !!op.parked, prio: op.prio });
     this._pushItem(ctx, id);
     if (op.learn !== false) this._learn(ctx, list, norm, groupId);
     this._suggest(ctx, name, norm);
@@ -839,6 +849,7 @@ const OPS = {
     if ('parked' in fields) incoming.parked = !!fields.parked;
     if ('groupId' in fields) incoming.groupId = fields.groupId ? this._validGroup(ctx.uid, list, eid(fields.groupId, 'groupId')) : null;
     if ('pos' in fields) incoming.pos = num(fields.pos);
+    if ('prio' in fields) incoming.prio = prioOf(fields.prio);
 
     for (const [f, value] of Object.entries(incoming)) {
       if (f === 'pos') {
@@ -886,6 +897,7 @@ const OPS = {
     if (updates.parked && !('checked' in updates) && item.checked) set('checked', 0), set('checked_by', null);
     if ('groupId' in updates) set('group_id', updates.groupId);
     if ('pos' in updates) set('pos', updates.pos);
+    if ('prio' in updates) set('prio', updates.prio);
     set('meta', JSON.stringify(meta));
     this.db.q(`UPDATE items SET ${cols.join(', ')} WHERE space_uid = ? AND id = ?`).run(...args, ctx.uid, id);
 
@@ -1011,6 +1023,9 @@ const OPS = {
         break;
       case 'note':
         this.db.q('UPDATE items SET note = ?, meta = ? WHERE space_uid = ? AND id = ?').run(note(v), JSON.stringify(meta), ctx.uid, item.id);
+        break;
+      case 'prio':
+        this.db.q('UPDATE items SET prio = ?, meta = ? WHERE space_uid = ? AND id = ?').run(prioOf(v), JSON.stringify(meta), ctx.uid, item.id);
         break;
       case 'checked':
         this.db.q('UPDATE items SET checked = ?, checked_by = ?, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? choice.byName : null, JSON.stringify(meta), ctx.uid, item.id);
@@ -1160,7 +1175,7 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
       const path = this._groupPath(srcUid, it.group_id);
       const gid = this._ensurePath(tctx, tList, path.group, path.subgroup);
       const id = newEntityId();
-      const norm = this._insertItem(tctx, tList, { id, groupId: gid, name: it.name, qty: it.qty, unit: it.unit, note: it.note, pos: maxPos + ++i, checked: !!it.checked });
+      const norm = this._insertItem(tctx, tList, { id, groupId: gid, name: it.name, qty: it.qty, unit: it.unit, note: it.note, pos: maxPos + ++i, checked: !!it.checked, prio: it.prio });
       this._pushItem(tctx, id);
       if (gid) this._learn(tctx, tList, norm, gid);
       this._suggest(tctx, it.name, norm);
@@ -1265,6 +1280,7 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
           pos: ++pos,
           checked: state === 'checked',
           parked: state === 'parked',
+          prio: raw.prio,
         });
         this._pushItem(ctx, id);
         if (groupId) this._learn(ctx, list, norm, groupId);

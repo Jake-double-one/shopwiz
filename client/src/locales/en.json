@@ -436,5 +436,19 @@
   "help.svc.unknown": "unknown service – check TRANSLATE_PROVIDER",
   "help.svc.quota": "quota used up",
   "help.svc.rejected": "key rejected – check it",
-  "help.svc.unreachable": "not reachable right now"
+  "help.svc.unreachable": "not reachable right now",
+  "field.prio": "Importance",
+  "prio.label": "Importance",
+  "prio.normal": "Normal",
+  "prio.up": "Important",
+  "prio.down": "Not important",
+  "prio.pickHint": "Tap to switch: normal → important → not important",
+  "prio.style": "Mark important items",
+  "prio.style.box": "Arrow in the box",
+  "prio.style.badge": "Arrow on the box corner",
+  "prio.style.gap": "Arrow before the name",
+  "prio.shortcuts": "Shortcuts “!” and “?” when adding",
+  "prio.shortcutsHint": "“!Diapers” or “! Diapers” adds an important item, “?Basil” one that doesn't matter much. The mark is not part of the name.",
+  "help.prio.title": "Important & not important",
+  "help.prio.body": "Mark items in their details: ↑ Important (“don't come home without it”) or ↓ Not important (“never mind if you can't find it”). Important items are highlighted, unimportant ones grey.\nWhen adding, the small button next to the group picks the importance of the next item. With “Shortcuts ! and ?” turned on in the list menu, typing “!Diapers” or “? Basil” does the same – the mark is not saved in the name.\nHow the mark looks (in the box, on its corner or before the name) is chosen per device in the settings."
 }

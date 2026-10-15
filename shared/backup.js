@@ -9,10 +9,11 @@
 //   (#### headings from older backups are read as groups, too)
 //   - [x] Butter                ← checked
 //   - [-] Feta                  ← inactive (shadow list)
+//   - [ ] ! Diapers             ← "!" important, "?" not important
 //
 // For import, plain lines ("Milk", "- Milk", "* 2 Milk") work as well.
 
-import { parseEntry } from './parse.js';
+import { parseEntry, splitPrio } from './parse.js';
 
 export const BACKUP_MARKER = 'shopwiz-backup';
 
@@ -26,7 +27,8 @@ function itemLine(it) {
   if (!amount && parseEntry(text).qty) text = `"${text}"`;
   if (amount) text = `${amount} ${text}`;
   const note = (it.note || '').replace(/\s*\n\s*/g, ' ').trim();
-  return `- [${box}] ${text}${note ? ` // ${note}` : ''}`;
+  const mark = it.prio > 0 ? '! ' : it.prio < 0 ? '? ' : '';
+  return `- [${box}] ${mark}${text}${note ? ` // ${note}` : ''}`;
 }
 
 /**
@@ -36,7 +38,7 @@ function itemLine(it) {
 export function toMarkdown(v, { listIds = null, date = new Date() } = {}) {
   const out = [];
   out.push(`# ${v.space?.name ?? 'ShopWiz'}`);
-  out.push(`<!-- ${BACKUP_MARKER} v1 · ${date.toISOString().slice(0, 10)} · [ ] open · [x] checked · [-] inactive · text after // is a note -->`);
+  out.push(`<!-- ${BACKUP_MARKER} v1 · ${date.toISOString().slice(0, 10)} · [ ] open · [x] checked · [-] inactive · ! important · ? not important · text after // is a note -->`);
   const lists = Object.values(v.lists)
     .filter((l) => !listIds || listIds.includes(l.id))
     .sort(byPos);
@@ -128,6 +130,8 @@ export function parseMarkdown(text) {
       body = body.slice(0, cut);
     }
     body = body.trim();
+    const pr = splitPrio(body);
+    body = pr.text.trim();
     let entry;
     const quoted = body.match(/^(.*?)"(.+)"$/);
     if (quoted) {
@@ -136,7 +140,7 @@ export function parseMarkdown(text) {
     } else entry = parseEntry(body);
     if (!entry.name) continue;
     if (!list) ensureList('');
-    list.items.push({ ...entry, note, state, group, subgroup });
+    list.items.push({ ...entry, note, state, group, subgroup, ...(pr.prio && { prio: pr.prio }) });
   }
   return doc;
 }

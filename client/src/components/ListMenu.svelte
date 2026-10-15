@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import Flag from './Flag.svelte';
-  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain } from '../lib/actions.js';
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -93,6 +93,11 @@
     </label>
     <p class="micro addr-hint">{t('list.addressHint')}</p>
   </form>
+
+  <label class="switch-row shortcuts">
+    <input type="checkbox" checked={!!list.prioShortcuts} onchange={(e) => setPrioShortcuts(list, e.currentTarget.checked)} />
+    <span><b>{t('prio.shortcuts')}</b><br /><small class="muted">{t('prio.shortcutsHint')}</small></span>
+  </label>
 
   <fieldset class="mode travel">
     <legend class="eyebrow">{t('travel.title')}</legend>
@@ -218,6 +223,16 @@
     gap: 10px;
     align-items: flex-start;
     padding: 6px 0;
+  }
+  .shortcuts {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 0 0 16px;
+  }
+  .shortcuts input {
+    margin-top: 4px;
+    accent-color: var(--dusk);
   }
   .travel {
     display: grid;

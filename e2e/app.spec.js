@@ -638,3 +638,49 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   // the flags' license ships with the app
   expect(await (await page.request.get('/licenses.txt')).text()).toContain('flag-icons');
 });
+
+test('important / not important: shortcut, add-bar button, details, display style', async ({ page }) => {
+  await createList(page);
+  // shortcuts are off by default – "!" stays part of the name
+  await add(page, '!Exclamation');
+  await expect(item(page, '!Exclamation')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByRole('checkbox', { name: /Shortcuts “!” and “\?” when adding/ }).check();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+
+  // with and without the space phone keyboards put after "!"
+  await add(page, '!Diapers');
+  await add(page, '! Milk');
+  await add(page, '? Basil');
+  await expect(item(page, 'Diapers')).toHaveClass(/prio-up/);
+  await expect(item(page, 'Milk')).toHaveClass(/prio-up/);
+  await expect(item(page, 'Basil')).toHaveClass(/prio-down/);
+  await expect(item(page, 'Diapers').locator('.box .prio-in')).toHaveCount(1); // default: arrow in the box
+
+  // the add-bar button shows what the typed mark does, and can be used instead
+  const input = page.getByPlaceholder('Add item, e.g. 2 milk');
+  await input.fill('!');
+  await input.pressSequentially('Bread');
+  await expect(page.locator('.prio-pick')).toHaveText('Important');
+  await input.fill('');
+  await page.locator('.prio-pick').click();
+  await expect(page.locator('.prio-pick')).toHaveText('Important');
+  await input.fill('Apples');
+  await input.press('Enter');
+  await expect(item(page, 'Apples')).toHaveClass(/prio-up/);
+  await expect(page.locator('.prio-pick')).toHaveText('Normal'); // back to normal for the next one
+
+  // details: three choices under the amount
+  await page.getByRole('button', { name: 'Edit Basil' }).click();
+  await page.getByRole('radio', { name: 'Normal' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(item(page, 'Basil')).not.toHaveClass(/prio-/);
+
+  // display style per device
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel('Mark important items').selectOption('badge');
+  await expect(page.locator('html')).toHaveAttribute('data-prio', 'badge');
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await expect(item(page, 'Diapers').locator('.prio-mark')).toBeVisible();
+});

@@ -456,3 +456,19 @@ describe('travel mode', () => {
   });
 });
 
+describe('importance', () => {
+  it('is set when adding, changed later, conflicts like other fields, and copied along', () => {
+    const { store, uid, listId, op, devA, devB, item } = setup();
+    op(devA, { k: 'item.add', id: 'item00001', listId, name: 'Windeln', prio: 1 });
+    op(devA, { k: 'item.add', id: 'item00002', listId, name: 'Basilikum', prio: -5 });
+    expect(item('item00001').prio).toBe(1);
+    expect(item('item00002').prio).toBe(-1);
+    const v = item('item00001').meta.prio.v;
+    op(devA, { k: 'item.set', id: 'item00001', fields: { prio: 0 }, base: { prio: v } });
+    const r = op(devB, { k: 'item.set', id: 'item00001', fields: { prio: -1 }, base: { prio: v } });
+    expect(r.result.conflicts).toBe(1);
+    op(devA, { k: 'list.update', id: listId, prioShortcuts: true });
+    expect(store.snapshot(uid).lists[0].prioShortcuts).toBe(true);
+  });
+});
+

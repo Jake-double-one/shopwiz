@@ -101,3 +101,13 @@ export function stepAmount(qty, unit, dir) {
   if (!unit && next === 1) return { qty: '', unit: '' };
   return { qty: String(next), unit: unit || '' };
 }
+
+/**
+ * "!Milk" → important, "?Basil" → not important (shortcut when typing, if the list allows it).
+ * → { prio: 1 | -1 | 0, text } – text without the mark.
+ */
+export function splitPrio(raw) {
+  const m = String(raw ?? '').match(/^\s*([!?])\s*(.*)$/s);
+  if (!m || !m[2].trim()) return { prio: 0, text: String(raw ?? '') };
+  return { prio: m[1] === '!' ? 1 : -1, text: m[2] };
+}

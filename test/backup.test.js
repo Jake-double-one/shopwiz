@@ -9,7 +9,7 @@ const v = {
     g2: { id: 'g2', listId: 'l1', parentId: null, name: 'Dairy', pos: 2 },
   },
   items: {
-    a: { id: 'a', listId: 'l1', groupId: null, name: 'Bread', qty: '', unit: '', note: '', checked: false, parked: false, pos: 1 },
+    a: { id: 'a', listId: 'l1', groupId: null, name: 'Bread', qty: '', unit: '', note: '', checked: false, parked: false, prio: 1, pos: 1 },
     b: { id: 'b', listId: 'l1', groupId: 'g2', name: 'Milk', qty: '2', unit: 'l', note: 'lactose free', checked: false, parked: false, pos: 1 },
     c: { id: 'c', listId: 'l1', groupId: 'g2', name: 'Butter', qty: '', unit: '', note: '', checked: true, parked: false, pos: 2 },
     d: { id: 'd', listId: 'l1', groupId: 'g1', name: 'Feta', qty: '200', unit: 'g', note: '', checked: false, parked: true, pos: 3 },
@@ -21,7 +21,7 @@ describe('backup', () => {
   it('writes readable markdown', () => {
     const md = toMarkdown(v, { date: new Date('2026-10-10') });
     expect(md).toContain('# Home');
-    expect(md).toContain('## Weekly\n> 📍 Via Roma 1, Olbia\n- [ ] Bread');
+    expect(md).toContain('## Weekly\n> 📍 Via Roma 1, Olbia\n- [ ] ! Bread');
     expect(md).toContain('### Fridge\n- [-] 200 g Feta');
     expect(md).toContain('### Dairy\n- [ ] 2 l Milk // lactose free\n- [x] Butter');
     expect(md).toContain('## DIY\n- [ ] "4711 Cologne"');
@@ -33,7 +33,7 @@ describe('backup', () => {
     expect(doc.lists.map((l) => l.name)).toEqual(['Weekly', 'DIY']);
     expect(doc.lists[0].address).toBe('Via Roma 1, Olbia');
     expect(doc.lists[0].items).toEqual([
-      { name: 'Bread', qty: '', unit: '', note: '', state: 'open', group: '', subgroup: '' },
+      { name: 'Bread', qty: '', unit: '', note: '', state: 'open', group: '', subgroup: '', prio: 1 },
       { name: 'Feta', qty: '200', unit: 'g', note: '', state: 'parked', group: 'Fridge', subgroup: '' },
       { name: 'Milk', qty: '2', unit: 'l', note: 'lactose free', state: 'open', group: 'Dairy', subgroup: '' },
       { name: 'Butter', qty: '', unit: '', note: '', state: 'checked', group: 'Dairy', subgroup: '' },

@@ -1,6 +1,7 @@
 <script>
   import Icon from './Icon.svelte';
   import Flag from './Flag.svelte';
+  import PrioIcon from './PrioIcon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import { toggleItem, setParked, editItem } from '../lib/actions.js';
   import { formatAmount, stepAmount } from '../../../shared/parse.js';
@@ -17,17 +18,22 @@
     if (next) editItem(item, { amount: next });
   };
   const amount = $derived(formatAmount(item.qty, item.unit));
+  // important (1) / not important (-1) – how the mark looks is a per-device setting (see Prefs)
+  const prio = $derived(inactive ? 0 : (item.prio ?? 0));
 </script>
 
-<li class="item" class:checked={item.checked} class:inactive class:fresh data-id={item.id}>
+<li class="item" class:checked={item.checked} class:inactive class:fresh class:prio-up={prio > 0} class:prio-down={prio < 0} data-id={item.id}>
   <span class="handle" aria-hidden="true" title={t('item.drag')}><Icon name="grip" size={16} /></span>
   {#if inactive}
     <button class="check" aria-label={t('inactive.activate', { name: item.name })} title={t('inactive.activateShort')} onclick={activate}>
       <span class="box plus"><Icon name="plus" size={16} /></span>
     </button>
   {:else}
-    <button class="check" role="checkbox" aria-checked={item.checked} aria-label={item.name} onclick={() => toggleItem(item)}>
-      <span class="box">{#if item.checked}<Icon name="check" size={16} />{/if}</span>
+    <button class="check" role="checkbox" aria-checked={item.checked} aria-label={item.name} aria-describedby={prio ? `prio-${item.id}` : undefined} onclick={() => toggleItem(item)}>
+      <span class="box">
+        {#if item.checked}<Icon name="check" size={16} />{:else if prio}<span class="prio-in"><PrioIcon {prio} size={13} /></span>{/if}
+      </span>
+      {#if prio}<span class="prio-mark"><PrioIcon {prio} size={11} /></span><span class="sr-only" id="prio-{item.id}">{t(prio > 0 ? 'prio.up' : 'prio.down')}</span>{/if}
     </button>
   {/if}
   <div class="main">
@@ -90,6 +96,7 @@
     color: var(--muted);
   }
   .check {
+    position: relative;
     display: grid;
     place-items: center;
     width: 40px;
@@ -262,6 +269,64 @@
   }
   .fresh {
     background: color-mix(in srgb, var(--sun-soft) 55%, var(--surface));
+  }
+  /* ----- important / not important ----- */
+  .prio-up {
+    background: color-mix(in srgb, var(--sun-soft) 45%, var(--surface));
+  }
+  .prio-up .name {
+    font-weight: 650;
+  }
+  .prio-down:not(.checked) .name {
+    color: var(--muted);
+  }
+  .prio-in,
+  .prio-mark {
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+  }
+  .prio-up .prio-in,
+  .prio-up .prio-mark {
+    color: var(--sun);
+  }
+  /* style "box" (default): the arrow inside the empty box */
+  .prio-up:not(.checked) .box {
+    border-color: var(--sun);
+  }
+  .prio-mark {
+    display: none;
+    position: absolute;
+  }
+  /* style "badge": a small round mark on the box corner */
+  :global(html[data-prio='badge']) .prio-in,
+  :global(html[data-prio='gap']) .prio-in {
+    display: none;
+  }
+  :global(html[data-prio='badge']) .prio-up:not(.checked) .box,
+  :global(html[data-prio='gap']) .prio-up:not(.checked) .box {
+    border-color: var(--control);
+  }
+  :global(html[data-prio='badge']) .prio-mark {
+    display: grid;
+    top: 1px;
+    right: 1px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px var(--line);
+  }
+  :global(html[data-prio='badge']) .prio-mark :global(svg) {
+    width: 10px;
+    height: 10px;
+  }
+  /* style "gap": the arrow between box and name */
+  :global(html[data-prio='gap']) .prio-mark {
+    display: grid;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
   }
   /* generous tap target for the details – the icon itself stays quiet */
   .edit {

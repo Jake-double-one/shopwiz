@@ -1,8 +1,9 @@
 <script>
   import Icon from './Icon.svelte';
+  import PrioIcon from './PrioIcon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import { suggestionsFor, learnedPlacement, groupOptions, groupLabel } from '../lib/model.js';
-  import { addEntry, increaseAmount, deleteSuggestion, editItem } from '../lib/actions.js';
+  import { addEntry, increaseAmount, deleteSuggestion, editItem, prioFromText } from '../lib/actions.js';
   import { parseEntry, splitLines, formatAmount, addAmounts } from '../../../shared/parse.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sync } from '../lib/sync.svelte.js';
@@ -20,7 +21,13 @@
     input?.focus();
   }
 
-  const parsed = $derived(parseEntry(text));
+  // importance of the next item: the button, or "!" / "?" typed first (if the list allows it)
+  let manualPrio = $state(0);
+  const typed = $derived(prioFromText(list, text));
+  const prio = $derived(typed.prio || manualPrio);
+  const cyclePrio = () => (manualPrio = typed.prio ? 0 : manualPrio === 0 ? 1 : manualPrio === 1 ? -1 : 0);
+
+  const parsed = $derived(parseEntry(typed.text));
   const sugg = $derived(showSugg ? suggestionsFor(v, list, parsed.name || text) : []);
   const options = $derived(groupOptions(v, list));
   const learned = $derived(!target && parsed.name ? learnedPlacement(v, list, parsed.name) : null);
@@ -32,12 +39,13 @@
 
   function submit(raw = text, opts = {}) {
     if (!parseEntry(raw).name) return;
-    const r = addEntry(list.id, raw, { ...(target && { groupId: target }), ...opts });
+    const r = addEntry(list.id, raw, { ...(target && { groupId: target }), ...(manualPrio && { prio: manualPrio }), ...opts });
     if (r.status === 'duplicate') {
       dup = { existing: r.existing, parsed: r.parsed, raw };
       return;
     }
     text = '';
+    manualPrio = 0;
     active = -1;
     showSugg = false;
     input?.focus();
@@ -45,7 +53,7 @@
 
   function pick(s) {
     const amount = parsed.qty ? `${parsed.qty}${parsed.unit ? ` ${parsed.unit}` : ''} ` : '';
-    submit(amount + s.name);
+    submit(amount + s.name, prio ? { prio } : {});
   }
 
   function onkeydown(e) {
@@ -101,6 +109,7 @@
             increaseAmount(sync.data.items[dup.existing.id] ?? dup.existing, dup.parsed);
             dup = null;
             text = '';
+            manualPrio = 0;
             input?.focus();
           }}>{t('dup.increase')}</button>
         <button
@@ -156,6 +165,17 @@
       {#if target}
         <button type="button" class="clear" onclick={() => (target = null)} aria-label={t('add.clearTarget')}>{targetLabel} ×</button>
       {/if}
+      <button
+        type="button"
+        class="prio-pick"
+        class:up={prio > 0}
+        class:down={prio < 0}
+        onclick={cyclePrio}
+        title={t('prio.pickHint')}
+        aria-label={`${t('prio.label')}: ${t(prio > 0 ? 'prio.up' : prio < 0 ? 'prio.down' : 'prio.normal')}`}>
+        {#if prio}<PrioIcon {prio} size={11} />{/if}
+        {t(prio > 0 ? 'prio.up' : prio < 0 ? 'prio.down' : 'prio.normal')}
+      </button>
     </div>
     <div class="row">
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"
@@ -230,6 +250,32 @@
     border-radius: 999px;
     padding: 3px 8px;
     max-width: 60%;
+  }
+  .prio-pick {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 9px;
+  }
+  .prio-pick.up {
+    color: var(--ink);
+    border-color: var(--sun);
+    background: color-mix(in srgb, var(--sun-soft) 60%, transparent);
+  }
+  .prio-pick.up :global(svg) {
+    color: var(--sun);
+  }
+  .prio-pick.down {
+    color: var(--ink);
+    border-color: var(--control);
   }
   .target-select.set {
     display: none;

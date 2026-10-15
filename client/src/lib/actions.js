@@ -3,7 +3,7 @@ import { toast } from './toast.svelte.js';
 import { t, i18n } from './i18n.svelte.js';
 import { api } from './api.js';
 import { setDeviceName } from './device.js';
-import { parseEntry, normalizeName, addAmounts } from '../../../shared/parse.js';
+import { parseEntry, normalizeName, addAmounts, splitPrio } from '../../../shared/parse.js';
 import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, translationOf } from './model.js';
 
 const v = () => sync.data;
@@ -44,11 +44,18 @@ export function ensureGroupPath(list, groupName, subgroupName) {
  * Add one entry like "2 Milch". Returns { status: 'added' | 'duplicate' | 'reactivated', ... }.
  * opts.groupId: explicit target group (teaches the list). opts.force: skip duplicate check.
  */
+/** "!Milk" / "?Basil" → importance, when the list allows the shortcut */
+export function prioFromText(list, raw) {
+  return list?.prioShortcuts ? splitPrio(raw) : { prio: 0, text: raw };
+}
+
 export function addEntry(listId, raw, opts = {}) {
-  const parsed = parseEntry(raw);
-  if (!parsed.name) return { status: 'empty' };
   const list = v().lists[listId];
   if (!list) return { status: 'empty' };
+  const typed = prioFromText(list, raw);
+  const prio = typed.prio || opts.prio || 0;
+  const parsed = { ...parseEntry(typed.text), prio };
+  if (!parsed.name) return { status: 'empty' };
   const norm = normalizeName(parsed.name);
   const same = listItems(v(), listId).filter((i) => normalizeName(i.name) === norm);
   if (!opts.force) {
@@ -64,6 +71,7 @@ export function addEntry(listId, raw, opts = {}) {
     if (done) {
       const fields = done.parked ? { parked: false } : { checked: false };
       if (parsed.qty) fields.amount = { qty: parsed.qty, unit: parsed.unit };
+      if (prio && prio !== (done.prio ?? 0)) fields.prio = prio;
       editItem(done, fields, { silent: true });
       const back = done.parked ? { parked: true } : { checked: true };
       if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, { ...back, ...(fields.amount && { amount: { qty: done.qty, unit: done.unit } }) }, { silent: true }));
@@ -81,14 +89,14 @@ export function addEntry(listId, raw, opts = {}) {
   }
   const siblings = listItems(v(), listId).filter((i) => (i.groupId ?? null) === groupId);
   const id = newId();
-  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }) });
+  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }), ...(prio && { prio }) });
   return { status: 'added', id, groupId };
 }
 
 export function increaseAmount(item, parsed) {
   const sum = addAmounts({ qty: item.qty, unit: item.unit }, { qty: parsed.qty, unit: parsed.unit }) ?? { qty: item.qty, unit: item.unit };
   const before = { qty: item.qty, unit: item.unit };
-  editItem(item, { amount: sum }, { silent: true });
+  editItem(item, { amount: sum, ...(parsed.prio && parsed.prio !== (item.prio ?? 0) && { prio: parsed.prio }) }, { silent: true });
   undoToast(t('toast.amountIncreased', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, { amount: before }, { silent: true }));
 }
 
@@ -152,6 +160,7 @@ export function addList(name, groupMode = 'own') {
 export const renameList = (list, name) => sync.send({ k: 'list.update', id: list.id, name });
 export const setGroupMode = (list, groupMode) => sync.send({ k: 'list.update', id: list.id, groupMode });
 export const setAddress = (list, address) => sync.send({ k: 'list.update', id: list.id, address });
+export const setPrioShortcuts = (list, on) => sync.send({ k: 'list.update', id: list.id, prioShortcuts: !!on });
 
 // ----- travel mode -----
 

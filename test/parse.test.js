@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseEntry, normalizeName, addAmounts, splitLines } from '../shared/parse.js';
+import { parseEntry, normalizeName, addAmounts, splitLines, splitPrio } from '../shared/parse.js';
 import { parseSpaceId, formatSpaceId, randomSpaceId } from '../shared/ids.js';
 import { webcrypto } from 'node:crypto';
 
@@ -29,6 +29,20 @@ describe('parseEntry', () => {
   for (const [input, name, qty, unit] of cases) {
     it(input, () => expect(parseEntry(input)).toEqual({ name, qty, unit }));
   }
+});
+
+describe('importance shortcuts', () => {
+  const cases = [
+    ['!Windeln', 1, 'Windeln'],
+    ['! Windeln', 1, 'Windeln'], // phone keyboards add a space after "!"
+    ['!  2 Windeln', 1, '2 Windeln'],
+    ['?Basilikum', -1, 'Basilikum'],
+    ['? Basilikum', -1, 'Basilikum'],
+    ['Milch!', 0, 'Milch!'],
+    ['Milch', 0, 'Milch'],
+    ['!', 0, '!'], // nothing behind the mark – not a shortcut
+  ];
+  for (const [raw, prio, text] of cases) it(raw, () => expect(splitPrio(raw)).toEqual({ prio, text }));
 });
 
 describe('helpers', () => {

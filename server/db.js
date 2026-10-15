@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS lists (
   address    TEXT NOT NULL DEFAULT '',     -- optional shop address for navigation
   travel_country TEXT,                     -- travel mode: ISO country (flag), NULL = off
   travel_lang    TEXT,                     -- travel mode: language items are translated to
+  prio_shortcuts INTEGER NOT NULL DEFAULT 0, -- "!milk" / "?basil" mark items when adding
   created_at INTEGER NOT NULL,
   deleted_at INTEGER,
   PRIMARY KEY (space_uid, id)
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS items (
   note       TEXT NOT NULL DEFAULT '',
   checked    INTEGER NOT NULL DEFAULT 0,
   parked     INTEGER NOT NULL DEFAULT 0,   -- 1 = in the 'inactive items' shadow list
+  prio       INTEGER NOT NULL DEFAULT 0,   -- 1 = important, -1 = not important
   checked_by TEXT,
   added_by   TEXT,
   pos        REAL NOT NULL,
@@ -177,6 +179,7 @@ function flattenSubgroups(db) {
 function migrate(db) {
   const cols = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   if (!cols.includes('parked')) db.exec('ALTER TABLE items ADD COLUMN parked INTEGER NOT NULL DEFAULT 0');
+  if (!cols.includes('prio')) db.exec('ALTER TABLE items ADD COLUMN prio INTEGER NOT NULL DEFAULT 0');
   const listCols = db.prepare('PRAGMA table_info(lists)').all().map((c) => c.name);
   const devCols = db.prepare('PRAGMA table_info(devices)').all().map((c) => c.name);
   for (const [col, type] of [['spot_group', 'TEXT'], ['spot_item', 'TEXT'], ['spot_at', 'INTEGER']]) {
@@ -186,6 +189,7 @@ function migrate(db) {
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
   if (!listCols.includes('travel_country')) db.exec('ALTER TABLE lists ADD COLUMN travel_country TEXT');
   if (!listCols.includes('travel_lang')) db.exec('ALTER TABLE lists ADD COLUMN travel_lang TEXT');
+  if (!listCols.includes('prio_shortcuts')) db.exec('ALTER TABLE lists ADD COLUMN prio_shortcuts INTEGER NOT NULL DEFAULT 0');
   const trCols = db.prepare('PRAGMA table_info(translations)').all().map((c) => c.name);
   if (!trCols.includes('provider')) db.exec('ALTER TABLE translations ADD COLUMN provider TEXT');
 }

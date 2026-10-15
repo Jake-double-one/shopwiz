@@ -40,6 +40,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Amount buttons** | On tablets and computers, − and + sit right next to the amount (g/ml in steps of 100). On phones the amount is changed in the item's edit dialog. |
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
+| **Important / not important** | Mark items ↑ important (“don't come home without it”) or ↓ not important. Important rows are highlighted, unimportant ones grey. Set in the item details or with the button next to the group picker; optionally per list with the shortcuts `!Diapers` / `? Basil` when typing. How the mark looks is chosen per device. |
 | **Checked items stay** | They move to the end of their group and can be unchecked again. |
 | **Inactive items** | A collapsed “shadow list” at the bottom of every list, with the same groups as the list: things you don't need right now and groups without items. Clearing checked items moves them there; one tap puts them back on the list. |
 | **Shop address** | Optionally give a list the address of its shop – a “Start navigation” button appears next to the list name (just an arrow on phones). |

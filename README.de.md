@@ -39,6 +39,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Mengen-Knöpfe** | Auf Tablet und Computer stehen − und + direkt neben der Menge (g/ml in 100er-Schritten). Auf dem Handy ändert man die Menge im Bearbeiten-Dialog des Artikels. |
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
+| **Wichtig / unwichtig** | Artikel als ↑ wichtig („nicht ohne nach Hause kommen“) oder ↓ unwichtig markieren. Wichtige Zeilen sind hervorgehoben, unwichtige grau. Einstellbar in den Artikeldetails oder mit dem Knopf neben der Gruppenauswahl; pro Liste optional mit den Kürzeln `!Windeln` / `? Basilikum` beim Eintippen. Wie die Markierung aussieht, wählt jedes Gerät selbst. |
 | **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. |
 | **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste, mit denselben Gruppen wie die Liste: Dinge, die gerade nicht gebraucht werden, und Gruppen ohne Artikel. „Erledigte entfernen“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
 | **Adresse des Ladens** | Optional bekommt eine Liste die Adresse ihres Ladens – neben dem Listennamen erscheint dann „Navigation starten“ (auf dem Handy nur als Pfeil). |

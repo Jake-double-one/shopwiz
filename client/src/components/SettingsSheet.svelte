@@ -3,6 +3,8 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import Prefs from './Prefs.svelte';
+  import { PRIO_STYLES, setPrioStyle } from '../lib/theme.js';
+  import { load } from '../lib/storage.js';
   import { t } from '../lib/i18n.svelte.js';
   import { updateSpace, renameDevice } from '../lib/actions.js';
   import { api } from '../lib/api.js';
@@ -20,6 +22,7 @@
   let typed = $state('');
   let busy = $state(false);
   let showId = $state(false);
+  let prioStyle = $state(load('prioStyle', 'box'));
   const online = $derived(sync.status === 'online');
   const others = knownSpaces().filter((s) => s.id !== spaceId);
 
@@ -102,6 +105,12 @@
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
     </label>
     <Prefs />
+    <label class="field prio-style">
+      <span>{t('prio.style')}</span>
+      <select class="select" value={prioStyle} onchange={(e) => (prioStyle = setPrioStyle(e.currentTarget.value))}>
+        {#each PRIO_STYLES as s (s)}<option value={s}>{t(`prio.style.${s}`)}</option>{/each}
+      </select>
+    </label>
   </section>
 
   <section>
@@ -180,6 +189,9 @@
     margin-top: 18px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
+  }
+  .prio-style {
+    margin: 14px 0 0;
   }
   .ttl {
     max-width: 120px;
