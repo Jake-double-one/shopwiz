@@ -132,11 +132,13 @@
       <summary class="micro">{t('backup.format')}</summary>
       <pre class="mono">{`# ${t('backup.fmtSpace')}
 ## ${t('backup.fmtList')}
+> ✈️ IT it        ← ${t('backup.fmtTravel')}
 - [ ] Bread
 ### ${t('backup.fmtGroup')}
 - [ ] 2 l Milk // ${t('backup.fmtNote')}
 - [x] Butter      ← ${t('backup.fmtChecked')}
-- [-] Feta        ← ${t('backup.fmtInactive')}`}</pre>
+- [-] Feta        ← ${t('backup.fmtInactive')}
+- [ ] ! Coffee → Caffè  ← ${t('backup.fmtExtra')}`}</pre>
     </details>
   </section>
 </Sheet>

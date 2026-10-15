@@ -1,10 +1,13 @@
 <script>
   import Icon from './Icon.svelte';
   import Flag from './Flag.svelte';
+  import SwipeStrip from './SwipeStrip.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import { toggleItem, setParked, editItem } from '../lib/actions.js';
   import { formatAmount, stepAmount } from '../../../shared/parse.js';
+  import { prefs, swipeAction } from '../lib/prefs.svelte.js';
+  import { swipeable } from '../lib/swipe.js';
 
   /** inactive: row of the shadow list – tapping puts it back on the list */
   /** translation/country: travel mode – shown under the name; onshow: show it big to shop staff */
@@ -20,9 +23,43 @@
   const amount = $derived(formatAmount(item.qty, item.unit));
   // important (1) / not important (-1) – how the mark looks is a per-device setting (see Prefs)
   const prio = $derived(inactive ? 0 : (item.prio ?? 0));
+
+  // ----- swipe (touch): one direction checks off, the other moves to inactive (per-device setting) -----
+  let sw = $state({ dx: 0, action: null, armed: false, swiping: false, settling: false });
+  /** what a swipe in this direction does here – inactive rows can only go back onto the list */
+  const actionFor = (dir) => {
+    const a = swipeAction(dir);
+    if (!inactive || !a) return a;
+    return a === 'park' ? 'unpark' : null;
+  };
+  const run = (a) => {
+    if (a === 'check') toggleItem(item);
+    else if (a === 'park') setParked(item, true, { undo: true });
+    else if (a === 'unpark') setParked(item, false, { undo: true });
+  };
+  const swipeParams = $derived({ enabled: prefs.swipe !== 'off', actionFor, onrun: run, onchange: (s) => (sw = s) });
+  const dx = $derived(sw.dx);
+  const action = $derived(sw.action);
+  const armed = $derived(sw.armed);
+  const stripLabel = $derived(
+    action === 'check' ? t(item.checked ? 'swipe.uncheck' : 'swipe.check') : action === 'park' ? t('swipe.park') : action === 'unpark' ? t('swipe.unpark') : '',
+  );
 </script>
 
-<li class="item" class:checked={item.checked} class:inactive class:fresh class:prio-up={prio > 0} class:prio-down={prio < 0} data-id={item.id}>
+<li
+  use:swipeable={swipeParams}
+  class="item"
+  class:checked={item.checked}
+  class:inactive
+  class:fresh
+  class:prio-up={prio > 0}
+  class:prio-down={prio < 0}
+  class:swiping={sw.swiping}
+  class:settling={sw.settling}
+  class:swipe-on={prefs.swipe !== 'off'}
+  style:--dx={dx ? `${dx}px` : null}
+  data-id={item.id}>
+  {#if dx}<SwipeStrip {dx} {action} {armed} label={stripLabel} />{/if}
   <span class="handle" aria-hidden="true" title={t('item.drag')}><Icon name="grip" size={16} /></span>
   {#if inactive}
     <button class="check" aria-label={t('inactive.activate', { name: item.name })} title={t('inactive.activateShort')} onclick={activate}>
@@ -69,6 +106,21 @@
 </li>
 
 <style>
+  .item.swipe-on {
+    touch-action: pan-y pinch-zoom;
+  }
+  .item.swiping,
+  .item.settling {
+    position: relative;
+    overflow: hidden;
+  }
+  .item.swiping > :global(:not(.swipe-strip)),
+  .item.settling > :global(:not(.swipe-strip)) {
+    transform: translateX(var(--dx, 0px));
+  }
+  .item.settling > :global(:not(.swipe-strip)) {
+    transition: transform 0.18s ease;
+  }
   .item {
     display: flex;
     align-items: center;

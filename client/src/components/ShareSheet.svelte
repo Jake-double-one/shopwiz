@@ -6,8 +6,10 @@
   import { t } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
   import { formatSpaceId } from '../../../shared/ids.js';
+  import { shareListText } from '../lib/actions.js';
 
-  let { space, spaceId, onclose } = $props();
+  /** list: the list on screen – can be sent as plain text, too */
+  let { space, spaceId, list = null, onclose } = $props();
   const url = $derived(`${location.origin}/${spaceId}`);
   let svg = $state('');
   const canShare = typeof navigator !== 'undefined' && !!navigator.share && window.isSecureContext;
@@ -46,6 +48,13 @@
     <button class="btn block" onclick={() => copy(formatSpaceId(spaceId), t('share.idCopied'))}><Icon name="key" />{t('share.copyId')}</button>
   </div>
   <p class="micro center warn">{t('share.warning')}</p>
+  {#if list}
+    <section class="as-text">
+      <p class="eyebrow">{t('shareText.title')}</p>
+      <p class="note">{t('shareText.note')}</p>
+      <button class="btn block" onclick={() => shareListText(list)}><Icon name="list" />{t('shareText.button')}</button>
+    </section>
+  {/if}
 </Sheet>
 
 <style>
@@ -78,6 +87,11 @@
     display: grid;
     gap: 8px;
     margin: 12px 0;
+  }
+  .as-text {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
   .warn {
     text-transform: none;

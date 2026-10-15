@@ -39,11 +39,16 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Mengen-Knöpfe** | Auf Tablet und Computer stehen − und + direkt neben der Menge (g/ml in 100er-Schritten). Auf dem Handy ändert man die Menge im Bearbeiten-Dialog des Artikels. |
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
-| **Wichtig / unwichtig** | Artikel als ↑ wichtig („nicht ohne nach Hause kommen“) oder ↓ unwichtig markieren. Wichtige Zeilen sind hervorgehoben, unwichtige grau. Einstellbar in den Artikeldetails oder mit dem Knopf neben der Gruppenauswahl; pro Liste optional mit den Kürzeln `!Windeln` / `? Basilikum` beim Eintippen. Wie die Markierung aussieht, wählt jedes Gerät selbst. |
-| **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. |
+| **Wichtig / unwichtig** | Artikel als ↑ wichtig („nicht ohne nach Hause kommen“) oder ↓ unwichtig markieren. Wichtige Artikel stehen oben in ihrer Gruppe, unwichtige unten. Einstellbar in den Artikeldetails oder mit dem Knopf neben der Gruppenauswahl; pro Liste optional mit den Kürzeln `!Windeln` / `? Basilikum` beim Eintippen. Wie die Markierung aussieht, wählt jedes Gerät selbst. |
+| **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. Das Auge blendet es beim Einkaufen aus (pro Gerät). |
+| **Wischen** | Auf dem Handy einen Artikel in die eine Richtung wischen hakt ab, in die andere schiebt ihn zu „Inaktiv“ (mit Rückgängig). Welche Richtung was macht – oder ob Wischen aus ist – stellt jedes Gerät selbst ein. |
+| **Einkauf abschließen** | Ist alles abgehakt: Ein Knopf schiebt das Abgehakte zu „Inaktiv“, beendet den Check-in und lässt den Bildschirm wieder ausgehen. |
+| **Fokus-Modus** | Nur noch die Liste: Kategorien und Artikel zum Abhaken, groß, je nach Skin schwarz auf weiß oder weiß auf schwarz. Wischen und „Bildschirm anlassen“ gehen dort auch. Ein Banner oben beendet ihn. |
+| **Suche** | Die Lupe neben dem Listennamen filtert die Liste – auch Notizen, Übersetzungen und inaktive Artikel. |
+| **Als Text teilen** | Die offenen Artikel untereinander in einen Chat oder eine Notiz schicken (Teilen-Menü des Geräts oder Zwischenablage). |
 | **Inaktive Artikel** | Eine eingeklappte „Schattenliste“ am Ende jeder Liste, mit denselben Gruppen wie die Liste: Dinge, die gerade nicht gebraucht werden, und Gruppen ohne Artikel. „Erledigte entfernen“ schiebt Abgehaktes dorthin; ein Tipp holt es zurück auf die Liste. |
 | **Adresse des Ladens** | Optional bekommt eine Liste die Adresse ihres Ladens – neben dem Listennamen erscheint dann „Navigation starten“ (auf dem Handy nur als Pfeil). |
-| **Backup & Import** | Listen als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
+| **Backup & Import** | Listen (mit Reisemodus und Übersetzungen) als Markdown-Datei herunterladen, in jedem Texteditor bearbeiten und wieder importieren – in dieselbe ID (ohne Duplikate) oder als neue ID. |
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Die Details eines Artikels zeigen, wer ihn hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
 | **Reisemodus** | Einkaufen im Ausland? Pro Liste steht unter jedem Artikel die Übersetzung – mit der Flagge des Landes, das aus der Ladenadresse kommt. Antippen zeigt sie groß fürs Personal. Alles auf einmal übersetzen oder einzelne Artikel korrigieren. |
@@ -119,7 +124,18 @@ Das Format lässt sich leicht von Hand schreiben:
 - [ ] 2 l Milch // laktosefrei   ← Menge, Name, Notiz nach //
 - [x] Butter                     ← abgehakt
 - [-] Feta                       ← inaktiv
+- [ ] ! Windeln                  ← „!“ wichtig, „?“ unwichtig
 ```
+
+Eine Liste im Reisemodus behält Land und Sprache, ihre Artikel die Übersetzungen:
+
+```markdown
+## Olbia
+> ✈️ IT it                       ← Reisemodus: Land, Sprache
+- [ ] 1 l Milch → Latte          ← Übersetzung nach →
+```
+
+Beim Import bleiben Übersetzungen, die die ID schon hat, erhalten.
 
 Einfache Zeilen wie `Milch`, `- 2 Brot` oder `* Äpfel` funktionieren auch. Ein Name, der mit einer Zahl beginnt und keine Menge hat, steht in Anführungszeichen (`"4711 Kölnisch Wasser"`).
 
@@ -136,7 +152,7 @@ Läden können groß sein, und wer sich aufteilt, verliert sich. Solange man ein
 
 Freitext gibt es bewusst nicht, damit es nie ein Chat wird. Signale landen nie in der Datenbank. Ist ein Handy gerade offline oder das Display aus, hält der Server das Signal bis zu 30 Minuten im Arbeitsspeicher und liefert es nach, sobald ShopWiz dort wieder offen ist. Wer ohne Empfang ruft, dessen Signal geht raus, sobald die Verbindung wieder da ist.
 
-Der Check-in endet per Knopf, sobald alles abgehakt ist, oder automatisch nach **60 Minuten ohne Aktivität** (Abhaken, Hinzufügen, Rufen oder ShopWiz öffnen verlängern ihn).
+Ist alles abgehakt, erscheint **Einkauf abschließen** (auch als Hinweis direkt nach dem letzten Haken): Abgehaktes wandert zu „Inaktiv“, der Check-in endet und „Bildschirm anlassen“ wird ausgeschaltet. Sonst endet der Check-in per Knopf oder automatisch nach **60 Minuten ohne Aktivität** (Abhaken, Hinzufügen, Rufen oder ShopWiz öffnen verlängern ihn).
 
 ### Reisemodus
 

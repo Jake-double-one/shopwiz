@@ -59,6 +59,28 @@ describe('backup', () => {
     expect(doc.lists[0].items[0]).toMatchObject({ name: 'Rolls', group: 'Bakery' });
   });
 
+  it('keeps travel mode and translations', () => {
+    const tv = {
+      space: { name: 'Trip' },
+      lists: { l1: { id: 'l1', name: 'Olbia', pos: 1, groupMode: 'own', travel: { country: 'IT', lang: 'it' } } },
+      groups: {},
+      items: {
+        a: { id: 'a', listId: 'l1', groupId: null, name: 'Milk', qty: '1', unit: 'l', note: 'fresh', checked: false, parked: false, prio: 1, pos: 1 },
+        b: { id: 'b', listId: 'l1', groupId: null, name: 'Bread', qty: '', unit: '', note: '', checked: false, parked: false, pos: 2 },
+      },
+      translations: { 'milk|it': { norm: 'milk', lang: 'it', text: 'Latte' } },
+    };
+    const md = toMarkdown(tv);
+    expect(md).toContain('## Olbia\n> ✈️ IT it\n- [ ] ! 1 l Milk → Latte // fresh\n- [ ] Bread\n');
+    const doc = parseMarkdown(md);
+    expect(doc.lists[0].travel).toEqual({ country: 'IT', lang: 'it' });
+    expect(doc.lists[0].items[0]).toMatchObject({ name: 'Milk', qty: '1', unit: 'l', note: 'fresh', prio: 1, translation: 'Latte' });
+    expect(doc.lists[0].items[1].translation).toBeUndefined();
+    // written by hand, and invalid countries are ignored
+    expect(parseMarkdown('## A\n> ✈ es, pt-br\n- Leite → leite').lists[0]).toMatchObject({ travel: { country: 'ES', lang: 'pt-BR' } });
+    expect(parseMarkdown('## A\n> ✈️ XX it\n').lists[0].travel).toBeUndefined();
+  });
+
   it('reads #### headings of older backups as groups', () => {
     const doc = parseMarkdown('## L\n### Fridge\n#### Dairy\n- [ ] Milk\n');
     expect(doc.lists[0].items[0]).toMatchObject({ name: 'Milk', group: 'Dairy', subgroup: '' });

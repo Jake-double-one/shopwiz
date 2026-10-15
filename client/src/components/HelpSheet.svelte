@@ -8,7 +8,7 @@
   import { api } from '../lib/api.js';
 
   let { onclose } = $props();
-  const TOPICS = ['start', 'add', 'check', 'groups', 'prio', 'shop', 'travel', 'lists', 'offline', 'backup', 'privacy'];
+  const TOPICS = ['start', 'add', 'check', 'groups', 'prio', 'shop', 'travel', 'lists', 'ai', 'offline', 'backup', 'privacy'];
   let open = $state(null);
   const builtAt = $derived(
     build.time && !Number.isNaN(Date.parse(build.time))
@@ -41,6 +41,7 @@
         {#if open === topic}
           <ul class="body">
             {#each t(`help.${topic}.body`).split('\n') as line, i (i)}<li>{line}</li>{/each}
+            {#if topic === 'ai' && sync.spaceId && !sync.features.ai}<li class="off">{t('help.ai.off')}</li>{/if}
           </ul>
         {/if}
       </section>
@@ -193,6 +194,10 @@
   .small {
     font-size: 0.85rem;
     margin: 0 0 12px;
+  }
+  .body li.off {
+    color: var(--muted);
+    font-style: italic;
   }
   .body li::marker {
     color: var(--muted);

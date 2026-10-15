@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import Flag from './Flag.svelte';
-  import { renameList, setGroupMode, deleteList, clearChecked, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, shareListText, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain } from '../lib/actions.js';
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -161,6 +161,7 @@
 
   <div class="actions">
     <button class="btn block" onclick={() => onopen('group', { create: true })}><Icon name="folder" />{t('group.add')}</button>
+    <button class="btn block" onclick={() => shareListText(list)}><Icon name="share" />{t('shareText.button')}</button>
     <button class="btn block" onclick={() => onopen('history')}><Icon name="history" />{t('history.title')}</button>
     <button class="btn block" onclick={() => onopen('backup')}><Icon name="copy" />{t('backup.title')}</button>
     {#if checked}

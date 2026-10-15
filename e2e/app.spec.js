@@ -717,3 +717,142 @@ test('AI assistant: connect, read only until allowed, its items appear live, rem
   r = await page.request.get('/api/v1/lists', { headers: { authorization: `Bearer ${key}` } });
   expect(r.status()).toBe(401);
 });
+
+test('shopping tools: important first, hide checked, search, share as text, finish shopping', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:8098' });
+  await createList(page);
+  await add(page, 'Milk');
+  await add(page, 'Bread');
+  await add(page, '2 Eggs');
+  // important items go to the top of their group
+  await page.getByRole('button', { name: 'Edit Eggs' }).click();
+  await page.getByRole('radio', { name: 'Important', exact: true }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('.ungrouped .item .name')).toHaveText(['Eggs', 'Milk', 'Bread']);
+
+  // hide checked items (per device)
+  await page.getByRole('checkbox', { name: 'Milk' }).click();
+  await page.getByRole('button', { name: 'Hide checked items' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show 1 checked' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toBeVisible();
+
+  // search, inactive items included
+  await page.getByRole('button', { name: 'Edit Bread' }).click();
+  await page.getByRole('button', { name: 'Not needed now' }).click();
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByRole('searchbox', { name: 'Search' }).fill('BRE');
+  await expect(page.locator('.item .name')).toHaveText(['Bread']);
+  await expect(page.locator('.shadow .item', { hasText: 'Bread' })).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Search' }).fill('xyz');
+  await expect(page.getByText('Nothing found for “xyz”.')).toBeVisible();
+  await page.getByRole('button', { name: 'Close search' }).click();
+  await expect(page.locator('.sheet .item .name')).toHaveText(['Eggs', 'Milk']);
+  await page.getByRole('button', { name: /Inactive items/ }).click();
+  await page.getByRole('button', { name: 'Put Bread back on the list' }).click();
+
+  // share the open items as text, one per line
+  await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: undefined }));
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByRole('button', { name: 'Share as text' }).click();
+  await expect(page.locator('.toast', { hasText: 'List copied as text.' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Weekly\n\n2× Eggs\nBread');
+  await page.getByRole('button', { name: 'Close' }).first().click();
+
+  // everything checked → finish: checked items become inactive, check-in ends
+  await page.getByRole('button', { name: "I'm shopping" }).click();
+  await page.getByRole('checkbox', { name: 'Eggs' }).click();
+  await page.getByRole('checkbox', { name: 'Bread' }).click();
+  await expect(page.locator('.toast', { hasText: 'Everything checked!' })).toBeVisible();
+  await page.locator('.done-card').getByRole('button', { name: 'Finish shopping' }).click();
+  await expect(page.locator('.progress .count')).toHaveText('0 / 0');
+  await expect(page.getByRole('button', { name: "I'm shopping" })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.toast', { hasText: '3 items are inactive now' })).toBeVisible();
+  await expect(page.locator('.done-card')).toHaveCount(0);
+
+  // help knows about AI assistants
+  await page.getByRole('button', { name: 'How ShopWiz works' }).click();
+  await page.getByRole('button', { name: 'AI assistants' }).click();
+  await expect(page.locator('.topic.open')).toContainText('Claude, ChatGPT, Grok or Siri');
+});
+
+test('swipe: direction per device, check off, inactive with undo, off', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true });
+  const page = await ctx.newPage();
+  await createList(page);
+  await add(page, 'Milk');
+  await add(page, 'Bread');
+  const cdp = await ctx.newCDPSession(page);
+  const swipe = async (name, dx) => {
+    const box = await item(page, name).locator('.name').boundingBox();
+    const y = box.y + box.height / 2;
+    const x = 195 - dx / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + (dx * i) / 8, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  // default: right checks off, left makes inactive
+  await swipe('Milk', 200);
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toHaveAttribute('aria-checked', 'true');
+  await swipe('Bread', -200);
+  await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveCount(0);
+  await page.locator('.toast', { hasText: 'Bread is inactive now.' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'false');
+  // a short swipe does nothing
+  await swipe('Bread', 40);
+  await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'false');
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('radio', { name: 'Swipe left to check, right to make inactive' }).click();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await swipe('Milk', -200);
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toHaveAttribute('aria-checked', 'false');
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('radio', { name: 'Swiping off' }).click();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await swipe('Milk', -200);
+  await expect(page.getByRole('checkbox', { name: 'Milk' })).toHaveAttribute('aria-checked', 'false');
+  await ctx.close();
+});
+
+test('focus mode: only the list, tap or swipe there, stays on until left', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true });
+  const page = await ctx.newPage();
+  await createList(page);
+  await page.getByRole('button', { name: 'Add group' }).last().click();
+  await page.getByLabel('Name').fill('Bakery');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await add(page, 'Bread');
+  await page.getByRole('button', { name: 'Back to automatic group' }).click();
+  await add(page, '2 Milk');
+  await add(page, 'Tea');
+  await page.getByRole('button', { name: 'Focus mode' }).click();
+  const focus = page.getByRole('dialog', { name: 'Weekly – focus mode' });
+  await expect(focus.locator('h2')).toHaveText(['Bakery']);
+  await expect(focus.getByRole('checkbox')).toHaveText(['2× Milk', 'Tea', 'Bread']);
+  await focus.getByRole('checkbox', { name: 'Bread' }).click();
+  await expect(focus.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
+
+  // swiping works here, too: right checks off, left makes inactive
+  const cdp = await ctx.newCDPSession(page);
+  const swipe = async (name, dx) => {
+    const box = await focus.getByRole('checkbox', { name }).boundingBox();
+    const y = box.y + box.height / 2;
+    const x = 195 - dx / 2;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + (dx * i) / 8, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  await swipe('Milk', 200);
+  await expect(focus.getByRole('checkbox', { name: 'Milk' })).toHaveAttribute('aria-checked', 'true');
+  await swipe('Tea', -200);
+  await expect(focus.getByRole('checkbox', { name: 'Tea' })).toHaveCount(0);
+
+  await page.reload();
+  await expect(focus).toBeVisible();
+  await focus.getByRole('button', { name: 'Leave focus mode' }).click();
+  await expect(focus).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
+  await ctx.close();
+});

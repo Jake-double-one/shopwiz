@@ -3,6 +3,7 @@
   import Icon from './Icon.svelte';
   import ListBody from './ListBody.svelte';
   import ShowCard from './ShowCard.svelte';
+  import FocusView from './FocusView.svelte';
   import AddBar from './AddBar.svelte';
   import StatusScreen from './StatusScreen.svelte';
   import ListPicker from './ListPicker.svelte';
@@ -24,7 +25,8 @@
   import { t, relTime } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
   import { sortedLists, progress, isShopping, listItems, listTree, translationOf } from '../lib/model.js';
-  import { setShopping, restoreItems, addList } from '../lib/actions.js';
+  import { setShopping, restoreItems, addList, finishShopping } from '../lib/actions.js';
+  import { prefs, setHideChecked, setFocus } from '../lib/prefs.svelte.js';
   import { navUrl } from '../lib/nav.js';
   import { toast } from '../lib/toast.svelte.js';
 
@@ -90,11 +92,38 @@
     }
     setShopping(!myShopping);
   }
+  // everything checked → offer to finish (checked items become inactive, check-in and screen-on end)
+  const allDone = $derived(prog.total > 0 && prog.done === prog.total);
+  let wasAllDone = untrack(() => allDone);
   $effect(() => {
-    if (myShopping && prog.total > 0 && prog.done === prog.total) {
-      setShopping(false);
-      toast(t('shopping.allDone'));
+    if (allDone && !wasAllDone && myShopping) {
+      toast({ text: t('shopping.allDone'), timeout: 10000, action: { label: t('shopping.finish'), run: finish } });
     }
+    wasAllDone = allDone;
+  });
+  async function finish() {
+    if (!list) return;
+    finishShopping(list.id, { checkOut: myShopping });
+    if (screenOn) await toggleScreen();
+  }
+
+  // ----- search -----
+  let searching = $state(false);
+  let query = $state('');
+  let searchInput = $state();
+  function openSearch() {
+    searching = true;
+    setTimeout(() => searchInput?.focus(), 0);
+  }
+  function closeSearch() {
+    searching = false;
+    query = '';
+  }
+  // another list starts without a search
+  const shownListId = $derived(list?.id);
+  $effect(() => {
+    shownListId;
+    untrack(closeSearch);
   });
 
   // ----- keep screen on (optional) -----
@@ -270,6 +299,7 @@
             <span class="nav-label">{t('list.navigate')}</span>
           </a>
         {/if}
+        <button class="icon-btn" onclick={() => (searching ? closeSearch() : openSearch())} aria-pressed={searching} aria-label={t('search.button')} title={t('search.button')}><Icon name="search" /></button>
         <button class="icon-btn" onclick={() => open('listMenu')} aria-label={t('list.menu')} title={t('list.menu')}><Icon name="more" /></button>
       </div>
       <div class="progress">
@@ -300,6 +330,10 @@
             <Icon name="cart" size={16} />
             <span class="label">{t('shopping.toggle')}</span>
           </button>
+          <button class="icon-btn" onclick={() => setFocus(true)} aria-label={t('focus.button')} title={t('focus.button')}><Icon name="focus" /></button>
+          <button class="icon-btn" aria-pressed={prefs.hideChecked} onclick={() => setHideChecked(!prefs.hideChecked)} aria-label={t('hideChecked.toggle')} title={t('hideChecked.toggle')}>
+            <Icon name={prefs.hideChecked ? 'eyeOff' : 'eye'} />
+          </button>
           {#if canWake}
             <button class="icon-btn" aria-pressed={screenOn} onclick={toggleScreen} aria-label={t('screen.toggle')} title={t('screen.toggle')}>
               <Icon name="screen" />
@@ -308,6 +342,36 @@
         </div>
       </div>
     </section>
+
+    {#if searching}
+      <form class="search" role="search" onsubmit={(e) => e.preventDefault()}>
+        <Icon name="search" size={18} />
+        <input
+          bind:this={searchInput}
+          bind:value={query}
+          class="search-input"
+          type="search"
+          enterkeyhint="search"
+          placeholder={t('search.placeholder', { list: list.name })}
+          aria-label={t('search.button')}
+          maxlength="80"
+          autocomplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          data-bwignore
+          data-form-type="other"
+          onkeydown={(e) => e.key === 'Escape' && closeSearch()} />
+        <button type="button" class="icon-btn" onclick={closeSearch} aria-label={t('search.close')} title={t('search.close')}><Icon name="x" size={18} /></button>
+      </form>
+    {/if}
+
+    {#if allDone && !searching}
+      <div class="hint dusk done-card">
+        <Icon name="check" size={18} />
+        <span class="grow">{t('shopping.doneTitle')}</span>
+        <button class="btn small main" onclick={finish}>{t('shopping.finish')}</button>
+      </div>
+    {/if}
 
     {#if sync.status !== 'online'}
       <div class="hint">
@@ -349,6 +413,7 @@
       {v}
       {list}
       {freshIds}
+      {query}
       onedit={(item) => open('item', { itemId: item.id })}
       onshow={showTranslation}
       ongroup={(group) => open('group', { groupId: group.id })}
@@ -361,6 +426,17 @@
 
   <AddBar bind:this={addBar} {v} {list} bind:target={addTarget} />
 
+  {#if prefs.focus && list}
+    <FocusView {v} {list} onclose={() => setFocus(false)} {screenOn} ontogglescreen={canWake ? toggleScreen : null}>
+      {#if signals.length}
+        <div class="signals focus-signals">
+          {#each signals as sig (sig.id)}
+            <SignalCard {sig} {v} {list} {mySpot} ondismiss={() => dismissSignal(sig.id)} />
+          {/each}
+        </div>
+      {/if}
+    </FocusView>
+  {/if}
   {#if showing && list?.travel}
     <ShowCard entries={showing.entries} start={showing.start} country={list.travel.country} lang={list.travel.lang} onclose={() => (showing = null)} />
   {/if}
@@ -384,7 +460,7 @@
         setTimeout(() => addBar?.focus(), 50);
       }} />
   {:else if sheet?.kind === 'share'}
-    <ShareSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} />
+    <ShareSheet space={v.space} spaceId={sync.spaceId} {list} onclose={closeSheet} />
   {:else if sheet?.kind === 'settings'}
     <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} onshare={() => open('share')} onbackup={() => open('backup')} />
   {:else if sheet?.kind === 'people'}
@@ -405,6 +481,40 @@
 {/if}
 
 <style>
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 0 4px 0 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--muted);
+  }
+  .search:focus-within {
+    border-color: var(--dusk);
+  }
+  .search-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font: inherit;
+    outline: none;
+  }
+  .search-input::-webkit-search-cancel-button {
+    display: none;
+  }
+  .focus-signals {
+    max-width: 640px;
+    margin: 0 auto 16px;
+  }
+  .done-card .btn {
+    flex: none;
+  }
   .loading {
     display: grid;
     gap: 14px;

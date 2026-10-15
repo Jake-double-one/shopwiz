@@ -1,4 +1,4 @@
-import { normalizeName } from '../../../shared/parse.js';
+import { normalizeName, formatAmount } from '../../../shared/parse.js';
 import { scopeOf } from './sync.svelte.js';
 
 const byPos = (a, b) => a.pos - b.pos || (a.id < b.id ? -1 : 1);
@@ -19,7 +19,8 @@ export function groupSet(v, list) {
  * - the active list: only groups that contain items on the list (open or checked),
  * - the inactive part ("shadow list"): inactive items under the same groups, plus empty groups.
  * Shape: { ungrouped: Item[], groups: [{ group, items, subs: [{ group, items }] }] }.
- * In the active tree unchecked items come first, checked ones at the end of each block.
+ * In the active tree unchecked items come first – important ones on top, not important ones
+ * below the rest – and checked ones at the end of each block.
  */
 export function listTree(v, list) {
   const groups = groupSet(v, list);
@@ -35,7 +36,8 @@ export function listTree(v, list) {
     target.get(key).push(it);
     if (it.parked) all.push(it);
   }
-  const sortActive = (arr = []) => arr.sort((a, b) => a.checked - b.checked || byPos(a, b));
+  const rank = (it) => (it.checked ? 0 : -(it.prio ?? 0));
+  const sortActive = (arr = []) => arr.sort((a, b) => a.checked - b.checked || rank(a) - rank(b) || byPos(a, b));
   const sortParked = (arr = []) => arr.sort(byPos);
   const top = groups.filter((g) => !g.parentId || !ids.has(g.parentId)).sort(byPos);
   const subsOf = (g) => groups.filter((s) => s.parentId === g.id).sort(byPos);
@@ -60,6 +62,19 @@ export function listTree(v, list) {
     shadow: { ungrouped: sortParked(parked.get('')), groups: shadowGroups },
     parked: all,
   };
+}
+
+/** Items sort in bands (open important → open → open not important → checked); a move only reorders within one band. */
+export const orderBand = (it) => (it.parked ? 'p' : it.checked ? 'c' : `o${it.prio ?? 0}`);
+
+/** Position for an item dropped at index in a container shown in order (the item itself not included). */
+export function dropPos(item, shown, index) {
+  const band = orderBand(item);
+  let before = null;
+  let after = null;
+  for (let i = index - 1; i >= 0; i--) if (orderBand(shown[i]) === band) { before = shown[i].pos; break; }
+  for (let i = index; i < shown.length; i++) if (orderBand(shown[i]) === band) { after = shown[i].pos; break; }
+  return posBetween(before, after);
 }
 
 export function listItems(v, listId) {
@@ -140,3 +155,10 @@ export const translationOf = (v, name, lang) => (lang && v.translations?.[`${nor
 
 /** Checked in at the shop – ends by itself after an hour without activity (server side). */
 export const isShopping = (d, now = Date.now()) => !!d?.shoppingUntil && d.shoppingUntil > now;
+
+/** The list as plain text: name, then one open item per line in shop order. */
+export function listAsText(list, tree) {
+  const items = [...tree.ungrouped, ...tree.groups.flatMap((n) => n.items)].filter((i) => !i.checked);
+  const line = (i) => [formatAmount(i.qty, i.unit), i.name].filter(Boolean).join(' ') + (i.note ? ` (${i.note.replace(/\s+/g, ' ').trim()})` : '');
+  return [list.name, '', ...items.map(line)].join('\n');
+}

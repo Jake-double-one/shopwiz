@@ -10,16 +10,22 @@
 //   - [x] Butter                ← checked
 //   - [-] Feta                  ← inactive (shadow list)
 //   - [ ] ! Diapers             ← "!" important, "?" not important
+//   > ✈️ IT it                   ← optional travel mode of the list: country and language
+//   - [ ] Milk → Latte          ← translation of the name (lists in travel mode)
 //
 // For import, plain lines ("Milk", "- Milk", "* 2 Milk") work as well.
 
-import { parseEntry, splitPrio } from './parse.js';
+import { parseEntry, splitPrio, normalizeName } from './parse.js';
+import { COUNTRY_LANGS, LANG_RE } from './countries.js';
 
 export const BACKUP_MARKER = 'shopwiz-backup';
 
 const byPos = (a, b) => a.pos - b.pos;
 
-function itemLine(it) {
+const TRAVEL_RE = /^>\s*✈\uFE0F?\s*([A-Za-z]{2})[\s·,/]+([A-Za-z]{2,3}(?:-[A-Za-z]{2})?)\s*$/u;
+const ARROW = ' → ';
+
+function itemLine(it, tr = '') {
   const box = it.parked ? '-' : it.checked ? 'x' : ' ';
   let text = it.name;
   const amount = [it.qty, it.unit].filter(Boolean).join(' ');
@@ -28,7 +34,8 @@ function itemLine(it) {
   if (amount) text = `${amount} ${text}`;
   const note = (it.note || '').replace(/\s*\n\s*/g, ' ').trim();
   const mark = it.prio > 0 ? '! ' : it.prio < 0 ? '? ' : '';
-  return `- [${box}] ${mark}${text}${note ? ` // ${note}` : ''}`;
+  const trans = tr.replace(/\s+/g, ' ').trim();
+  return `- [${box}] ${mark}${text}${trans ? `${ARROW}${trans}` : ''}${note ? ` // ${note}` : ''}`;
 }
 
 /**
@@ -38,7 +45,7 @@ function itemLine(it) {
 export function toMarkdown(v, { listIds = null, date = new Date() } = {}) {
   const out = [];
   out.push(`# ${v.space?.name ?? 'ShopWiz'}`);
-  out.push(`<!-- ${BACKUP_MARKER} v1 · ${date.toISOString().slice(0, 10)} · [ ] open · [x] checked · [-] inactive · ! important · ? not important · text after // is a note -->`);
+  out.push(`<!-- ${BACKUP_MARKER} v1 · ${date.toISOString().slice(0, 10)} · [ ] open · [x] checked · [-] inactive · ! important · ? not important · text after → is the translation, after // a note -->`);
   const lists = Object.values(v.lists)
     .filter((l) => !listIds || listIds.includes(l.id))
     .sort(byPos);
@@ -46,18 +53,21 @@ export function toMarkdown(v, { listIds = null, date = new Date() } = {}) {
   for (const list of lists) {
     out.push('', `## ${list.name}`);
     if (list.address) out.push(`> 📍 ${list.address.replace(/\s*\n\s*/g, ' ')}`);
+    const lang = list.travel?.lang;
+    if (lang) out.push(`> ✈️ ${list.travel.country} ${lang}`);
+    const line = (it) => itemLine(it, (lang && v.translations?.[`${normalizeName(it.name)}|${lang}`]?.text) || '');
     const owner = list.groupMode === 'shared' ? null : list.id;
     const groups = Object.values(v.groups).filter((g) => g.listId === owner);
     const ids = new Set(groups.map((g) => g.id));
     const mine = items.filter((i) => i.listId === list.id);
     const block = (groupId) => mine.filter((i) => (groupId ? i.groupId === groupId : !i.groupId || !ids.has(i.groupId))).sort(byPos);
-    for (const it of block(null)) out.push(itemLine(it));
+    for (const it of block(null)) out.push(line(it));
     for (const g of groups.filter((x) => !x.parentId).sort(byPos)) {
       out.push('', `### ${g.name}`);
-      for (const it of block(g.id)) out.push(itemLine(it));
+      for (const it of block(g.id)) out.push(line(it));
       for (const s of groups.filter((x) => x.parentId === g.id).sort(byPos)) {
         out.push('', `#### ${s.name}`);
-        for (const it of block(s.id)) out.push(itemLine(it));
+        for (const it of block(s.id)) out.push(line(it));
       }
     }
   }
@@ -69,7 +79,7 @@ const BOX_RE = /^\s*\[([ xX\-~])\]\s+(.*)$/;
 
 /**
  * Parse a Markdown/plain-text list. Returns
- * { spaceName, lists: [{ name, items: [{ name, qty, unit, note, state, group, subgroup }] }] }.
+ * { spaceName, lists: [{ name, address?, travel?: { country, lang }, items: [{ name, qty, unit, note, state, group, subgroup, prio?, translation? }] }] }.
  * Items before the first "## list" heading get list name '' (= the current list on import).
  */
 export function parseMarkdown(text) {
@@ -92,6 +102,14 @@ export function parseMarkdown(text) {
     }
     if (line.startsWith('<!--')) {
       if (!line.includes('-->')) inComment = true;
+      continue;
+    }
+    const trv = line.match(TRAVEL_RE);
+    if (trv) {
+      const country = trv[1].toUpperCase();
+      const [base, region] = trv[2].split('-');
+      const lang = region ? `${base.toLowerCase()}-${region.toUpperCase()}` : base.toLowerCase();
+      if (list && COUNTRY_LANGS[country] && LANG_RE.test(lang)) list.travel = { country, lang };
       continue;
     }
     const addr = line.match(/^>\s*📍\s*(.+)$/u);
@@ -129,6 +147,12 @@ export function parseMarkdown(text) {
       note = body.slice(cut + 4).trim();
       body = body.slice(0, cut);
     }
+    let translation = '';
+    const arrow = body.lastIndexOf(ARROW);
+    if (arrow > 0) {
+      translation = body.slice(arrow + ARROW.length).trim();
+      body = body.slice(0, arrow);
+    }
     body = body.trim();
     const pr = splitPrio(body);
     body = pr.text.trim();
@@ -140,7 +164,7 @@ export function parseMarkdown(text) {
     } else entry = parseEntry(body);
     if (!entry.name) continue;
     if (!list) ensureList('');
-    list.items.push({ ...entry, note, state, group, subgroup, ...(pr.prio && { prio: pr.prio }) });
+    list.items.push({ ...entry, note, state, group, subgroup, ...(pr.prio && { prio: pr.prio }), ...(translation && { translation }) });
   }
   return doc;
 }

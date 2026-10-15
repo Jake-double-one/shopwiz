@@ -40,11 +40,16 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Amount buttons** | On tablets and computers, − and + sit right next to the amount (g/ml in steps of 100). On phones the amount is changed in the item's edit dialog. |
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
-| **Important / not important** | Mark items ↑ important (“don't come home without it”) or ↓ not important. Important rows are highlighted, unimportant ones grey. Set in the item details or with the button next to the group picker; optionally per list with the shortcuts `!Diapers` / `? Basil` when typing. How the mark looks is chosen per device. |
-| **Checked items stay** | They move to the end of their group and can be unchecked again. |
+| **Important / not important** | Mark items ↑ important (“don't come home without it”) or ↓ not important. Important items move to the top of their group, unimportant ones to the bottom. Set in the item details or with the button next to the group picker; optionally per list with the shortcuts `!Diapers` / `? Basil` when typing. How the mark looks is chosen per device. |
+| **Checked items stay** | They move to the end of their group and can be unchecked again. The eye button hides them while you shop (per device). |
+| **Swipe** | On phones, swipe an item one way to check it off and the other way to make it inactive (with undo). Which way does what – or whether swiping is off – is set per device. |
+| **Finish shopping** | Once everything is checked: one button moves the checked items to “Inactive”, ends your check-in and lets the screen turn off again. |
+| **Focus mode** | Nothing but the list: categories and items to check off, large, black on white or white on black depending on the skin. Swiping and “keep screen on” work there, too. A banner at the top leaves it. |
+| **Search** | The magnifier next to the list name filters the list – notes, translations and inactive items included. |
+| **Share as text** | Send the open items, one per line, to a chat or a note (native share menu or clipboard). |
 | **Inactive items** | A collapsed “shadow list” at the bottom of every list, with the same groups as the list: things you don't need right now and groups without items. Clearing checked items moves them there; one tap puts them back on the list. |
 | **Shop address** | Optionally give a list the address of its shop – a “Start navigation” button appears next to the list name (just an arrow on phones). |
-| **Backup & import** | Download your lists as a Markdown file, edit it in any text editor and import it again – into the same ID (no duplicates) or as a new ID. |
+| **Backup & import** | Download your lists (including travel mode and translations) as a Markdown file, edit it in any text editor and import it again – into the same ID (no duplicates) or as a new ID. |
 | **Participants** | Every device chooses its own name. An item's details show who added or checked it. Devices can be removed. |
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
 | **Find each other** | In a big shop, everybody checked in sees where the others are (the group of their last checked item). A **Call** button sends one of four fixed signals – “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done” – no chat. |
@@ -120,7 +125,18 @@ The format is easy to write by hand:
 - [ ] 2 l Milk // lactose free  ← amount, name, note after //
 - [x] Butter                    ← checked
 - [-] Feta                      ← inactive
+- [ ] ! Diapers                 ← "!" important, "?" not important
 ```
+
+A list in travel mode keeps its country and language, and its items their translations:
+
+```markdown
+## Olbia
+> ✈️ IT it                      ← travel mode: country, language
+- [ ] 1 l Milk → Latte          ← translation after →
+```
+
+On import, translations that the ID already has are kept.
 
 Plain lines like `Milk`, `- 2 Bread` or `* Apples` work too. A name that starts with a number and has no amount is written in quotes (`"4711 Cologne"`).
 
@@ -137,7 +153,7 @@ Shops can be big, and when you split up you lose each other. While you are check
 
 There is deliberately no free text, so it never becomes a chat. Signals never touch the database. If a phone is offline or its display is off, the server keeps the signal in memory for up to 30 minutes and delivers it as soon as ShopWiz is open there again. A call made without reception goes out once the connection is back.
 
-The check-in ends with the button, once everything is checked, or automatically after **60 minutes without activity** (checking, adding, calling or opening ShopWiz extends it).
+When everything is checked, **Finish shopping** appears (also as a notice right after the last check): checked items move to “Inactive”, the check-in ends and “keep screen on” is turned off. Otherwise the check-in ends with the button or automatically after **60 minutes without activity** (checking, adding, calling or opening ShopWiz extends it).
 
 ### Travel mode
 

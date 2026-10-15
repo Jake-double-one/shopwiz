@@ -352,6 +352,30 @@ describe('list address', () => {
   });
 });
 
+describe('travel mode import', () => {
+  it('takes over travel mode and translations without replacing existing ones', () => {
+    const { store, uid, listId, op, devA } = setup();
+    op(devA, { k: 'translation.set', name: 'Milk', lang: 'it', text: 'latte fresco' });
+    const doc = {
+      lists: [
+        { name: 'Olbia', travel: { country: 'IT', lang: 'it' }, items: [
+          { name: 'Milk', state: 'open', translation: 'Latte' },
+          { name: 'Bread', state: 'open', translation: 'Pane' },
+        ] },
+        { name: 'Bad', travel: { country: 'XX', lang: 'it' }, items: [{ name: 'Rice', state: 'open', translation: 'Riso' }] },
+      ],
+    };
+    store.importDoc(uid, devA, doc, { defaultListId: listId });
+    const snap = store.snapshot(uid);
+    expect(snap.lists.find((l) => l.name === 'Olbia').travel).toEqual({ country: 'IT', lang: 'it' });
+    expect(snap.lists.find((l) => l.name === 'Bad').travel).toBeNull();
+    const tr = Object.fromEntries(snap.translations.map((x) => [x.norm, x]));
+    expect(tr.milk.text).toBe('latte fresco'); // kept
+    expect(tr.bread).toMatchObject({ text: 'Pane', lang: 'it', auto: false });
+    expect(tr.rice).toBeUndefined(); // list without travel mode
+  });
+});
+
 describe('spot while shopping', () => {
   it('remembers the group of the last checked item only while checked in', () => {
     const { store, uid, listId, op, devA } = setup();

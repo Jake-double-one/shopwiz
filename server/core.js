@@ -1338,10 +1338,26 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
         db.q('UPDATE lists SET address = ? WHERE space_uid = ? AND id = ?').run(address, uid, list.id);
         this._pushList(ctx, list.id);
       }
+      const travel = l.travel && COUNTRY_LANGS[l.travel.country] && LANG_RE.test(l.travel.lang ?? '') ? l.travel : null;
+      if (travel && !list.travel_lang) {
+        db.q('UPDATE lists SET travel_country = ?, travel_lang = ? WHERE space_uid = ? AND id = ?').run(travel.country, travel.lang, uid, list.id);
+        this._pushList(ctx, list.id);
+        list = { ...list, travel_country: travel.country, travel_lang: travel.lang };
+      }
+      // translations from the file never replace ones the space already has
+      const keepTranslation = (norm, raw) => {
+        const text = str(raw?.translation, LIMITS.translation);
+        if (!text || !list.travel_lang) return;
+        const row = db
+          .q('INSERT INTO translations (space_uid, norm, lang, text, auto, provider, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?) ON CONFLICT(space_uid, norm, lang) DO NOTHING RETURNING *')
+          .get(uid, norm, list.travel_lang, text, now);
+        if (row) ctx.changes.push({ e: 'translation', row: mapTranslation(row) });
+      };
       let pos = db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ?').get(uid, list.id).m;
       for (const raw of Array.isArray(l.items) ? l.items : []) {
         const name = str(raw?.name, LIMITS.itemName);
         if (!name) continue;
+        keepTranslation(normalizeName(name), raw);
         const state = ['open', 'checked', 'parked'].includes(raw.state) ? raw.state : 'open';
         const norm = normalizeName(name);
         const existing = db.q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL ORDER BY parked, checked').get(uid, list.id, norm);

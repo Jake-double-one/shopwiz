@@ -7,6 +7,7 @@
   import AiSection from './AiSection.svelte';
   import { PRIO_STYLES, setPrioStyle } from '../lib/theme.js';
   import { load } from '../lib/storage.js';
+  import { prefs, setSwipe, SWIPE_MODES } from '../lib/prefs.svelte.js';
   import { t } from '../lib/i18n.svelte.js';
   import { updateSpace, renameDevice } from '../lib/actions.js';
   import { api } from '../lib/api.js';
@@ -127,6 +128,33 @@
               {#if s === 'gap'}<span class="ps-gap"><PrioIcon prio={1} size={11} /></span>{/if}
               <span class="ps-name">{t('prio.sample')}</span>
             </span>
+          </button>
+        {/each}
+      </div>
+    </div>
+    <div class="prio-style">
+      <span class="ps-label" id="swipe-label">{t('swipe.setting')}</span>
+      <div class="ps-tiles" role="radiogroup" aria-labelledby="swipe-label">
+        {#each SWIPE_MODES as m (m)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={prefs.swipe === m}
+            aria-label={t(`swipe.mode.${m}`)}
+            title={t(`swipe.mode.${m}`)}
+            class="ps-tile sw-tile"
+            onclick={() => setSwipe(m)}>
+            {#if m === 'off'}
+              <span class="sw-off" aria-hidden="true">{t('swipe.off')}</span>
+            {:else}
+              <span class="sw-preview" aria-hidden="true">
+                <span class="sw-side {m === 'left' ? 'check' : 'park'}"><span class="sw-arrow">←</span><Icon name={m === 'left' ? 'check' : 'down'} size={14} /></span>
+                <span class="sw-side {m === 'right' ? 'check' : 'park'}"><Icon name={m === 'right' ? 'check' : 'down'} size={14} /><span class="sw-arrow">→</span></span>
+              </span>
+              <span class="sw-caption" aria-hidden="true">
+                <span>{t(m === 'left' ? 'swipe.check' : 'swipe.park')}</span><span>{t(m === 'right' ? 'swipe.check' : 'swipe.park')}</span>
+              </span>
+            {/if}
           </button>
         {/each}
       </div>
@@ -288,6 +316,55 @@
   .ps-name {
     font-weight: 650;
     font-size: 0.9rem;
+  }
+  .sw-tile {
+    gap: 4px;
+  }
+  .sw-preview {
+    display: flex;
+    gap: 4px;
+  }
+  .sw-side {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+    border-radius: 7px;
+    font-weight: 700;
+  }
+  .sw-side.check {
+    background: var(--dusk);
+    color: #fff;
+  }
+  :global(:root[data-theme='dark']) .sw-side.check {
+    color: #10102a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :global(:root[data-theme='auto']) .sw-side.check {
+      color: #10102a;
+    }
+  }
+  .sw-side.park {
+    background: var(--sun);
+    color: #1d1a10;
+  }
+  .sw-caption {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    font-family: var(--mono);
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .sw-off {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
   .ttl {
     max-width: 120px;

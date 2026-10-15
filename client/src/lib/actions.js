@@ -4,7 +4,7 @@ import { t, i18n } from './i18n.svelte.js';
 import { api } from './api.js';
 import { setDeviceName } from './device.js';
 import { parseEntry, normalizeName, addAmounts, splitPrio } from '../../../shared/parse.js';
-import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, translationOf } from './model.js';
+import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, translationOf, listTree, listAsText } from './model.js';
 
 const v = () => sync.data;
 const undoToast = (text, undo) => toast({ text, action: { label: t('undo'), run: undo } });
@@ -144,9 +144,40 @@ export function clearParked(listId) {
 }
 
 /** Move an item to the inactive items, or back onto the list. */
-export function setParked(item, parked) {
+export function setParked(item, parked, { undo = false } = {}) {
+  const before = { parked: !!item.parked, checked: !!item.checked };
   editItem(item, parked ? { parked: true, checked: false } : { parked: false });
+  if (undo) undoToast(t(parked ? 'toast.parked' : 'toast.unparked', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, before));
 }
+
+/** Done shopping: checked items become inactive, the check-in ends. */
+export function finishShopping(listId, { checkOut = false } = {}) {
+  const ids = listItems(v(), listId).filter((i) => i.checked && !i.parked).map((i) => i.id);
+  if (ids.length) sync.send({ k: 'list.clearChecked', listId });
+  if (checkOut) setShopping(false);
+  if (ids.length) undoToast(t('shopping.finished', { count: ids.length }), () => sync.send({ k: 'item.setState', ids, checked: true }));
+  else toast(t('shopping.finishedEmpty'));
+}
+
+/** Send the open items as plain text (share dialog of the device, or the clipboard). */
+export async function shareListText(list) {
+  const text = listAsText(list, listTree(v(), list));
+  if (navigator.share && window.isSecureContext) {
+    try {
+      await navigator.share({ title: list.name, text });
+      return;
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(t('shareText.copied'));
+  } catch {
+    window.prompt(t('share.copyManual'), text);
+  }
+}
+
 
 // ----- lists -----
 

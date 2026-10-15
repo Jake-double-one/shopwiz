@@ -3,24 +3,46 @@
   import ItemRow from './ItemRow.svelte';
   import GroupBlock from './GroupBlock.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree, posBetween, translationOf } from '../lib/model.js';
+  import { listTree, posBetween, dropPos, translationOf } from '../lib/model.js';
   import { moveItem, moveGroup, clearChecked, clearParked, editItem, addEntry } from '../lib/actions.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sortable } from '../lib/sortable.js';
   import { load, save } from '../lib/storage.js';
   import { sync } from '../lib/sync.svelte.js';
+  import { prefs, setHideChecked } from '../lib/prefs.svelte.js';
+  import { normalizeName } from '../../../shared/parse.js';
 
-  let { v, list, freshIds, onedit, onshow, ongroup, onaddto, onaddgroup } = $props();
+  /** query: search text – only matching items (also inactive ones) are shown */
+  let { v, list, freshIds, query = '', onedit, onshow, ongroup, onaddto, onaddgroup } = $props();
 
   // travel mode: the translation under each item
   const travel = $derived(list.travel);
   const trOf = (item) => (travel ? translationOf(v, item.name, travel.lang) : '');
 
-  const tree = $derived(listTree(v, list));
+  const full = $derived(listTree(v, list));
+  const q = $derived(normalizeName(query));
+  const searching = $derived(!!q);
+  const matches = (it) => normalizeName(it.name).includes(q) || normalizeName(it.note).includes(q) || (!!travel && normalizeName(trOf(it)).includes(q));
+  // what is shown: hidden checked items and search misses are left out (drag & drop works on what is shown)
+  const tree = $derived.by(() => {
+    const hide = prefs.hideChecked;
+    if (!q && !hide) return full;
+    const keepActive = (it) => !(hide && it.checked) && (!q || matches(it));
+    const keepParked = (it) => !q || matches(it);
+    const prune = (groups, keep) => groups.map((n) => ({ ...n, items: n.items.filter(keep) })).filter((n) => n.items.length);
+    return {
+      ungrouped: full.ungrouped.filter(keepActive),
+      groups: prune(full.groups, keepActive),
+      shadow: q ? { ungrouped: full.shadow.ungrouped.filter(keepParked), groups: prune(full.shadow.groups, keepParked) } : full.shadow,
+      parked: full.parked.filter(keepParked),
+    };
+  });
   const shadowEmpty = $derived(!tree.shadow.ungrouped.length && !tree.shadow.groups.length);
-  const checkedCount = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked).length);
+  const checkedCount = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked && !i.parked).length);
   const conflictIds = $derived(new Set(Object.values(v.conflicts).map((c) => c.itemId)));
-  const empty = $derived(!tree.ungrouped.length && !tree.groups.length);
+  const empty = $derived(!full.ungrouped.length && !full.groups.length);
+  const nothingShown = $derived(!tree.ungrouped.length && !tree.groups.length);
+  const hits = $derived(searching ? tree.ungrouped.length + tree.groups.reduce((n, g) => n + g.items.length, 0) + tree.parked.length : 0);
 
   // collapsed groups are a per-device view preference
   let collapsed = $state(new Set(load('collapsed', [])));
@@ -42,7 +64,7 @@
 
   // ----- inactive items (shadow list), collapsed by default, per device -----
   let shadowIds = $state(new Set(load('shadowOpen', [])));
-  const shadowOpen = $derived(shadowIds.has(list.id));
+  const shadowOpen = $derived(shadowIds.has(list.id) || (searching && tree.parked.length > 0));
   function toggleShadow() {
     const ids = new Set(shadowIds);
     ids.has(list.id) ? ids.delete(list.id) : ids.add(list.id);
@@ -63,7 +85,7 @@
     const groupId = to.group || null;
     const toParked = !!to.parked;
     const target = itemsIn(groupId, toParked).filter((i) => i.id !== id);
-    const pos = posBetween(target[newIndex - 1]?.pos, target[newIndex]?.pos);
+    const pos = dropPos({ ...item, parked: toParked }, target, newIndex);
     const fields = { pos };
     if ((item.groupId ?? null) !== groupId) fields.groupId = groupId;
     if (toParked !== !!item.parked) Object.assign(fields, toParked ? { parked: true, checked: false } : { parked: false });
@@ -83,7 +105,10 @@
   const groupSort = $derived({ group: 'groups', draggable: '.group.top', handle: '.g-top', onmove: onGroupMove });
 </script>
 
-{#if empty}
+{#if searching && !hits}
+  <p class="search-none card">{t('search.none', { query })}</p>
+{/if}
+{#if empty && !searching}
   <div class="empty card">
     <p class="eyebrow">{t('list.emptyEyebrow')}</p>
     <p>{t('list.empty')}</p>
@@ -91,7 +116,14 @@
   </div>
 {/if}
 
-<div class="sheet card" class:hidden={empty}>
+{#if !empty && nothingShown && !searching && prefs.hideChecked}
+  <div class="hint dusk all-hidden">
+    <Icon name="check" size={18} />
+    <span class="grow">{t('hideChecked.allHidden', { count: checkedCount })}</span>
+    <button class="link" onclick={() => setHideChecked(false)}>{t('hideChecked.show')}</button>
+  </div>
+{/if}
+<div class="sheet card" class:hidden={nothingShown}>
   <ul class="items ungrouped" data-group="" data-empty="" use:sortable={itemSort} class:empty-drop={!tree.ungrouped.length}>
     {#each tree.ungrouped as item (item.id)}
       <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} {onedit} {onshow} />
@@ -106,7 +138,7 @@
       <GroupBlock
         group={node.group}
         count={node.items.filter((i) => !i.checked).length}
-        collapsed={collapsed.has(node.group.id)}
+        collapsed={!searching && collapsed.has(node.group.id)}
         ontoggle={() => toggleCollapsed(node.group.id)}
         onmenu={() => ongroup(node.group)}
         onadd={() => onaddto(node.group.id)}>
@@ -122,6 +154,9 @@
 
 <div class="footer row wrap-row">
   <button class="btn small" onclick={onaddgroup}><Icon name="folder" size={16} />{t('group.add')}</button>
+  {#if checkedCount && prefs.hideChecked && !nothingShown}
+    <button class="btn small" onclick={() => setHideChecked(false)}><Icon name="eye" size={16} />{t('hideChecked.showCount', { count: checkedCount })}</button>
+  {/if}
   {#if checkedCount}
     <button class="btn small" onclick={() => clearChecked(list.id)}><Icon name="down" size={16} />{t('list.clearChecked', { count: checkedCount })}</button>
   {/if}
@@ -227,6 +262,14 @@
   }
   .empty {
     text-align: center;
+  }
+  .search-none {
+    text-align: center;
+    color: var(--muted);
+    margin: 0 0 12px;
+  }
+  .all-hidden {
+    margin-bottom: 12px;
   }
   .empty p:not(.eyebrow) {
     color: var(--muted);
