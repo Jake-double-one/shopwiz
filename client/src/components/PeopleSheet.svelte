@@ -53,6 +53,7 @@
 
 <style>
   .ai-tag {
+    margin-left: 6px;
     font-family: var(--mono);
     font-size: 0.6rem;
     letter-spacing: 0.08em;
