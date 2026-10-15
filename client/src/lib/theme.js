@@ -21,8 +21,15 @@ export const isDark = () => {
   return t === 'dark' || (t !== 'light' && !!darkQuery?.matches);
 };
 
+/**
+ * Installed app (home screen): Android paints the navigation bar once at install, from the manifest's dark
+ * background_color, and only picks the button color from theme-color. A light theme-color would put dark
+ * buttons on the dark bar – so the installed app always reports dark bars, also in the light skin.
+ */
+const installed = () => typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches;
+
 export function syncThemeColor() {
-  const color = (barOverride ?? BAR)[isDark() ? 'dark' : 'light'];
+  const color = (barOverride ?? BAR)[isDark() || installed() ? 'dark' : 'light'];
   const tags = [...document.querySelectorAll('meta[name="theme-color"]')];
   const tag = tags[0] ?? document.head.appendChild(Object.assign(document.createElement('meta'), { name: 'theme-color' }));
   for (const extra of tags.slice(1)) extra.remove();

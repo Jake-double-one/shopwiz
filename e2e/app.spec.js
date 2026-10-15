@@ -816,6 +816,22 @@ test('swipe: direction per device, check off, inactive with undo, off', async ({
   await ctx.close();
 });
 
+test('installed app: system bars stay dark in the light skin, so the navigation buttons stay visible', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', colorScheme: 'light' });
+  // pretend to run from the home screen
+  await ctx.addInitScript(() => {
+    const real = window.matchMedia.bind(window);
+    window.matchMedia = (q) => (q === '(display-mode: standalone)' ? { ...real(q), matches: true, media: q } : real(q));
+  });
+  const page = await ctx.newPage();
+  await createList(page);
+  const barColor = () => page.locator('meta[name="theme-color"]').getAttribute('content');
+  expect(await barColor()).toBe('#101714');
+  await page.getByRole('button', { name: 'Focus mode' }).click();
+  expect(await barColor()).toBe('#000000');
+  await ctx.close();
+});
+
 test('focus mode: only the list, tap or swipe there, stays on until left', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true });
   const page = await ctx.newPage();
