@@ -3,6 +3,7 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import Prefs from './Prefs.svelte';
+  import PrioIcon from './PrioIcon.svelte';
   import AiSection from './AiSection.svelte';
   import { PRIO_STYLES, setPrioStyle } from '../lib/theme.js';
   import { load } from '../lib/storage.js';
@@ -106,12 +107,30 @@
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
     </label>
     <Prefs />
-    <label class="field prio-style">
-      <span>{t('prio.style')}</span>
-      <select class="select" value={prioStyle} onchange={(e) => (prioStyle = setPrioStyle(e.currentTarget.value))}>
-        {#each PRIO_STYLES as s (s)}<option value={s}>{t(`prio.style.${s}`)}</option>{/each}
-      </select>
-    </label>
+    <div class="prio-style">
+      <span class="ps-label" id="prio-style-label">{t('prio.style')}</span>
+      <div class="ps-tiles" role="radiogroup" aria-labelledby="prio-style-label">
+        {#each PRIO_STYLES as s (s)}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={prioStyle === s}
+            aria-label={t(`prio.style.${s}`)}
+            title={t(`prio.style.${s}`)}
+            class="ps-tile {s}"
+            onclick={() => (prioStyle = setPrioStyle(s))}>
+            <span class="ps-preview" aria-hidden="true">
+              <span class="ps-box">
+                {#if s === 'box'}<PrioIcon prio={1} size={12} />{/if}
+                {#if s === 'badge'}<span class="ps-badge"><PrioIcon prio={1} size={9} /></span>{/if}
+              </span>
+              {#if s === 'gap'}<span class="ps-gap"><PrioIcon prio={1} size={11} /></span>{/if}
+              <span class="ps-name">{t('prio.sample')}</span>
+            </span>
+          </button>
+        {/each}
+      </div>
+    </div>
   </section>
 
   <section>
@@ -197,6 +216,78 @@
   }
   .prio-style {
     margin: 14px 0 0;
+  }
+  .ps-label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .ps-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  /* a tiny list row with an important item, in the current light/dark colors */
+  .ps-tile {
+    display: grid;
+    place-items: center;
+    min-height: 54px;
+    padding: 8px 6px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+  .ps-tile[aria-checked='true'] {
+    border-color: var(--dusk);
+    box-shadow: 0 0 0 1px var(--dusk);
+    background: color-mix(in srgb, var(--sun-soft) 45%, var(--surface));
+  }
+  .ps-preview {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .ps-box {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 2px solid var(--control);
+    color: var(--sun);
+    flex: none;
+  }
+  .box .ps-box {
+    border-color: var(--sun);
+  }
+  .ps-badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    display: grid;
+    place-items: center;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px var(--line);
+    color: var(--sun);
+  }
+  .ps-gap {
+    display: grid;
+    margin: 0 -5px 0 -6px;
+    color: var(--sun);
+  }
+  .ps-name {
+    font-weight: 650;
+    font-size: 0.9rem;
   }
   .ttl {
     max-width: 120px;

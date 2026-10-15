@@ -478,5 +478,6 @@
   "ai.siri.2": "„Text diktieren“ hinzufügen.",
   "ai.siri.3": "„Inhalte von URL abrufen“ hinzufügen: Adresse von oben, Methode POST, Header „Authorization“ mit dem Wert von oben, Anfragetext JSON mit dem Feld „text“ = diktierter Text.",
   "ai.siri.4": "„Hey Siri, Einkaufsliste“ sagen – dann z. B. „Milch, Brot und 200 g Hack“. Zum Hinzufügen muss „Assistenten dürfen Listen ändern“ an sein.",
-  "people.ai": "KI"
+  "people.ai": "KI",
+  "prio.sample": "Milch"
 }

@@ -478,5 +478,6 @@
   "ai.siri.2": "Add “Dictate text”.",
   "ai.siri.3": "Add “Get contents of URL”: the address above, method POST, header Authorization with the value above, request body JSON with the field “text” = dictated text.",
   "ai.siri.4": "Say “Hey Siri, shopping list” – then e.g. “milk, bread and 200g minced meat”. Adding needs “Assistants may change lists” turned on.",
-  "people.ai": "AI"
+  "people.ai": "AI",
+  "prio.sample": "Milk"
 }

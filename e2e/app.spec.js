@@ -679,7 +679,7 @@ test('important / not important: shortcut, add-bar button, details, display styl
 
   // display style per device
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByLabel('Mark important items').selectOption('badge');
+  await page.getByRole('radio', { name: 'Arrow on the box corner' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-prio', 'badge');
   await page.getByRole('button', { name: 'Close' }).first().click();
   await expect(item(page, 'Diapers').locator('.prio-mark')).toBeVisible();
