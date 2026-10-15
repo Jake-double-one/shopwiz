@@ -94,12 +94,14 @@
   }
   // everything checked → offer to finish (checked items become inactive, check-in and screen-on end)
   const allDone = $derived(prog.total > 0 && prog.done === prog.total);
-  let wasAllDone = untrack(() => allDone);
+  // only the moment the last item gets checked counts – not switching to a list that is already done
+  let wasAllDone = { listId: null, done: false };
   $effect(() => {
-    if (allDone && !wasAllDone && myShopping) {
+    const listId = list?.id ?? null;
+    if (allDone && myShopping && wasAllDone.listId === listId && !wasAllDone.done) {
       toast({ text: t('shopping.allDone'), timeout: 10000, action: { label: t('shopping.finish'), run: finish } });
     }
-    wasAllDone = allDone;
+    wasAllDone = { listId, done: allDone };
   });
   async function finish() {
     if (!list) return;
@@ -256,7 +258,7 @@
     </div>
   </main>
 {:else}
-  <main class="wrap">
+  <main class="wrap" inert={prefs.focus}>
     <header class="top">
       <button class="space" onclick={() => open('settings')} title={t('settings.title')}>
         <span class="brand">Shop<span>·</span>Wiz</span>
@@ -424,7 +426,7 @@
       onaddgroup={() => open('group', { create: true })} />
   </main>
 
-  <AddBar bind:this={addBar} {v} {list} bind:target={addTarget} />
+  <div class="addbar-wrap" inert={prefs.focus}><AddBar bind:this={addBar} {v} {list} bind:target={addTarget} /></div>
 
   {#if prefs.focus && list}
     <FocusView {v} {list} onclose={() => setFocus(false)} {screenOn} ontogglescreen={canWake ? toggleScreen : null}>
@@ -507,6 +509,9 @@
   }
   .search-input::-webkit-search-cancel-button {
     display: none;
+  }
+  .addbar-wrap {
+    display: contents;
   }
   .focus-signals {
     max-width: 640px;

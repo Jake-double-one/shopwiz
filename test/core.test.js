@@ -373,6 +373,12 @@ describe('travel mode import', () => {
     expect(tr.milk.text).toBe('latte fresco'); // kept
     expect(tr.bread).toMatchObject({ text: 'Pane', lang: 'it', auto: false });
     expect(tr.rice).toBeUndefined(); // list without travel mode
+    // the list already travels to Spain: Italian words from a file are not taken as Spanish
+    op(devA, { k: 'list.update', id: listId, travel: { country: 'ES', lang: 'es' } });
+    const before = store.snapshot(uid).translations.length;
+    store.importDoc(uid, devA, { lists: [{ name: '', travel: { country: 'IT', lang: 'it' }, items: [{ name: 'Wine', state: 'open', translation: 'Vino rosso' }] }] }, { defaultListId: listId });
+    expect(store.snapshot(uid).translations.length).toBe(before);
+    expect(store.snapshot(uid).lists.find((l) => l.id === listId).travel).toEqual({ country: 'ES', lang: 'es' });
   });
 });
 

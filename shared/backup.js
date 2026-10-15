@@ -29,12 +29,15 @@ function itemLine(it, tr = '') {
   const box = it.parked ? '-' : it.checked ? 'x' : ' ';
   let text = it.name;
   const amount = [it.qty, it.unit].filter(Boolean).join(' ');
-  // keep names that start with a number (e.g. "4711 …") from being read as an amount
-  if (!amount && parseEntry(text).qty) text = `"${text}"`;
+  // quotes keep names intact that would otherwise be read differently: a number at the start
+  // (e.g. "4711 …") would become an amount, a leading ! or ? the priority, // a note, → a translation
+  const read = parseEntry(amount ? `${amount} ${text}` : text);
+  const changes = read.name !== text || (read.qty || '') !== (it.qty || '') || (read.unit || '') !== (it.unit || '');
+  if (changes || /^[!?"]|"$|\/\/|→/.test(text)) text = `"${text}"`;
   if (amount) text = `${amount} ${text}`;
   const note = (it.note || '').replace(/\s*\n\s*/g, ' ').trim();
   const mark = it.prio > 0 ? '! ' : it.prio < 0 ? '? ' : '';
-  const trans = tr.replace(/\s+/g, ' ').trim();
+  const trans = tr.replace(/\s+/g, ' ').replace(/\/\//g, '/').trim();
   return `- [${box}] ${mark}${text}${trans ? `${ARROW}${trans}` : ''}${note ? ` // ${note}` : ''}`;
 }
 
@@ -141,27 +144,32 @@ export function parseMarkdown(text) {
       else if (box === '-' || box === '~') state = 'parked';
       body = m[2];
     }
+    const pr = splitPrio(body.trim());
+    let rest = pr.text.trim();
+    let entry = null;
+    // "quoted name", optionally after an amount: 2 l "4711 Cologne" → translation // note
+    const quoted = rest.match(/^(.*?)"(.+?)"(?=$| → | \/\/ )(.*)$/s);
+    if (quoted) {
+      const pre = quoted[1].trim();
+      const amount = pre ? parseEntry(`${pre} x`) : null;
+      if (!pre || (amount.name === 'x' && amount.qty)) {
+        entry = { name: quoted[2], qty: amount?.qty ?? '', unit: amount?.unit ?? '' };
+        rest = quoted[3];
+      }
+    }
     let note = '';
-    const cut = body.indexOf(' // ');
+    const cut = rest.indexOf(' // ');
     if (cut >= 0) {
-      note = body.slice(cut + 4).trim();
-      body = body.slice(0, cut);
+      note = rest.slice(cut + 4).trim();
+      rest = rest.slice(0, cut);
     }
     let translation = '';
-    const arrow = body.lastIndexOf(ARROW);
-    if (arrow > 0) {
-      translation = body.slice(arrow + ARROW.length).trim();
-      body = body.slice(0, arrow);
+    const arrow = rest.indexOf(ARROW);
+    if (arrow >= 0) {
+      translation = rest.slice(arrow + ARROW.length).trim();
+      rest = rest.slice(0, arrow);
     }
-    body = body.trim();
-    const pr = splitPrio(body);
-    body = pr.text.trim();
-    let entry;
-    const quoted = body.match(/^(.*?)"(.+)"$/);
-    if (quoted) {
-      const amount = parseEntry(`${quoted[1].trim()} x`);
-      entry = { name: quoted[2], qty: quoted[1].trim() ? amount.qty : '', unit: quoted[1].trim() ? amount.unit : '' };
-    } else entry = parseEntry(body);
+    entry ??= parseEntry(rest.trim());
     if (!entry.name) continue;
     if (!list) ensureList('');
     list.items.push({ ...entry, note, state, group, subgroup, ...(pr.prio && { prio: pr.prio }), ...(translation && { translation }) });

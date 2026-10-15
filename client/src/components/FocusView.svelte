@@ -7,6 +7,7 @@
   import { listTree } from '../lib/model.js';
   import FocusItem from './FocusItem.svelte';
   import { prefs } from '../lib/prefs.svelte.js';
+  import { setBarColors } from '../lib/theme.js';
 
   /** children: calls from the others in the shop still show up; ontogglescreen: keep the screen on (if the browser can) */
   let { v, list, onclose, screenOn = false, ontogglescreen = null, children } = $props();
@@ -22,7 +23,12 @@
     root?.focus();
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => (document.body.style.overflow = prev);
+    // status and navigation bar in the same black / white
+    setBarColors({ light: '#ffffff', dark: '#000000' });
+    return () => {
+      document.body.style.overflow = prev;
+      setBarColors(null);
+    };
   });
 </script>
 

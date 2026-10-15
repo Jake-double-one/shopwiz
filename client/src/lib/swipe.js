@@ -16,6 +16,7 @@ export function swipeable(node, params) {
   };
 
   function down(e) {
+    swallowClick = false; // a new touch is a new tap
     if (!p.enabled || e.pointerType === 'mouse' || !e.isPrimary || e.target.closest('.handle, input, textarea')) return;
     g = { x: e.clientX, y: e.clientY, id: e.pointerId, axis: null, armed: false, run: null };
   }

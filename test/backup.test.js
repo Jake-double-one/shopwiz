@@ -81,6 +81,16 @@ describe('backup', () => {
     expect(parseMarkdown('## A\n> ✈️ XX it\n').lists[0].travel).toBeUndefined();
   });
 
+  it('keeps names intact that look like syntax', () => {
+    const names = ['Milk → oat milk', 'AC // DC', '?Basil', '!Important', '"Quote"', 'Bread "fresh"', '4711 Cologne', 'x2 Milk', '½ Lemon', 'Juice →', '// slash'];
+    const items = Object.fromEntries(names.map((name, i) => [`i${i}`, { id: `i${i}`, listId: 'l', groupId: null, name, qty: i % 2 ? '2' : '', unit: i % 4 === 1 ? 'l' : '', note: i % 3 ? '' : 'a → b // c', checked: false, parked: false, pos: i }]));
+    const tv = { space: { name: 'S' }, lists: { l: { id: 'l', name: 'L', pos: 1, groupMode: 'own' } }, groups: {}, items };
+    const back = parseMarkdown(toMarkdown(tv)).lists[0].items;
+    expect(back.map((i) => [i.name, i.qty, i.unit, i.note, i.prio ?? 0])).toEqual(Object.values(items).map((i) => [i.name, i.qty, i.unit, i.note, 0]));
+    // a quoted part after other words is just part of the name (older backups, hand-written lists)
+    expect(parseMarkdown('- Bread "fresh"').lists[0].items[0].name).toBe('Bread "fresh"');
+  });
+
   it('reads #### headings of older backups as groups', () => {
     const doc = parseMarkdown('## L\n### Fridge\n#### Dairy\n- [ ] Milk\n');
     expect(doc.lists[0].items[0]).toMatchObject({ name: 'Milk', group: 'Dairy', subgroup: '' });

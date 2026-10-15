@@ -827,10 +827,14 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await page.getByRole('button', { name: 'Back to automatic group' }).click();
   await add(page, '2 Milk');
   await add(page, 'Tea');
+  const barColor = () => page.locator('meta[name="theme-color"]').getAttribute('content');
+  expect(await barColor()).toBe('#E9EDE6');
   await page.getByRole('button', { name: 'Focus mode' }).click();
   const focus = page.getByRole('dialog', { name: 'Weekly – focus mode' });
   await expect(focus.locator('h2')).toHaveText(['Bakery']);
   await expect(focus.getByRole('checkbox')).toHaveText(['2× Milk', 'Tea', 'Bread']);
+  // status / navigation bar in the focus mode's white
+  expect(await barColor()).toBe('#ffffff');
   await focus.getByRole('checkbox', { name: 'Bread' }).click();
   await expect(focus.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
 
@@ -854,5 +858,11 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await focus.getByRole('button', { name: 'Leave focus mode' }).click();
   await expect(focus).toHaveCount(0);
   await expect(page.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
+  // the app's own dark choice colors the bars, too – not only the system setting
+  expect(await barColor()).toBe('#E9EDE6');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Dark' }).click();
+  expect(await barColor()).toBe('#101714');
+  await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1);
   await ctx.close();
 });

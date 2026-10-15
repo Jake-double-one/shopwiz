@@ -1344,10 +1344,12 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
         this._pushList(ctx, list.id);
         list = { ...list, travel_country: travel.country, travel_lang: travel.lang };
       }
-      // translations from the file never replace ones the space already has
+      // translations from the file never replace ones the space already has – and only count
+      // for the language the file was written for
+      const fileLang = travel?.lang ?? null;
       const keepTranslation = (norm, raw) => {
         const text = str(raw?.translation, LIMITS.translation);
-        if (!text || !list.travel_lang) return;
+        if (!text || !fileLang || list.travel_lang !== fileLang) return;
         const row = db
           .q('INSERT INTO translations (space_uid, norm, lang, text, auto, provider, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?) ON CONFLICT(space_uid, norm, lang) DO NOTHING RETURNING *')
           .get(uid, norm, list.travel_lang, text, now);
