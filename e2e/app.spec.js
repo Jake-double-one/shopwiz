@@ -864,8 +864,9 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await page.getByRole('button', { name: 'Dark' }).click();
   expect(await barColor()).toBe('#101714');
   await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1);
-  // the installed app (Android navigation bar) takes its colors from the manifest: light, and dark for a dark phone
+  // the installed app (Android navigation bar) takes its colors from the manifest – dark, as browsers
+  // like Brave don't read a separate dark variant
   const manifest = await (await page.request.get('/manifest.webmanifest')).json();
-  expect(manifest).toMatchObject({ background_color: '#E9EDE6', color_scheme_dark: { background_color: '#101714' } });
+  expect(manifest).toMatchObject({ background_color: '#101714', theme_color: '#101714' });
   await ctx.close();
 });
