@@ -96,9 +96,13 @@ export function createAi({ store, hub, config, log }) {
       if (!all.length) throw new AiError('notfound', 'no list', 404);
       return all[0];
     }
-    const found = all.find((l) => l.id === r) ?? all.find((l) => l.name.toLowerCase() === r.toLowerCase()) ?? all.find((l) => l.name.toLowerCase().includes(r.toLowerCase()));
-    if (!found) throw new AiError('notfound', `no list "${r}" – lists: ${all.map((l) => l.name).join(', ')}`, 404);
-    return found;
+    const exact = all.find((l) => l.id === r) ?? all.find((l) => l.name.toLowerCase() === r.toLowerCase());
+    if (exact) return exact;
+    // part of a name only counts if it is clear – never write to a list that was not meant
+    const partial = all.filter((l) => l.name.toLowerCase().includes(r.toLowerCase()));
+    if (partial.length === 1) return partial[0];
+    if (partial.length > 1) throw new AiError('ambiguous', `"${r}" fits several lists: ${partial.map((l) => l.name).join(', ')} – use the full name`);
+    throw new AiError('notfound', `no list "${r}" – lists: ${all.map((l) => l.name).join(', ')}`, 404);
   }
 
   const groupName = (uid, id) => (id ? (db.q('SELECT name FROM groups WHERE space_uid = ? AND id = ?').get(uid, id)?.name ?? '') : '');
@@ -178,7 +182,7 @@ export function createAi({ store, hub, config, log }) {
       .q(
         `SELECT i.* FROM items i LEFT JOIN groups g ON g.space_uid = i.space_uid AND g.id = i.group_id
          WHERE i.space_uid = ? AND i.list_id = ? AND i.deleted_at IS NULL
-         ORDER BY i.parked, (i.group_id IS NOT NULL), g.pos, i.checked, i.pos`,
+         ORDER BY i.parked, (i.group_id IS NOT NULL), g.pos, i.checked, CASE WHEN i.checked = 0 AND i.parked = 0 THEN -i.prio ELSE 0 END, i.pos`,
       )
       .all(ctx.uid, list.id);
     return {
@@ -549,8 +553,8 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
     tool(
       'remove_items',
       {
-        title: 'Remove items',
-        description: 'Move items to "inactive" (nothing is deleted for good – people can bring them back).',
+        title: 'Move items to inactive',
+        description: 'Take items off the list: they move to "Inactive" (nothing is deleted – people bring them back with one tap). Use this when someone wants an item off the list.',
         inputSchema: { list: listArg, items: z.array(z.string()).min(1).max(100) },
         annotations: { destructiveHint: false },
       },
@@ -567,6 +571,11 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
     } catch (e) {
       return reply.code(e.status ?? 401).send({ jsonrpc: '2.0', error: { code: -32001, message: e.message }, id: null });
     }
+    // a tool call whose arguments are not an object is a bad request, not a server error
+    const bad = (Array.isArray(req.body) ? req.body : [req.body]).find(
+      (m) => m?.method === 'tools/call' && m.params?.arguments !== undefined && (typeof m.params.arguments !== 'object' || m.params.arguments === null || Array.isArray(m.params.arguments)),
+    );
+    if (bad) return reply.code(200).send({ jsonrpc: '2.0', error: { code: -32602, message: 'arguments must be an object' }, id: bad.id ?? null });
     const server = mcpServer(ctx);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     reply.hijack();

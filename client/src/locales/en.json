@@ -454,7 +454,7 @@
   "ai.title": "AI assistants",
   "ai.write": "Assistants may change lists",
   "ai.writeOff": "Off: connected assistants can only read the lists.",
-  "ai.writeOn": "On: assistants can add, check off, change and remove items, create and sort groups, set travel mode and write translations (nothing is deleted for good).",
+  "ai.writeOn": "On: assistants can add, check off and change items (amount, note, priority, group, translation) and move them to “Inactive” – they can't delete any item. Also: create, sort, rename and delete groups (the items stay on the list) and set travel mode.",
   "ai.add": "Connect an assistant – each one shows up as its own participant:",
   "ai.other": "Other …",
   "ai.otherPh": "Name, e.g. Home Assistant",
