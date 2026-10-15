@@ -27,6 +27,20 @@
     }
   }
 
+  // recommend ShopWiz itself: the start page, never the ID; one of a few lines, picked at random
+  async function recommend() {
+    const lines = t('recommend.lines').split('\n');
+    const text = lines[Math.floor(Math.random() * lines.length)];
+    const home = `${location.origin}/`;
+    if (canShare) {
+      try {
+        await navigator.share({ title: 'ShopWiz', text, url: home });
+      } catch {
+        /* cancelled */
+      }
+    } else copy(`${text} ${home}`, t('recommend.copied'));
+  }
+
   async function share() {
     try {
       await navigator.share({ title: `${space.name} · ShopWiz`, text: t('share.text', { name: space.name }), url });
@@ -55,6 +69,11 @@
       <button class="btn block" onclick={() => shareListText(list)}><Icon name="list" />{t('shareText.button')}</button>
     </section>
   {/if}
+  <section class="as-text">
+    <p class="eyebrow">{t('recommend.title')}</p>
+    <p class="note">{t('recommend.note')}</p>
+    <button class="btn block" onclick={recommend}><Icon name="send" />{t('recommend.button')}</button>
+  </section>
 </Sheet>
 
 <style>

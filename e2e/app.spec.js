@@ -920,3 +920,14 @@ test('skins: the browser decides until one is picked, then the pick stays', asyn
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'mango');
   await ctx.close();
 });
+
+test('recommend ShopWiz: a line and the start page, never the ID', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://localhost:8098' });
+  const id = await createList(page);
+  await page.evaluate(() => Object.defineProperty(navigator, 'share', { value: undefined }));
+  await page.getByRole('button', { name: 'Share' }).first().click();
+  await page.getByRole('button', { name: 'Recommend ShopWiz' }).click();
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text).toMatch(/ http:\/\/localhost:8098\/$/);
+  expect(text).not.toContain(id);
+});

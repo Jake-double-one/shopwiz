@@ -522,5 +522,10 @@
   "theme.amoled": "AMOLED",
   "prefs.sample1": "Bread",
   "prefs.sample2": "Milk",
-  "theme.mango": "Mango"
+  "theme.mango": "Mango",
+  "recommend.title": "Recommend ShopWiz",
+  "recommend.note": "Just a link to the start page – without your ID and without your lists.",
+  "recommend.button": "Recommend ShopWiz",
+  "recommend.copied": "Recommendation copied",
+  "recommend.lines": "Found the shopping list everyone at home actually uses. No sign-up, no ads – give it a try!\nNo more “Did you get the milk?” – with ShopWiz everyone sees live what's still missing.\nMy new favourite shopping app: shared lists, checking off in real time, zero tracking.\nPaper lists are so last year. ShopWiz: one list for everyone, on every phone right away.\nLet me recommend a truly super-duper-mega-great shopping list app. Free, no account, just start writing!"
 }

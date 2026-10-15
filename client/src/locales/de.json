@@ -522,5 +522,10 @@
   "theme.amoled": "AMOLED",
   "prefs.sample1": "Brot",
   "prefs.sample2": "Milch",
-  "theme.mango": "Mango"
+  "theme.mango": "Mango",
+  "recommend.title": "ShopWiz weiterempfehlen",
+  "recommend.note": "Nur ein Link zur Startseite – ohne deine ID und ohne deine Listen.",
+  "recommend.button": "ShopWiz weiterempfehlen",
+  "recommend.copied": "Empfehlung kopiert",
+  "recommend.lines": "Ich hab die Einkaufsliste gefunden, die endlich alle im Haushalt benutzen. Ohne Anmeldung, ohne Werbung – probier's aus!\nSchluss mit „Hast du Milch mitgebracht?“ – mit ShopWiz sieht jeder live, was noch fehlt.\nMeine neue Lieblings-App für den Einkauf: gemeinsame Listen, abhaken in Echtzeit, null Tracking.\nEinkaufszettel war gestern. ShopWiz: eine Liste für alle, sofort auf jedem Handy.\nIch empfehl dir eine wirklich super-duper-mega-gute Einkaufslisten-App. Kostenlos, ohne Konto, einfach losschreiben!"
 }
