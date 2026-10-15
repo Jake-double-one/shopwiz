@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS spaces (
   last_active_at INTEGER NOT NULL,
   created_at     INTEGER NOT NULL,
   deleted_at     INTEGER,
-  deleted_by     TEXT
+  deleted_by     TEXT,
+  ai_write       INTEGER NOT NULL DEFAULT 0   -- connected AI assistants may change lists
 );
 CREATE TABLE IF NOT EXISTS retired_ids (
   public_id  TEXT PRIMARY KEY,
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS devices (
   spot_group     TEXT,      -- while shopping: group of the last item this device checked
   spot_item      TEXT,
   spot_at        INTEGER,
+  kind           TEXT,      -- 'ai' = an AI assistant connected with its own key
   created_at     INTEGER NOT NULL,
   PRIMARY KEY (space_uid, token_hash)
 );
@@ -182,9 +184,12 @@ function migrate(db) {
   if (!cols.includes('prio')) db.exec('ALTER TABLE items ADD COLUMN prio INTEGER NOT NULL DEFAULT 0');
   const listCols = db.prepare('PRAGMA table_info(lists)').all().map((c) => c.name);
   const devCols = db.prepare('PRAGMA table_info(devices)').all().map((c) => c.name);
-  for (const [col, type] of [['spot_group', 'TEXT'], ['spot_item', 'TEXT'], ['spot_at', 'INTEGER']]) {
+  for (const [col, type] of [['spot_group', 'TEXT'], ['spot_item', 'TEXT'], ['spot_at', 'INTEGER'], ['kind', 'TEXT']]) {
     if (!devCols.includes(col)) db.exec(`ALTER TABLE devices ADD COLUMN ${col} ${type}`);
   }
+  db.exec('CREATE INDEX IF NOT EXISTS devices_token ON devices(token_hash)');
+  const spaceCols = db.prepare('PRAGMA table_info(spaces)').all().map((c) => c.name);
+  if (!spaceCols.includes('ai_write')) db.exec('ALTER TABLE spaces ADD COLUMN ai_write INTEGER NOT NULL DEFAULT 0');
   flattenSubgroups(db);
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
   if (!listCols.includes('travel_country')) db.exec('ALTER TABLE lists ADD COLUMN travel_country TEXT');

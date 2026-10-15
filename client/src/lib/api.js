@@ -27,4 +27,5 @@ export const api = {
   transfer: (id, body) => call('POST', `/api/spaces/${id}/transfer`, body),
   translate: (id, body) => call('POST', `/api/spaces/${id}/translate`, body),
   translateStatus: (id) => call('GET', `/api/spaces/${id}/translate/status`),
+  connectAi: (id, name) => call('POST', `/api/spaces/${id}/ai`, { name }),
 };

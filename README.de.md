@@ -47,6 +47,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Die Details eines Artikels zeigen, wer ihn hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
 | **Reisemodus** | Einkaufen im Ausland? Pro Liste steht unter jedem Artikel die Übersetzung – mit der Flagge des Landes, das aus der Ladenadresse kommt. Antippen zeigt sie groß fürs Personal. Alles auf einmal übersetzen oder einzelne Artikel korrigieren. |
+| **KI-Assistenten** | Claude, ChatGPT, Grok oder Siri lesen deine Listen und – wenn pro ID erlaubt – fügen Artikel hinzu oder haken ab. Jeder ist ein eigener Teilnehmer mit eigenem Schlüssel. |
 | **Sich im Laden finden** | In großen Läden sieht jeder Eingecheckte, wo die anderen sind (die Gruppe ihres zuletzt abgehakten Artikels). Ein **Rufen**-Knopf schickt eines von vier festen Signalen – „Wo bist du?“, „Komm zu mir“, „Treffen an der Kasse“, „Ich bin fertig“ – kein Chat. |
 | **Bildschirm anlassen** | Optionaler Knopf, damit das Handy beim Einkaufen nicht sperrt. |
 | **Verlauf** | Wer hat was gemacht, mit „Wiederherstellen“ für gelöschte Artikel. Wird nach 14 Tagen automatisch geleert. |
@@ -162,6 +163,28 @@ Eine gute kostenlose Kombination: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – 
 
 Artikelnamen sind kurz (10–15 Zeichen), und jeder Name wird pro ID nur einmal übersetzt – gemerkte Übersetzungen kosten nichts. Selbst DeepLs einmalige Million reicht für zehntausende Artikel. „Übersetzen“ in den Artikeldetails fragt immer neu an; im Listenmenü lassen sich alle Übersetzungen der Liste löschen, um neu anzufangen. Die Artikeldetails zeigen, welcher Dienst übersetzt hat, und die Hilfe nennt die Dienste neben der Version, jeweils mit grünem oder rotem Punkt – der Server prüft jeden Dienst (Schlüssel fehlt oder falsch, aufgebraucht, nicht erreichbar) und nennt den Grund. Bei DeepL steht dort auch, wie viel vom Kontingent verbraucht ist („271 von 1.000.000 Zeichen genutzt“).
 
+### KI-Assistenten (Claude, ChatGPT, Grok, Siri)
+
+Assistenten können die Listen lesen und – wenn du es erlaubst – ändern: „Plan Abendessen für die Woche und schreib die Zutaten auf die Liste“, „Was steht noch auf der Baumarkt-Liste?“, „Hey Siri, Milch auf die Liste“.
+
+1. Für den Server einschalten: `MCP_ENABLED: "true"` (siehe [Einstellungen](#einstellungen)). ShopWiz muss per **HTTPS** aus dem Internet erreichbar sein – die Server der Assistenten rufen es auf.
+2. In ShopWiz: **Einstellungen → KI-Assistenten**.
+   - **Assistenten dürfen Listen ändern** – standardmäßig aus: Assistenten können nur lesen. An: Sie können Artikel hinzufügen, abhaken, ändern und entfernen (Entfernen schiebt nach „Inaktiv“, nichts wird endgültig gelöscht). Gilt für alle Assistenten dieser ID.
+   - **Assistent verbinden**: Claude, ChatGPT, Grok, Siri oder ein eigener Name. Jeder Assistent bekommt einen eigenen geheimen Schlüssel und erscheint als eigener Teilnehmer (mit „KI“ markiert) – auch im Verlauf („Claude hat 8 Artikel hinzugefügt“). Der Schlüssel wird nur einmal angezeigt; Assistent entfernen (hier oder bei den Teilnehmern) trennt ihn.
+3. Im Assistenten eintragen:
+
+| Assistent | So geht's |
+|---|---|
+| **Claude** (Web, Desktop, App) | Einstellungen → Konnektoren → *Benutzerdefinierten Konnektor hinzufügen* → Name „ShopWiz“, MCP-Adresse `https://<dein-server>/mcp/swk_…` einfügen |
+| **ChatGPT** | Einstellungen → Apps & Konnektoren → Entwicklermodus einschalten → *Konnektor erstellen* → MCP-Adresse einfügen, ohne Authentifizierung. Hängt vom Tarif ab. |
+| **Grok** | grok.com/connectors → *Neuer Konnektor* → *Benutzerdefiniert* → MCP-Adresse einfügen |
+| **Siri** | App „Kurzbefehle“: *Text diktieren* → *Inhalte von URL abrufen*: `https://<dein-server>/api/v1/lists/default/items`, Methode POST, Header `Authorization: Bearer swk_…`, JSON-Feld `text` = diktierter Text. ShopWiz zeigt diese Schritte beim Verbinden an. |
+| **Andere** (Home Assistant, Skripte …) | MCP-Adresse oder die REST-Schnittstelle mit `Authorization: Bearer swk_…` – Beschreibung unter `/api/v1/openapi.json` |
+
+**Was Assistenten können** (MCP-Werkzeuge / REST): `list_lists` (`GET /api/v1/lists`), `read_list` (`GET /api/v1/lists/{liste}`), mit Erlaubnis `add_items` (`POST …/{liste}/items`, z. B. `{"text": "Milch, Brot und 200g Hack"}` oder `{"items": ["2 l Milch", "!Windeln"]}`), `check_items` (`POST …/{liste}/check`), `update_item` (`PATCH …/{liste}/items/{artikel}`), `remove_items` (`POST …/{liste}/remove`). `{liste}` ist die ID der Liste, ihr Name oder `default` (die erste Liste). Von Assistenten hinzugefügte Artikel verhalten sich wie getippte: gleicher Artikel → Menge addiert, abgehakter kommt zurück, gelernte Gruppen gelten.
+
+Für Assistenten nie möglich: ID löschen oder erneuern, Geräte verwalten, Einstellungen ändern, Artikel endgültig löschen. **ID erneuern trennt alle Assistenten.** Datenschutz: Der Anbieter des Assistenten sieht die Listen, wenn du ihn danach fragst; von anderen getippte Artikelnamen werden als Daten weitergegeben.
+
 ### Synchronisation und Konflikte
 
 - Jede Änderung wird als kleine Aktion („Milch abgehakt“) gesendet, nie die ganze Liste. Offline-Änderungen warten und werden bei Verbindung nachgesendet.
@@ -260,6 +283,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `LIBRETRANSLATE_URL` | `http://libretranslate:5000` | Adresse deines LibreTranslate |
 | `LIBRETRANSLATE_API_KEY` | – | Nur, wenn dein LibreTranslate Schlüssel verlangt |
 | `MYMEMORY_EMAIL` | – | Optional für MyMemory: hebt das kostenlose Kontingent auf ca. 50.000 Zeichen pro Tag |
+| `MCP_ENABLED` | `false` | `true` lässt KI-Assistenten (Claude, ChatGPT, Grok, Siri …) per MCP (`/mcp`) und REST (`/api/v1`) zu – siehe [KI-Assistenten](#ki-assistenten-claude-chatgpt-grok-siri) |
 | `TRANSLATE_LIMIT` | `300` | Artikelnamen pro ID und Stunde, die an Übersetzungsdienste gehen |
 
 Einstellungen aus v0.2.0/0.2.1 funktionieren weiter: `TRANSLATE_API_KEY` gilt für den ersten genannten Dienst ohne eigenen Schlüssel, `TRANSLATE_URL` und `TRANSLATE_EMAIL` zählen als `LIBRETRANSLATE_URL` und `MYMEMORY_EMAIL`.

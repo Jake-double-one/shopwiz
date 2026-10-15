@@ -209,7 +209,7 @@ Bewusst **nicht** geplant: Preise/Budget, Rezepte, Benutzerkonten, Push-Benachri
 7. Englisch als Hauptsprache, Deutsch dazu, Sprache pro Gerät, Texte in Sprachdateien.
 8. Kamera-Knopf nur unter HTTPS.
 
-## 10. KI-Anbindung (MCP) und REST-Schnittstelle – geplant, noch nicht umgesetzt
+## 10. KI-Anbindung (MCP) und REST-Schnittstelle – umgesetzt (v0.3), Anleitung in der README
 
 **Ziel:** KI-Assistenten und Sprachassistenten können Listen lesen und – wenn erlaubt – bearbeiten:
 „Plan mir Essen für die Woche und schreib die Zutaten auf die Einkaufsliste“, „Was steht noch für den Baumarkt drauf?“, „Hey Siri, Milch auf die Liste“.

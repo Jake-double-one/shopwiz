@@ -49,6 +49,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
 | **Find each other** | In a big shop, everybody checked in sees where the others are (the group of their last checked item). A **Call** button sends one of four fixed signals – “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done” – no chat. |
 | **Travel mode** | Shopping abroad? Per list, items get their translation underneath – with the country's flag, taken from the shop address. Tap it to show it big to the staff. Translate everything at once or correct single items. |
+| **AI assistants** | Claude, ChatGPT, Grok or Siri read your lists and – if allowed per ID – add or check off items. Each one is its own participant with its own key. |
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
 | **Undo** | Every action can be undone right away. |
@@ -163,6 +164,28 @@ A good free setup: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – DeepL's quality
 
 Item names are short (10–15 characters) and every name is translated only once per ID – remembered translations cost nothing. Even DeepL's one-time million lasts for tens of thousands of items. “Translate” in the item details always asks again; the list menu can delete all translations of the list to start over. The item details say which service translated an item, and the help shows the services in use next to the version, each with a green or red dot – the server checks every service (wrong or missing key, used up, not reachable) and names the reason. For DeepL the help also shows how much of its quota is used (“271 of 1,000,000 characters used”).
 
+### AI assistants (Claude, ChatGPT, Grok, Siri)
+
+Assistants can read the lists and – if you allow it – change them: “Plan dinner for the week and put the ingredients on the list”, “What's still on the hardware store list?”, “Hey Siri, milk on the list”.
+
+1. Switch it on for the server: `MCP_ENABLED: "true"` (see [Configuration](#configuration)). ShopWiz must be reachable from the internet over **HTTPS** – the assistants' servers call it.
+2. In ShopWiz: **Settings → AI assistants**.
+   - **Assistants may change lists** – off by default: assistants can only read. On: they can add, check off, change and remove items (removing moves to “inactive”, nothing is deleted for good). Applies to all assistants of this ID.
+   - **Connect an assistant**: Claude, ChatGPT, Grok, Siri or another name. Every assistant gets its own secret key and shows up as its own participant (marked “AI”) – in the history, too (“Claude added 8 items”). The key is shown once; remove the assistant (here or under participants) to cut it off.
+3. Add it to the assistant:
+
+| Assistant | How |
+|---|---|
+| **Claude** (web, desktop, app) | Settings → Connectors → *Add custom connector* → name “ShopWiz”, paste the MCP address `https://<your-server>/mcp/swk_…` |
+| **ChatGPT** | Settings → Apps & Connectors → turn on developer mode → *Create connector* → paste the MCP address, no authentication. Depends on the plan. |
+| **Grok** | grok.com/connectors → *New connector* → *Custom* → paste the MCP address |
+| **Siri** | Shortcuts app: *Dictate text* → *Get contents of URL*: `https://<your-server>/api/v1/lists/default/items`, method POST, header `Authorization: Bearer swk_…`, JSON body field `text` = dictated text. ShopWiz shows these steps when connecting. |
+| **Other** (Home Assistant, scripts …) | MCP address, or the REST API with `Authorization: Bearer swk_…` – description at `/api/v1/openapi.json` |
+
+**What assistants can do** (MCP tools / REST): `list_lists` (`GET /api/v1/lists`), `read_list` (`GET /api/v1/lists/{list}`), and with permission `add_items` (`POST …/{list}/items`, e.g. `{"text": "milk, bread and 200g minced meat"}` or `{"items": ["2 l milk", "!diapers"]}`), `check_items` (`POST …/{list}/check`), `update_item` (`PATCH …/{list}/items/{item}`), `remove_items` (`POST …/{list}/remove`). `{list}` is the id, the name or `default` (the first list). Items added by an assistant behave like typed ones: same item → amount added, a checked one comes back, learned groups apply.
+
+Never possible for assistants: deleting or renewing the ID, managing devices, changing settings, deleting items for good. **Renewing the ID cuts all assistants.** Privacy: the assistant's provider sees the lists whenever you ask it about them; item names typed by others are passed on as data.
+
 ### Sync and conflicts
 
 - Every change is sent as a small operation (“milk checked”), never as the whole list. Offline changes are queued and sent when the connection is back.
@@ -261,6 +284,7 @@ All settings are environment variables. The defaults are fine for most setups.
 | `LIBRETRANSLATE_URL` | `http://libretranslate:5000` | Address of your LibreTranslate |
 | `LIBRETRANSLATE_API_KEY` | – | Only if your LibreTranslate requires keys |
 | `MYMEMORY_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
+| `MCP_ENABLED` | `false` | `true` lets AI assistants (Claude, ChatGPT, Grok, Siri …) connect via MCP (`/mcp`) and REST (`/api/v1`) – see [AI assistants](#ai-assistants-claude-chatgpt-grok-siri) |
 | `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to translation services |
 
 Settings of v0.2.0/0.2.1 keep working: `TRANSLATE_API_KEY` is used for the first listed service that has no own key, `TRANSLATE_URL` and `TRANSLATE_EMAIL` count as `LIBRETRANSLATE_URL` and `MYMEMORY_EMAIL`.

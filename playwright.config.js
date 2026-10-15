@@ -32,6 +32,7 @@ export default defineConfig({
         CREATE_LIMIT: '1000',
         TRANSLATE_PROVIDER: 'libretranslate',
         LIBRETRANSLATE_URL: 'http://127.0.0.1:8099',
+        MCP_ENABLED: 'true',
       },
     },
   ],

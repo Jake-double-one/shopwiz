@@ -21,6 +21,9 @@ services:
       # Set to "true" behind a reverse proxy so rate limiting sees the real client address
       TRUST_PROXY: "false"
       LOG_LEVEL: "warn"
+      # AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1).
+      # Connect them in ShopWiz: Settings → AI assistants. Needs HTTPS from the internet.
+      MCP_ENABLED: "false"
       # Travel mode translations: one service or several in order – the next one steps in
       # when one is used up or down. mymemory (free, no key) | deepl | azure | google | libretranslate | none
       TRANSLATE_PROVIDER: "mymemory"

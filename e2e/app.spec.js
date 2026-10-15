@@ -684,3 +684,36 @@ test('important / not important: shortcut, add-bar button, details, display styl
   await page.getByRole('button', { name: 'Close' }).first().click();
   await expect(item(page, 'Diapers').locator('.prio-mark')).toBeVisible();
 });
+
+test('AI assistant: connect, read only until allowed, its items appear live, remove it', async ({ page }) => {
+  await createList(page, 'Weekly');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByText('AI assistants')).toBeVisible();
+  await page.getByRole('button', { name: 'Claude', exact: true }).click();
+  await expect(page.getByText('Claude is connected.')).toBeVisible();
+  const url = (await page.locator('.copyline span').first().textContent()).trim();
+  expect(url).toMatch(/\/mcp\/swk_/);
+  const key = url.split('/mcp/')[1];
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  // read only by default
+  let r = await page.request.post('/api/v1/lists/default/items', { headers: { authorization: `Bearer ${key}` }, data: { items: ['Milk'] } });
+  expect(r.status()).toBe(403);
+  await page.getByRole('checkbox', { name: /Assistants may change lists/ }).check();
+  await expect(page.getByText(/On: assistants can add/)).toBeVisible();
+  await page.waitForTimeout(300);
+  r = await page.request.post('/api/v1/lists/default/items', { headers: { authorization: `Bearer ${key}` }, data: { text: '2 milk and bread' } });
+  expect(r.status()).toBe(200);
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await expect(item(page, 'milk')).toBeVisible();
+  await expect(item(page, 'bread')).toBeVisible();
+
+  // shows up as a participant and can be removed – the key stops working
+  await page.getByRole('button', { name: 'Participants' }).click();
+  await expect(page.locator('ul.people')).toContainText('Claude');
+  await page.getByRole('button', { name: 'Remove Claude' }).click();
+  await page.locator('ul.people').getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.locator('ul.people')).not.toContainText('Claude');
+  r = await page.request.get('/api/v1/lists', { headers: { authorization: `Bearer ${key}` } });
+  expect(r.status()).toBe(401);
+});

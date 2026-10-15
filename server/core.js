@@ -124,6 +124,7 @@ export const mapDevice = (r) => {
   return {
     devId: r.dev_id,
     name: r.name,
+    ...(r.kind === 'ai' && { ai: true }),
     lastSeenAt: r.last_seen_at,
     shoppingUntil: shopping ? r.shopping_until : null,
     // "where am I in the shop": only shared while checked in
@@ -139,6 +140,7 @@ export const mapSpace = (r) => ({
   ttlDays: r.ttl_days,
   createdAt: r.created_at,
   lastActiveAt: r.last_active_at,
+  aiWrite: !!r.ai_write,
 });
 
 /** 1 = important, -1 = not important, 0 = normal */
@@ -323,8 +325,41 @@ export class Store {
       const newId = this.generatePublicId();
       db.q('INSERT INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, ?, ?, ?)').run(space.public_id, uid, 'renewed', Date.now());
       db.q('UPDATE spaces SET public_id = ? WHERE uid = ?').run(newId, uid);
+      // a new ID cuts every AI connection – they have to be connected again
+      db.q("DELETE FROM devices WHERE space_uid = ? AND kind = 'ai'").run(uid);
       return newId;
     });
+  }
+
+  // ----- AI assistants: devices that connect with their own key (MCP / REST) -----
+
+  /** The key is hashed with a prefix, so it never works as a normal device token. */
+  static aiKeyHash(key) {
+    return hashToken(`ai:${key}`);
+  }
+
+  /** New assistant connection → { key, device }. The key is shown once and only its hash is kept. */
+  createAiDevice(uid, name) {
+    const devName = str(name, LIMITS.deviceName, { required: true, field: 'name' });
+    const count = this.db.q("SELECT COUNT(*) AS c FROM devices WHERE space_uid = ? AND kind = 'ai'").get(uid).c;
+    if (count >= 20) throw new OpError('limit', 'too many assistants');
+    const key = `swk_${Buffer.from(webcrypto.getRandomValues(new Uint8Array(24))).toString('base64url')}`;
+    const now = Date.now();
+    const devId = newEntityId().slice(0, 12);
+    this.db
+      .q("INSERT INTO devices (space_uid, token_hash, dev_id, name, kind, last_seen_at, created_at) VALUES (?, ?, ?, ?, 'ai', ?, ?)")
+      .run(uid, Store.aiKeyHash(key), devId, devName, now, now);
+    return { key, device: this.db.q('SELECT * FROM devices WHERE space_uid = ? AND dev_id = ?').get(uid, devId) };
+  }
+
+  /** Assistant key → { space, dev } of a live ID, or null. */
+  resolveAiKey(key) {
+    if (typeof key !== 'string' || !/^swk_[A-Za-z0-9_-]{20,64}$/.test(key)) return null;
+    const dev = this.db.q("SELECT * FROM devices WHERE token_hash = ? AND kind = 'ai'").get(Store.aiKeyHash(key));
+    if (!dev) return null;
+    const space = this.spaceByUid(dev.space_uid);
+    if (!space || space.deleted_at) return null;
+    return { space, dev };
   }
 
   deleteSpace(uid, byName) {
@@ -605,10 +640,15 @@ const OPS = {
       sets.push('ttl_days = ?');
       args.push(d);
     }
+    if (op.aiWrite !== undefined) {
+      if (ctx.dev.kind === 'ai') throw new OpError('forbidden', 'assistants cannot change this');
+      sets.push('ai_write = ?');
+      args.push(op.aiWrite ? 1 : 0);
+    }
     if (!sets.length) return {};
     this.db.q(`UPDATE spaces SET ${sets.join(', ')} WHERE uid = ?`).run(...args, ctx.uid);
     ctx.changes.push({ e: 'space', row: mapSpace(this.spaceByUid(ctx.uid)) });
-    this._act(ctx, null, 'space.update', { name: op.name, ttlDays: op.ttlDays });
+    this._act(ctx, null, 'space.update', { name: op.name, ttlDays: op.ttlDays, ...(op.aiWrite !== undefined && { aiWrite: !!op.aiWrite }) });
   },
 
   'list.add'(ctx, op) {
@@ -824,6 +864,61 @@ const OPS = {
     if (op.learn !== false) this._learn(ctx, list, norm, groupId);
     this._suggest(ctx, name, norm);
     this._act(ctx, list.id, 'item.add', { name, qty, unit });
+  },
+
+  /**
+   * Several items at once, as the app's add bar does it (used by AI assistants):
+   * an open item with the same name gets the amount added, a checked or inactive one comes
+   * back, new ones land in the given or the learned group.
+   * items: [{ name, qty, unit, note, prio, group }] → { added, merged, reactivated } (names)
+   */
+  'item.addMany'(ctx, op) {
+    const list = this._list(ctx.uid, eid(op.listId, 'listId'));
+    const entries = Array.isArray(op.items) ? op.items.slice(0, LIMITS.batch) : [];
+    const out = { added: [], merged: [], reactivated: [] };
+    const memory = this.db.q('SELECT * FROM memory WHERE space_uid = ? AND scope = ? AND norm = ?');
+    for (const e of entries) {
+      const name = str(e?.name, LIMITS.itemName);
+      if (!name) continue;
+      const norm = normalizeName(name);
+      const prio = prioOf(e.prio);
+      let qty = '';
+      try {
+        qty = qtyStr(e.qty);
+      } catch {
+        qty = '';
+      }
+      const unit = qty ? str(e.unit, LIMITS.unit) : '';
+      const same = this.db
+        .q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL ORDER BY (checked = 0 AND parked = 0) DESC, pos')
+        .all(ctx.uid, list.id, norm);
+      const done = !same.some((i) => !i.checked && !i.parked) && same[0];
+      if (done) {
+        const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
+        const meta = { ...JSON.parse(done.meta), checked: entry, parked: entry, ...(qty && { amount: entry }), ...(prio && { prio: entry }) };
+        this.db
+          .q('UPDATE items SET checked = 0, checked_by = NULL, parked = 0, qty = ?, unit = ?, prio = ?, meta = ? WHERE space_uid = ? AND id = ?')
+          .run(qty || done.qty, qty ? unit : done.unit, prio || done.prio, JSON.stringify(meta), ctx.uid, done.id);
+        this._pushItem(ctx, done.id);
+        this._act(ctx, list.id, 'item.uncheck', { name: done.name });
+        out.reactivated.push(done.name);
+        continue;
+      }
+      let groupId = null;
+      const groupName = str(e.group, LIMITS.groupName);
+      if (groupName) groupId = this._ensurePath(ctx, list, groupName, '');
+      else {
+        const m = memory.get(ctx.uid, this._scope(list), norm);
+        if (m?.group_name || m?.subgroup_name) groupId = this._ensurePath(ctx, list, m.group_name, m.subgroup_name);
+      }
+      const pos = this.db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ? AND group_id IS ?').get(ctx.uid, list.id, groupId).m + 1;
+      const r = OPS['item.add'].call(this, ctx, { id: newEntityId(), listId: list.id, name, qty, unit, note: e.note, prio, groupId, pos, learn: !!groupName });
+      if (r?.merged) {
+        if (prio) this.db.q('UPDATE items SET prio = ? WHERE space_uid = ? AND id = ?').run(prio, ctx.uid, r.merged), this._pushItem(ctx, r.merged);
+        out.merged.push(name);
+      } else out.added.push(name);
+    }
+    return out;
   },
 
   'item.set'(ctx, op) {

@@ -8,6 +8,8 @@ import { Store, OpError, hashToken, mapDevice, LIMITS, newEntityId } from './cor
 import { Hub } from './hub.js';
 import { Limiter } from './limiter.js';
 import { createTranslator, TranslateError } from './translate.js';
+import { createAi, AiError } from './ai.js';
+import { openApi } from './openapi.js';
 import { LANG_RE } from '../shared/countries.js';
 import { normalizeName } from '../shared/parse.js';
 import { parseSpaceId, formatSpaceId } from '../shared/ids.js';
@@ -152,7 +154,10 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    // a new ID cuts the AI connections – tell the devices which ones are gone
+    const aiDevs = store.db.q("SELECT dev_id FROM devices WHERE space_uid = ? AND kind = 'ai'").all(r.space.uid);
     const newId = store.renew(r.space.uid);
+    if (aiDevs.length) hub.broadcast(r.space.uid, { t: 'patch', changes: aiDevs.map((d) => ({ e: 'device', del: d.dev_id })) });
     hub.broadcast(r.space.uid, { t: 'renewed', id: newId });
     return { id: newId };
   });
@@ -244,6 +249,58 @@ export async function buildApp(config) {
     if (Date.now() - statusCache.at > 60_000) statusCache = { at: Date.now(), data: translator.status() };
     return { services: await statusCache.data };
   });
+
+  // ---------- AI assistants (MCP + REST) ----------
+  const ai = createAi({ store, hub, config, log: app.log });
+
+  // a member connects an assistant → its key, shown once
+  app.post('/api/spaces/:id/ai', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    try {
+      const { key, device } = ai.connect(r.space.uid, req.body?.name);
+      return { key, devId: device.dev_id, name: device.name };
+    } catch (e) {
+      if (e instanceof AiError) return reply.code(e.status).send({ error: e.code, message: e.message });
+      return sendError(reply, e);
+    }
+  });
+
+  const bearer = (req) => {
+    const h = req.headers.authorization;
+    return typeof h === 'string' && h.startsWith('Bearer ') ? h.slice(7).trim() : '';
+  };
+
+  // MCP (Streamable HTTP, stateless): the key in the address – that is what "custom connectors"
+  // in Claude, ChatGPT & co. can take – or as Bearer token
+  app.post('/mcp/:key', (req, reply) => ai.handleMcp(req, reply, req.params.key));
+  app.post('/mcp', (req, reply) => ai.handleMcp(req, reply, bearer(req)));
+  const noStream = async (req, reply) => reply.code(405).header('allow', 'POST').send({ error: 'method_not_allowed' });
+  app.get('/mcp', noStream);
+  app.get('/mcp/:key', noStream);
+  app.delete('/mcp', noStream);
+  app.delete('/mcp/:key', noStream);
+
+  // REST for Siri shortcuts, Home Assistant, scripts … – Authorization: Bearer <key>
+  const rest = (fn) => async (req, reply) => {
+    try {
+      const ctx = ai.auth(bearer(req));
+      return await fn(ctx, req);
+    } catch (e) {
+      if (e instanceof AiError) return reply.code(e.status).send({ error: e.code, message: e.message });
+      if (e instanceof OpError) return reply.code(e.code === 'notfound' ? 404 : 400).send({ error: e.code, message: e.message });
+      throw e;
+    }
+  };
+  const itemsOf = (body) => body?.items ?? body?.text ?? body?.item;
+  app.get('/api/v1/openapi.json', async () => openApi(config.publicUrl));
+  app.get('/api/v1/lists', rest((ctx) => ai.listLists(ctx)));
+  app.get('/api/v1/lists/:list', rest((ctx, req) => ai.readList(ctx, req.params.list, { inactive: req.query?.inactive === '1' || req.query?.inactive === 'true' })));
+  app.post('/api/v1/lists/:list/items', rest((ctx, req) => ai.addItems(ctx, req.params.list, itemsOf(req.body))));
+  app.post('/api/v1/lists/:list/check', rest((ctx, req) => ai.setDone(ctx, req.params.list, itemsOf(req.body), req.body?.done !== false)));
+  app.post('/api/v1/lists/:list/remove', rest((ctx, req) => ai.removeItems(ctx, req.params.list, itemsOf(req.body))));
+  app.patch('/api/v1/lists/:list/items/:item', rest((ctx, req) => ai.updateItem(ctx, req.params.list, req.params.item, req.body ?? {})));
 
   app.post('/api/spaces/:id/transfer', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
@@ -401,7 +458,7 @@ export async function buildApp(config) {
         serverTime: Date.now(),
         me: { devId: dev.dev_id, name: dev.name },
         online: hub.online(conn.uid),
-        features: { translate: translator.available, translators: translator.providers },
+        features: { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled },
         snapshot: store.snapshot(conn.uid),
       });
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);

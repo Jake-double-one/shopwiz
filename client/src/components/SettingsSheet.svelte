@@ -3,6 +3,7 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import Prefs from './Prefs.svelte';
+  import AiSection from './AiSection.svelte';
   import { PRIO_STYLES, setPrioStyle } from '../lib/theme.js';
   import { load } from '../lib/storage.js';
   import { t } from '../lib/i18n.svelte.js';
@@ -125,6 +126,10 @@
       </button>
     </div>
   </section>
+
+  {#if sync.features.ai}
+    <section><AiSection v={sync.data} {spaceId} /></section>
+  {/if}
 
   <section>
     <p class="eyebrow">{t('settings.spaces')}</p>

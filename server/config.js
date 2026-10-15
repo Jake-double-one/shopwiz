@@ -44,6 +44,8 @@ export function loadConfig(env = process.env) {
     translateApiKey: env.TRANSLATE_API_KEY || '',
     // item names per ID and hour sent to the provider (remembered translations don't count)
     translateLimit: Math.max(int(env.TRANSLATE_LIMIT, 300), 1),
+    // AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1)
+    mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
   };
