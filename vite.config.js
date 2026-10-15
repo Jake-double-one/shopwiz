@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { execSync } from 'node:child_process';
+import { thirdPartyLicenses } from './scripts/licenses.js';
 
 // Build info for the help dialog. CI passes it in; local builds fall back to git.
 const git = (cmd) => {
@@ -18,7 +19,7 @@ process.env.VITE_REPO_URL ||= 'https://github.com/Jake-double-one/shopwiz';
 export default defineConfig({
   root: 'client',
   publicDir: 'public',
-  plugins: [svelte()],
+  plugins: [svelte(), thirdPartyLicenses()],
   build: { outDir: '../dist', emptyOutDir: true, target: 'es2020', assetsInlineLimit: 0 },
   server: {
     proxy: {

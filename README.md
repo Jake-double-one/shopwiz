@@ -366,7 +366,20 @@ Missing keys fall back to English.
 
 ## Third-party licenses
 
-Country flags: [flag-icons](https://github.com/lipis/flag-icons) © Panayiotis Lipiridis, MIT license – the license text is shipped with the app as `/licenses.txt`.
+ShopWiz is built on these projects – thank you:
+
+| Part | Project | License |
+|---|---|---|
+| App (in the browser) | [Svelte](https://svelte.dev) (with clsx, esm-env) | MIT |
+| QR codes | [qrcode](https://github.com/soldair/node-qrcode) (with dijkstrajs) | MIT |
+| QR scanner | [jsQR](https://github.com/cozmo/jsQR) | Apache-2.0 |
+| Drag & drop | [SortableJS](https://github.com/SortableJS/Sortable) | MIT |
+| Country flags | [flag-icons](https://github.com/lipis/flag-icons) © Panayiotis Lipiridis | MIT |
+| Fonts | [Instrument Sans](https://github.com/Instrument/instrument-sans), [IBM Plex Mono](https://github.com/IBM/plex) (via Fontsource) | SIL Open Font License 1.1 |
+| Server | [Fastify](https://fastify.dev) with @fastify/static and @fastify/websocket | MIT |
+| AI assistants | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), [zod](https://zod.dev) | MIT |
+
+The app ships the full license texts of everything that runs in the browser as `/licenses.txt` (Help → “Licenses of the software and fonts used”). The file is generated at build time from the packages in the bundle (`scripts/licenses.js`), so it stays complete when dependencies change. The server packages keep their license files in `node_modules` of the Docker image.
 
 ## Project structure
 

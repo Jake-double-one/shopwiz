@@ -342,7 +342,20 @@ Update: In Portainer **Pull and redeploy** (Web editor) bzw. neu bauen (Reposito
 
 ## Lizenzen von Drittanbietern
 
-Landesflaggen: [flag-icons](https://github.com/lipis/flag-icons) © Panayiotis Lipiridis, MIT-Lizenz – der Lizenztext wird mit der App als `/licenses.txt` ausgeliefert.
+ShopWiz baut auf diesen Projekten auf – danke:
+
+| Teil | Projekt | Lizenz |
+|---|---|---|
+| App (im Browser) | [Svelte](https://svelte.dev) (mit clsx, esm-env) | MIT |
+| QR-Codes | [qrcode](https://github.com/soldair/node-qrcode) (mit dijkstrajs) | MIT |
+| QR-Scanner | [jsQR](https://github.com/cozmo/jsQR) | Apache-2.0 |
+| Ziehen & Ablegen | [SortableJS](https://github.com/SortableJS/Sortable) | MIT |
+| Landesflaggen | [flag-icons](https://github.com/lipis/flag-icons) © Panayiotis Lipiridis | MIT |
+| Schriften | [Instrument Sans](https://github.com/Instrument/instrument-sans), [IBM Plex Mono](https://github.com/IBM/plex) (über Fontsource) | SIL Open Font License 1.1 |
+| Server | [Fastify](https://fastify.dev) mit @fastify/static und @fastify/websocket | MIT |
+| KI-Assistenten | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), [zod](https://zod.dev) | MIT |
+
+Die App liefert die vollständigen Lizenztexte von allem, was im Browser läuft, als `/licenses.txt` mit (Hilfe → „Lizenzen der verwendeten Software und Schriften“). Die Datei entsteht beim Build aus den Paketen im Bundle (`scripts/licenses.js`) und bleibt so vollständig, wenn sich Abhängigkeiten ändern. Die Server-Pakete behalten ihre Lizenzdateien im `node_modules` des Docker-Images.
 
 ## Entwicklung
 

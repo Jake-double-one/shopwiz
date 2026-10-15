@@ -418,7 +418,7 @@
   "travel.machine": "Machine translation – check if unsure. “Translate” asks again.",
   "help.travel.title": "Travel mode",
   "help.travel.body": "Shopping abroad? Turn on “Travel mode” in the list menu (⋯ next to the list name). The country comes from the shop address, or you pick it.\nUnder each item its translation appears with the country's flag. Tap it to show it big to the staff – swipe to the next item.\n“Translate N items” translates everything at once; single items can be translated or corrected in the item details. Translations are remembered for the whole ID.",
-  "help.licenses": "Third-party licenses (flags)",
+  "help.licenses": "Licenses of the software and fonts used",
   "travel.clear_one": "Delete 1 translation of this list",
   "travel.clear_other": "Delete {count} translations of this list",
   "travel.clearConfirm_one": "Delete the translation of 1 item? Typed ones too. Afterwards you can translate again.",

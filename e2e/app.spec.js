@@ -636,7 +636,11 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await page.keyboard.press('Escape');
 
   // the flags' license ships with the app
-  expect(await (await page.request.get('/licenses.txt')).text()).toContain('flag-icons');
+  // every third-party package in the bundle, with its license text
+  const licenses = await (await page.request.get('/licenses.txt')).text();
+  for (const name of ['flag-icons', 'svelte', 'qrcode', 'jsqr', 'sortablejs', '@fontsource/instrument-sans', '@fontsource/ibm-plex-mono']) expect(licenses).toContain(`- ${name} `);
+  expect(licenses).toContain('SIL Open Font License');
+  expect(licenses).toContain('Apache License');
 });
 
 test('important / not important: shortcut, add-bar button, details, display style', async ({ page }) => {
