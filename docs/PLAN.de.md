@@ -277,3 +277,52 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 2. REST `/api/v1` + OpenAPI + Tests.
 3. MCP-Endpunkt `/mcp` (offizielles SDK, Streamable HTTP) auf denselben Funktionen + Tests.
 4. Anleitungen: Claude, ChatGPT, Grok, Siri-Kurzbefehl, Home Assistant (README + Hilfe).
+
+## 11. Listenverbund – geplant
+
+**Problem:** Mehrere Lebensmittelläden in einer ID (z. B. Lidl, Conad 1, Conad 2). 400 g Hackfleisch sollen in *einem* dieser Läden gekauft werden – egal in welchem. Ein Baumarkt soll davon nichts sehen. Eine Laden-Auswahl bei jedem Artikel wäre im Laden zu umständlich.
+
+**Lösung:** Listen lassen sich zu einem **Listenverbund** zusammenschließen. Ein Artikel im Verbund ist *ein* gemeinsamer Bedarf, der in allen Listen des Verbunds steht – kein Kopieren, kein Doppelt-Abhaken.
+
+### 11.1 Einrichten
+- Listenmenü → „Listenverbund“: alle anderen Listen der ID zum Abhaken. Lidl anhaken in Conad 1 → beide bilden einen Verbund.
+- Die Einstellung gilt für alle Beteiligten: Hakt man in Lidl Conad 1 und Conad 2 an, zeigt auch Conad 2 Lidl und Conad 1 als verbunden. Eine Liste gehört zu höchstens einem Verbund.
+- Neben dem Listennamen zeigt ein Ketten-Symbol, dass die Liste im Verbund ist.
+
+### 11.2 Hinzufügen
+- In einer verbundenen Liste geht jeder neue Artikel standardmäßig an den ganzen Verbund.
+- Neben dem Prioritäts-Knopf ein Ketten-Knopf: an = im Verbund (Standard), aus = nur diese Liste („Nur Conad“). Wie der Prioritäts-Knopf gilt er für den nächsten Artikel und springt danach zurück.
+- Listen ohne Verbund zeigen den Knopf nicht – für sie ändert sich nichts.
+- Bereits vorhandener Artikel (gleicher Name) im Verbund → wie heute: Menge erhöhen bzw. wieder aktivieren statt Duplikat.
+
+### 11.3 Im Laden
+- Ein gemeinsamer Artikel hat *einen* Status. In Lidl abgehakt → in Conad ebenfalls abgehakt, mit Hinweis „bei Lidl gekauft“, bis jemand ihn wieder aktiv setzt.
+- Gruppen und Reihenfolge bleiben pro Laden (bei Lidl „Fleischtheke“, bei Conad „Macelleria“). ShopWiz lernt die Platzierung pro Liste wie heute; kennt ein Laden den Artikel noch nicht, steht er dort zunächst ohne Gruppe.
+- Inaktive Artikel sind ebenfalls gemeinsam (gemeinsames Stammsortiment); „Nur hier“-Artikel bleiben auch inaktiv nur in ihrer Liste.
+- „Einkauf abschließen“ schiebt die in *diesem* Laden abgehakten gemeinsamen Artikel nach „Inaktiv“ – damit für alle.
+- Artikeldetails: „Gilt für: ☑ Lidl ☑ Conad 1 ☑ Conad 2“ bzw. „Nur hier“ umschaltbar; ein kleines Ketten-Zeichen am Artikel zeigt „gemeinsam“.
+
+### 11.4 Verbinden: vorhandene Artikel
+- Beim Verbinden einmalige Frage „Bestehende Artikel im Verbund teilen?“ (Standard: ja).
+- Gleicher Name in mehreren Listen → **zusammenführen** zu einem Artikel: größere Menge (nicht die Summe – es ist derselbe Bedarf), Notizen zusammengefügt, offen schlägt abgehakt/inaktiv, wichtig schlägt normal. Danach Hinweis „N doppelte Artikel zusammengeführt“ mit Rückgängig.
+- „Nein“: vorhandene Artikel bleiben „nur hier“, nur neue werden geteilt.
+
+### 11.5 Trennen
+- Verlässt eine Liste den Verbund, bekommt sie eine eigene, unabhängige Kopie aller gemeinsamen Artikel (mit Status, Menge, Notiz, Priorität, ihrer Gruppe). Der Rest des Verbunds behält die gemeinsamen Artikel. Niemand verliert etwas.
+- Später wieder verbinden → Zusammenführen wie in 11.4.
+- Bleibt nur eine Liste übrig, löst sich der Verbund auf.
+
+### 11.6 Technik
+- `lists.link_id`: Kennung des Verbunds (NULL = keiner).
+- Artikel behalten ihre Ursprungsliste (`items.list_id`) und bekommen `items.shared` (im Verbund sichtbar) und `items.checked_in` (Liste, in der abgehakt wurde → „bei Lidl gekauft“).
+- Ansicht einer Liste = eigene Artikel + gemeinsame Artikel der anderen Verbund-Listen.
+- Gruppe/Reihenfolge pro Laden: Tabelle `item_places (item_id, list_id, group_id, pos)` für gemeinsame Artikel in fremden Listen; das bestehende Lernen pro Liste liefert die erste Platzierung.
+- Neue Operationen: `list.link` (Verbund setzen, mit Zusammenführen), `list.unlink` (mit Kopien), `item.set` um `shared` erweitert. Alles über die vorhandenen Operationen: Verlauf, Rückgängig, Live-Sync, Offline-Konflikte.
+- Mitziehen: Backup (`> 🔗 Lidl, Conad 1` unter der Liste, `↯` bzw. Markierung für „nur hier“), Teilen als Text, Fokus-Modus, Suche, Übertragen in andere ID, KI-Schnittstelle („zu allen Lebensmittel-Listen hinzufügen“ ergibt sich von selbst; `read_list` zeigt den Verbund).
+
+### 11.7 Umsetzungsschritte
+1. Datenmodell + Operationen `list.link`/`list.unlink` mit Zusammenführen und Kopien, Tests.
+2. Anzeige: gemeinsame Artikel in allen Verbund-Listen, gemeinsamer Status, „bei … gekauft“, Ketten-Symbol am Listennamen und am Artikel.
+3. Hinzufügen-Leiste: Ketten-Knopf (Standard an), Artikeldetails „Gilt für“.
+4. Gruppen/Reihenfolge pro Laden.
+5. Backup, Teilen als Text, KI-Schnittstelle, Hilfe, README, E2E-Tests (zwei Geräte, zwei Läden).
