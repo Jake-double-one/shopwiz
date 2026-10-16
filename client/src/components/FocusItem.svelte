@@ -4,8 +4,8 @@
   import PrioIcon from './PrioIcon.svelte';
   import SwipeStrip from './SwipeStrip.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { toggleItem, setParked, editItem } from '../lib/actions.js';
-  import { formatAmount, stepAmount } from '../../../shared/parse.js';
+  import { toggleItem, setParked } from '../lib/actions.js';
+  import { formatAmount } from '../../../shared/parse.js';
   import { prefs, swipeAction } from '../lib/prefs.svelte.js';
   import { swipeable } from '../lib/swipe.js';
 
@@ -13,12 +13,6 @@
   let { item, bought = '' } = $props();
   const amount = $derived(formatAmount(item.qty, item.unit));
   const prio = $derived(item.prio ?? 0);
-  // one more / one less right in the shop ("they only have the small packs")
-  const less = $derived(stepAmount(item.qty, item.unit, -1));
-  const step = (dir) => {
-    const next = stepAmount(item.qty, item.unit, dir);
-    if (next) editItem(item, { amount: next });
-  };
 
   let sw = $state({ dx: 0, action: null, armed: false, swiping: false, settling: false });
   const run = (a) => (a === 'check' ? toggleItem(item) : setParked(item, true, { undo: true }));
@@ -28,7 +22,6 @@
 
 <li use:swipeable={swipeParams} class:swipe-on={prefs.swipe !== 'off'} class:moving={sw.swiping || sw.settling} class:settling={sw.settling} style:--dx={sw.dx ? `${sw.dx}px` : null}>
   {#if sw.dx}<SwipeStrip dx={sw.dx} action={sw.action} armed={sw.armed} {label} />{/if}
-  <div class="inner">
   <button class="row" class:done={item.checked} class:prio-up={prio > 0} class:prio-down={prio < 0} role="checkbox" aria-checked={item.checked} aria-describedby={prio ? `fprio-${item.id}` : undefined} onclick={() => toggleItem(item)}>
     <span class="box">
       {#if item.checked}<Icon name="check" size={20} />{:else if prio}<span class="prio-in"><PrioIcon {prio} size={16} /></span>{/if}
@@ -40,13 +33,6 @@
       {#if bought}<span class="bought">{t('link.boughtAt', { name: bought })}</span>{/if}
     </span>
   </button>
-  {#if !item.checked}
-    <span class="stepper">
-      <button class="step" onclick={() => step(-1)} disabled={!less} aria-label={t('item.less', { name: item.name })}>−</button>
-      <button class="step" onclick={() => step(1)} aria-label={t('item.more', { name: item.name })}>+</button>
-    </span>
-  {/if}
-  </div>
   <!-- read as the description of the check box, not as part of its name -->
   {#if prio}<span hidden id="fprio-{item.id}">{t(prio > 0 ? 'prio.up' : 'prio.down')}</span>{/if}
 </li>
@@ -61,16 +47,10 @@
   li.moving {
     overflow: hidden;
   }
-  .inner {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--f-bg);
-  }
-  li.moving .inner {
+  li.moving .row {
     transform: translateX(var(--dx, 0px));
   }
-  li.settling .inner {
+  li.settling .row {
     transition: transform 0.18s ease;
   }
   /* black and white like the rest of the focus mode */
@@ -82,36 +62,12 @@
     background: var(--f-ink);
     color: var(--f-bg);
   }
-  .stepper {
-    display: flex;
-    flex: none;
-    gap: 6px;
-  }
-  .step {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    border: 2px solid var(--f-dim);
-    border-radius: 12px;
-    background: var(--f-bg);
-    color: var(--f-ink);
-    font-size: 1.5rem;
-    font-weight: 600;
-    line-height: 1;
-    padding: 0;
-  }
-  .step:disabled {
-    opacity: 0.35;
-  }
   .row {
     display: flex;
     align-items: center;
     gap: 14px;
-    flex: 1;
-    min-width: 0;
     width: 100%;
-    min-height: 54px;
+    min-height: calc(54px * var(--f-scale, 1));
     padding: 8px 0;
     border: 0;
     background: var(--f-bg);
@@ -123,10 +79,19 @@
     display: grid;
     place-items: center;
     flex: none;
-    width: 28px;
-    height: 28px;
+    width: calc(28px * var(--f-scale, 1));
+    height: calc(28px * var(--f-scale, 1));
     border: 2px solid var(--f-ink);
     border-radius: 8px;
+  }
+  /* icons grow with the focus mode's text size */
+  .box > :global(svg) {
+    width: calc(20px * var(--f-scale, 1));
+    height: calc(20px * var(--f-scale, 1));
+  }
+  .prio-in :global(svg) {
+    width: calc(16px * var(--f-scale, 1));
+    height: calc(16px * var(--f-scale, 1));
   }
   .done .box {
     background: var(--f-ink);
@@ -188,7 +153,7 @@
     display: none;
   }
   .text {
-    font-size: 1.3rem;
+    font-size: calc(1.3rem * var(--f-scale, 1));
     line-height: 1.25;
     font-weight: 600;
     overflow-wrap: anywhere;
@@ -204,7 +169,7 @@
     border: 1.5px solid var(--f-ink);
     border-radius: 999px;
     color: var(--f-ink);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--f-scale, 1));
     font-weight: 600;
     vertical-align: 3px;
   }

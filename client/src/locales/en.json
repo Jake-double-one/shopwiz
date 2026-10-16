@@ -366,7 +366,7 @@
   "help.groups.title": "Groups",
   "help.groups.body": "Groups sort the list, e.g. along your way through the shop: Bakery, Fridge, Drinks.\n“Add group” creates one; the next item you type goes straight into it.\nMove items by dragging the handle ⋮⋮ or via ⋯ → Group. ＋ on a group adds directly to it.\nShopWiz learns: an item you put into a group lands there automatically next time.\nGroups without items wait under “Inactive items” until an item comes back.",
   "help.shop.title": "Shopping together",
-  "help.shop.body": "🛒 “I'm shopping” shows the others that you are in the shop – and where (the group of the item you checked last).\nAs soon as someone else is in the shop too, 📍 “Call” appears: “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done”. The other phone vibrates; one tap answers.\nIf a phone is off or offline, the signal arrives as soon as ShopWiz is open there again. The phone symbol next to it keeps the screen on.\nOnce the last item is checked, “Finish shopping” ends the trip. After 60 minutes without activity you are checked out automatically anyway.",
+  "help.shop.body": "🛒 “I'm shopping” shows the others that you are in the shop – and where (the group of the item you checked last).\nAs soon as someone else is in the shop too, 📍 “Call” appears: “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done”. The other phone vibrates; one tap answers.\nIf a phone is off or offline, the signal arrives as soon as ShopWiz is open there again. The phone symbol next to it keeps the screen on.\nOnce the last item is checked, “Finish shopping” ends the trip. After 60 minutes without activity you are checked out automatically anyway.\nIn focus mode, A− / A+ at the top set the text size for the focus mode only.",
   "help.lists.title": "Several lists & shop address",
   "help.lists.body": "Tap the list name at the top to switch lists or create a new one.\nThe magnifier 🔍 next to the list name searches the list – notes, translations and “Inactive items” included.\n⋯ next to the list name opens the list options: rename, address, groups, share as text, history, backup.\n“Share as text” sends the open items, one per line, to a chat or a note – also available under ⤴ Share.\nWith a shop address, a navigation button appears next to the list name.\nSeveral IDs on one device? Settings ⚙ → “Switch”.\nSelect text on a web page or in a note → Share → ShopWiz: every line becomes an item of the list opened last (installed app, Android).",
   "help.offline.title": "Offline & simultaneous changes",
@@ -564,5 +564,7 @@
   "textSize.label": "Text size",
   "textSize.small": "Small",
   "textSize.normal": "Normal",
-  "textSize.large": "Large"
+  "textSize.large": "Large",
+  "focus.smaller": "Smaller text",
+  "focus.larger": "Larger text"
 }

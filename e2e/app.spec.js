@@ -874,13 +874,20 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   expect(await barColor()).toBe('#ffffff');
   await focus.getByRole('checkbox', { name: 'Bread' }).click();
   await expect(focus.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
-  // one more / one less right in the shop – not for what is already checked
-  await focus.getByRole('button', { name: 'One more Milk' }).click();
-  await expect(focus.getByRole('checkbox', { name: /Milk/ })).toHaveText('3× Milk');
-  await focus.getByRole('button', { name: 'One less Milk' }).click();
-  await expect(focus.getByRole('checkbox', { name: /Milk/ })).toHaveText('2× Milk');
-  await expect(focus.getByRole('button', { name: 'One less Tea' })).toBeDisabled();
-  await expect(focus.getByRole('button', { name: 'One more Bread' })).toHaveCount(0);
+  // its own text size, in steps, remembered on this device – the normal list stays as it is
+  const nameSize = () => focus.locator('.name').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const before = await nameSize();
+  await focus.getByRole('button', { name: 'Larger text' }).click();
+  await focus.getByRole('button', { name: 'Larger text' }).click();
+  expect(await nameSize()).toBeGreaterThan(before * 1.2);
+  await focus.getByRole('button', { name: 'Smaller text' }).click();
+  expect(await nameSize()).toBeGreaterThan(before);
+  for (let i = 0; i < 10; i++) if (await focus.getByRole('button', { name: 'Larger text' }).isEnabled()) await focus.getByRole('button', { name: 'Larger text' }).click();
+  await expect(focus.getByRole('button', { name: 'Larger text' })).toBeDisabled();
+  expect(await page.evaluate(() => document.querySelector('.focus').scrollWidth <= window.innerWidth)).toBe(true);
+  for (let i = 0; i < 10; i++) if (await focus.getByRole('button', { name: 'Smaller text' }).isEnabled()) await focus.getByRole('button', { name: 'Smaller text' }).click();
+  expect(await nameSize()).toBeLessThan(before);
+  for (let i = 0; i < 2; i++) await focus.getByRole('button', { name: 'Larger text' }).click();
 
   // swiping works here, too: right checks off, left makes inactive
   const cdp = await ctx.newCDPSession(page);
@@ -1106,5 +1113,12 @@ test('text size per device: three sizes, nothing breaks out of a narrow phone', 
   expect(await input.evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'small');
+  // focus mode on a narrow phone: the banner with its text-size buttons fits, the largest size, too
+  await page.getByRole('button', { name: 'Fokus-Modus', exact: true }).click();
+  const focus = page.getByRole('dialog', { name: /Fokus-Modus/ });
+  const larger = focus.getByRole('button', { name: 'Größere Schrift' });
+  while (await larger.isEnabled()) await larger.click();
+  expect(await page.evaluate(() => document.querySelector('.focus').scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await focus.locator('.banner').evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(80);
   await ctx.close();
 });

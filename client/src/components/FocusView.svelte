@@ -6,7 +6,7 @@
   import { t } from '../lib/i18n.svelte.js';
   import { listTree, boughtAt } from '../lib/model.js';
   import FocusItem from './FocusItem.svelte';
-  import { prefs, setHideChecked } from '../lib/prefs.svelte.js';
+  import { prefs, setHideChecked, setFocusSize, FOCUS_SIZES } from '../lib/prefs.svelte.js';
   import { setFocusBars } from '../lib/theme.js';
 
   /** children: calls from the others in the shop still show up; ontogglescreen: keep the screen on (if the browser can) */
@@ -17,6 +17,10 @@
   const blocks = $derived(
     [{ id: '', name: '', items: shown(tree.ungrouped) }, ...tree.groups.map((n) => ({ id: n.group.id, name: n.group.name, items: shown(n.items) }))].filter((b) => b.items.length),
   );
+
+  // text size of the focus mode only – in the shop other things count (arm's length, a trolley)
+  const sizeIdx = $derived(FOCUS_SIZES.indexOf(prefs.focusSize));
+  const resize = (d) => setFocusSize(FOCUS_SIZES[sizeIdx + d]);
 
   let root = $state();
   onMount(() => {
@@ -32,9 +36,11 @@
   });
 </script>
 
-<div class="focus" role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onkeydown={(e) => e.key === 'Escape' && onclose()}>
+<div class="focus" style:--f-scale={prefs.focusSize} role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onkeydown={(e) => e.key === 'Escape' && onclose()}>
   <div class="banner">
     <button class="exit" onclick={onclose}><Icon name="x" size={18} />{t('focus.exit')}</button>
+    <button class="screen size" disabled={sizeIdx <= 0} onclick={() => resize(-1)} aria-label={t('focus.smaller')} title={t('focus.smaller')}><span aria-hidden="true">A<span class="pm">−</span></span></button>
+    <button class="screen size big" disabled={sizeIdx >= FOCUS_SIZES.length - 1} onclick={() => resize(1)} aria-label={t('focus.larger')} title={t('focus.larger')}><span aria-hidden="true">A<span class="pm">+</span></span></button>
     <button class="screen" aria-pressed={prefs.hideChecked} onclick={() => setHideChecked(!prefs.hideChecked)} aria-label={t('hideChecked.toggle')} title={t('hideChecked.toggle')}>
       <Icon name={prefs.hideChecked ? 'eyeOff' : 'eye'} />
     </button>
@@ -101,6 +107,8 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     font-weight: 700;
+    text-align: center;
+    line-height: 1.25;
   }
   .screen {
     display: grid;
@@ -110,6 +118,21 @@
     border-left: 1px solid var(--f-dim);
     background: none;
     color: var(--f-dim);
+  }
+  .screen.size {
+    width: 48px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--f-ink);
+  }
+  .screen.size.big {
+    font-size: 1.3rem;
+  }
+  .screen.size:disabled {
+    opacity: 0.3;
+  }
+  .pm {
+    font-size: 0.8em;
   }
   .screen[aria-pressed='true'] {
     background: var(--f-ink);
@@ -125,7 +148,7 @@
   h2 {
     margin: 0 0 4px;
     font-family: var(--mono);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--f-scale, 1));
     letter-spacing: 0.16em;
     text-transform: uppercase;
     font-weight: 700;
