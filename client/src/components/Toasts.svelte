@@ -15,6 +15,8 @@
           }}>{tst.action.label}</button>
       {/if}
       <button class="x" onclick={() => dismiss(tst.id)} aria-label="×">×</button>
+      <!-- how long undo is still possible: the line fills up from left to right -->
+      {#if tst.action && tst.timeout}<span class="progress" aria-hidden="true" style:animation-duration={`${tst.timeout}ms`}></span>{/if}
     </div>
   {/each}
 </div>
@@ -38,6 +40,8 @@
     top: calc(12px + env(safe-area-inset-top));
   }
   .toast {
+    position: relative;
+    overflow: hidden;
     pointer-events: auto;
     display: flex;
     align-items: center;
@@ -75,6 +79,24 @@
     opacity: 0.6;
     font-size: 1.2rem;
     padding: 2px 8px;
+  }
+  .progress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: 100%;
+    background: var(--sun);
+    transform-origin: left;
+    animation: fill linear forwards;
+  }
+  @keyframes fill {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
   }
   @keyframes in {
     from {
