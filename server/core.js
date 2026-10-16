@@ -88,6 +88,7 @@ export const mapList = (r) => ({
   address: r.address ?? '',
   travel: r.travel_country && r.travel_lang ? { country: r.travel_country, lang: r.travel_lang } : null,
   prioShortcuts: !!r.prio_shortcuts,
+  linkId: r.link_id ?? null,
   createdAt: r.created_at,
 });
 export const mapGroup = (r) => ({ id: r.id, listId: r.list_id, parentId: r.parent_id, name: r.name, pos: r.pos });
@@ -102,6 +103,9 @@ export const mapItem = (r) => ({
   checked: !!r.checked,
   parked: !!r.parked,
   prio: r.prio ?? 0,
+  shared: !!r.shared,
+  checkedIn: r.checked_in ?? null,
+  places: JSON.parse(r.places || '{}'),
   checkedBy: r.checked_by,
   addedBy: r.added_by,
   pos: r.pos,
@@ -392,9 +396,9 @@ export class Store {
           }`,
         ).run(uid, oldUid);
       };
-      copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, created_at');
+      copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, link_id, created_at');
       copy('groups', 'id, list_id, parent_id, name, pos, created_at');
-      copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, checked_by, added_by, pos, meta, created_at');
+      copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, shared, checked_in, places, checked_by, added_by, pos, meta, created_at');
       copy('memory', 'scope, norm, group_name, subgroup_name, updated_at');
       copy('suggestions', 'norm, name, uses, last_used_at');
       copy('translations', 'norm, lang, text, auto, updated_at');
@@ -483,7 +487,9 @@ export class Store {
     if (typeof opId !== 'string' || opId.length > 40) throw new OpError('invalid', 'op id');
     if (!op || typeof op.k !== 'string') throw new OpError('invalid', 'op');
     const done = db.q('SELECT result FROM applied_ops WHERE space_uid = ? AND op_id = ?').get(uid, opId);
-    if (done) return { result: JSON.parse(done.result), changes: [], duplicate: true };
+    // keys starting with _ are kept for later ops (e.g. undo data) but not sent back
+    const visible = (r) => Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('_')));
+    if (done) return { result: visible(JSON.parse(done.result)), changes: [], duplicate: true };
 
     const now = Date.now();
     // Client time is corrected by the client; never trust it beyond "now".
@@ -495,7 +501,7 @@ export class Store {
       if (!handler) throw new OpError('invalid', `unknown op ${op.k}`);
       const result = handler.call(this, ctx, op) ?? {};
       db.q('INSERT INTO applied_ops (space_uid, op_id, result, created_at) VALUES (?, ?, ?, ?)').run(uid, opId, JSON.stringify(result), now);
-      return { result, changes: ctx.changes, rev, kickedHash: ctx.kicked, allDone: ctx.allDone };
+      return { result: visible(result), changes: ctx.changes, rev, kickedHash: ctx.kicked, allDone: ctx.allDone };
     });
   }
 
@@ -577,17 +583,70 @@ export class Store {
     for (const r of rows) ctx.changes.push({ e: 'conflict', del: r.id });
   }
 
-  _insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos, checked = false, parked = false, prio = 0 }) {
+  // ----- list groups (Listenverbund) -----
+
+  /** Ids of the lists in the same list group (the list itself first), or just the list. */
+  _linked(uid, list) {
+    if (!list.link_id) return [list.id];
+    const others = this.db
+      .q('SELECT id FROM lists WHERE space_uid = ? AND link_id = ? AND id != ? AND deleted_at IS NULL ORDER BY pos')
+      .all(uid, list.link_id, list.id)
+      .map((r) => r.id);
+    return [list.id, ...others];
+  }
+  /** SQL condition (alias i) + args: the items a list shows – its own and the shared ones of its list group. */
+  _visibleSql(uid, list) {
+    const ids = this._linked(uid, list);
+    if (ids.length === 1) return { sql: 'i.list_id = ?', args: [list.id] };
+    return { sql: `(i.list_id = ? OR (i.shared = 1 AND i.list_id IN (${ids.map(() => '?').join(', ')})))`, args: [list.id, ...ids] };
+  }
+  /** Items a list shows (not deleted), optionally with an extra condition. */
+  _visibleItems(uid, list, extra = '', extraArgs = [], order = 'i.pos') {
+    const v = this._visibleSql(uid, list);
+    return this.db
+      .q(`SELECT i.* FROM items i WHERE i.space_uid = ? AND i.deleted_at IS NULL AND ${v.sql}${extra ? ` AND ${extra}` : ''} ORDER BY ${order}`)
+      .all(uid, ...v.args, ...extraArgs);
+  }
+  /** Can this list show the item? */
+  _shows(uid, list, item) {
+    if (item.list_id === list.id) return true;
+    return !!item.shared && this._linked(uid, list).includes(item.list_id);
+  }
+  /**
+   * A shared item gets a place (group, position) in every other list of its list group:
+   * what that shop has learned for the name, otherwise none. Existing places stay.
+   * Returns true when something changed (the row is updated, not pushed).
+   */
+  _fillPlaces(ctx, item) {
+    if (!item.shared) return false;
+    const home = this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, item.list_id);
+    if (!home?.link_id) return false;
+    const places = JSON.parse(item.places || '{}');
+    let changed = false;
+    const memory = this.db.q('SELECT * FROM memory WHERE space_uid = ? AND scope = ? AND norm = ?');
+    for (const id of this._linked(ctx.uid, home).slice(1)) {
+      if (places[id]) continue;
+      const list = this._list(ctx.uid, id);
+      const m = memory.get(ctx.uid, this._scope(list), item.norm);
+      const groupId = m?.group_name || m?.subgroup_name ? this._ensurePath(ctx, list, m.group_name, m.subgroup_name) : null;
+      places[id] = { groupId, pos: item.pos };
+      changed = true;
+    }
+    if (changed) this.db.q('UPDATE items SET places = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(places), ctx.uid, item.id);
+    return changed;
+  }
+
+  _insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos, checked = false, parked = false, prio = 0, shared = false }) {
     const norm = normalizeName(name);
     const metaEntry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
     const meta = { name: metaEntry, amount: metaEntry, note: metaEntry, checked: metaEntry, parked: metaEntry, groupId: metaEntry, prio: metaEntry };
     const isChecked = checked && !parked;
     this.db
       .q(
-        `INSERT INTO items (space_uid, id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, checked_by, added_by, pos, meta, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (space_uid, id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, shared, checked_in, checked_by, added_by, pos, meta, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(ctx.uid, id, list.id, groupId, name, norm, qty, unit, n, isChecked ? 1 : 0, parked ? 1 : 0, prioOf(prio), isChecked ? ctx.dev.name : null, ctx.dev.name, pos, JSON.stringify(meta), ctx.now);
+      .run(ctx.uid, id, list.id, groupId, name, norm, qty, unit, n, isChecked ? 1 : 0, parked ? 1 : 0, prioOf(prio), shared && list.link_id ? 1 : 0, isChecked ? list.id : null, isChecked ? ctx.dev.name : null, ctx.dev.name, pos, JSON.stringify(meta), ctx.now);
     return norm;
   }
 
@@ -696,10 +755,190 @@ const OPS = {
     this._pushList(ctx, list.id);
   },
 
+  /**
+   * Link two lists into a list group (Listenverbund) – both join with everything they are
+   * already linked to. share: existing items of lists that were not linked before become
+   * shared. Shared items with the same name are merged into one: the larger amount, notes
+   * joined, open beats checked beats inactive, important beats normal.
+   * → { linked, mergedItems } – "list.linkUndo" with this op's id takes it all back.
+   */
+  'list.link'(ctx, op) {
+    const a = this._list(ctx.uid, eid(op.id));
+    const b = this._list(ctx.uid, eid(op.other, 'other'));
+    if (a.id === b.id) throw new OpError('invalid', 'a list cannot be linked to itself');
+    if (a.link_id && a.link_id === b.link_id) return {};
+    const { db } = this;
+    const linkId = a.link_id ?? b.link_id ?? newEntityId();
+    const members = db
+      .q('SELECT * FROM lists WHERE space_uid = ? AND deleted_at IS NULL AND (id IN (?, ?) OR link_id IN (?, ?)) ORDER BY pos')
+      .all(ctx.uid, a.id, b.id, a.link_id ?? '', b.link_id ?? '');
+    const undo = { lists: members.map((l) => ({ id: l.id, linkId: l.link_id ?? null })), items: [], removed: [] };
+    const before = new Map();
+    const keep = (row) => {
+      if (!before.has(row.id)) before.set(row.id, row);
+    };
+    for (const l of members) {
+      db.q('UPDATE lists SET link_id = ? WHERE space_uid = ? AND id = ?').run(linkId, ctx.uid, l.id);
+      this._pushList(ctx, l.id);
+    }
+    const ids = members.map((l) => l.id);
+    const inLists = `list_id IN (${ids.map(() => '?').join(', ')})`;
+    if (op.share !== false) {
+      const fresh = members.filter((l) => !l.link_id).map((l) => l.id);
+      for (const id of fresh) {
+        for (const r of db.q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND shared = 0 AND deleted_at IS NULL').all(ctx.uid, id)) {
+          keep(r);
+          db.q('UPDATE items SET shared = 1 WHERE space_uid = ? AND id = ?').run(ctx.uid, r.id);
+        }
+      }
+    }
+    // one shared need per name
+    const shared = db.q(`SELECT * FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND ${inLists} ORDER BY created_at, pos`).all(ctx.uid, ...ids);
+    const byNorm = new Map();
+    for (const r of shared) byNorm.set(r.norm, [...(byNorm.get(r.norm) ?? []), r]);
+    let mergedItems = 0;
+    const state = (r) => (r.parked ? 2 : r.checked ? 1 : 0);
+    for (const rows of byNorm.values()) {
+      if (rows.length < 2) continue;
+      const sorted = [...rows].sort((x, y) => state(x) - state(y) || y.prio - x.prio || x.created_at - y.created_at);
+      const [win, ...rest] = sorted;
+      for (const r of rows) keep(r);
+      let { qty, unit } = win;
+      for (const r of rest) {
+        if (!r.qty) continue;
+        if (!qty) ({ qty, unit } = r);
+        else if ((r.unit || '') === (unit || '') && Number(r.qty) > Number(qty)) qty = r.qty;
+      }
+      const notes = [...new Set(rows.map((r) => r.note.trim()).filter(Boolean))];
+      const prio = Math.max(...rows.map((r) => r.prio));
+      const places = JSON.parse(win.places || '{}');
+      for (const r of rest) {
+        if (r.list_id !== win.list_id && !places[r.list_id]) places[r.list_id] = { groupId: r.group_id, pos: r.pos };
+        for (const [lid, p] of Object.entries(JSON.parse(r.places || '{}'))) places[lid] ??= p;
+        db.q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(ctx.now, ctx.uid, r.id);
+        ctx.changes.push({ e: 'item', del: r.id });
+        this._dropConflicts(ctx, r.id);
+        undo.removed.push(r.id);
+      }
+      delete places[win.list_id];
+      db.q('UPDATE items SET qty = ?, unit = ?, note = ?, prio = ?, places = ? WHERE space_uid = ? AND id = ?').run(
+        qty,
+        unit,
+        notes.join('\n').slice(0, LIMITS.note),
+        prio,
+        JSON.stringify(places),
+        ctx.uid,
+        win.id,
+      );
+      mergedItems += rest.length;
+    }
+    for (const r of db.q(`SELECT * FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND ${inLists}`).all(ctx.uid, ...ids)) {
+      const cur = before.get(r.id) ?? r;
+      if (this._fillPlaces(ctx, r)) keep(cur);
+    }
+    for (const [id, row] of before) {
+      undo.items.push(row);
+      if (!undo.removed.includes(id)) this._pushItem(ctx, id);
+    }
+    this._act(ctx, a.id, 'list.link', { names: members.map((l) => l.name), merged: mergedItems });
+    return { linked: members.length, mergedItems, _undo: undo };
+  },
+
+  /** Take back a "list.link" (by its op id): links, merged and shared items as before. */
+  'list.linkUndo'(ctx, op) {
+    const done = this.db.q('SELECT result FROM applied_ops WHERE space_uid = ? AND op_id = ?').get(ctx.uid, String(op.opId ?? ''));
+    const undo = done && JSON.parse(done.result)._undo;
+    if (!undo) return {};
+    for (const l of undo.lists) {
+      this.db.q('UPDATE lists SET link_id = ? WHERE space_uid = ? AND id = ?').run(l.linkId, ctx.uid, l.id);
+      this._pushList(ctx, l.id);
+    }
+    const cols = ['list_id', 'group_id', 'qty', 'unit', 'note', 'prio', 'shared', 'places', 'checked', 'checked_by', 'checked_in', 'parked', 'pos', 'deleted_at'];
+    for (const r of undo.items) {
+      this.db.q(`UPDATE items SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE space_uid = ? AND id = ?`).run(...cols.map((c) => r[c] ?? null), ctx.uid, r.id);
+      this._pushItem(ctx, r.id);
+    }
+    const name = (id) => this.db.q('SELECT name FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, id)?.name ?? '';
+    this._act(ctx, null, 'list.unlink', { names: undo.lists.map((l) => name(l.id)) });
+    return {};
+  },
+
+  /**
+   * A list leaves its list group: it gets its own copy of every shared item (state, amount,
+   * note, importance and its place there); the others keep the shared items.
+   * With only one list left the group ends.
+   */
+  'list.unlink'(ctx, op) {
+    const list = this._list(ctx.uid, eid(op.id));
+    if (!list.link_id) return {};
+    const { db } = this;
+    const others = this._linked(ctx.uid, list).slice(1).map((id) => this._list(ctx.uid, id));
+    if (!others.length) {
+      db.q('UPDATE lists SET link_id = NULL WHERE space_uid = ? AND id = ?').run(ctx.uid, list.id);
+      this._pushList(ctx, list.id);
+      for (const r of db.q("UPDATE items SET shared = 0, places = '{}' WHERE space_uid = ? AND list_id = ? AND shared = 1 AND deleted_at IS NULL RETURNING id").all(ctx.uid, list.id)) this._pushItem(ctx, r.id);
+      return { copies: 0 };
+    }
+    const ids = [list.id, ...others.map((l) => l.id)];
+    const rows = db.q(`SELECT * FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND list_id IN (${ids.map(() => '?').join(', ')})`).all(ctx.uid, ...ids);
+    let copies = 0;
+    for (const r of rows) {
+      const places = JSON.parse(r.places || '{}');
+      const mine = r.list_id === list.id ? { groupId: r.group_id, pos: r.pos } : (places[list.id] ?? { groupId: null, pos: r.pos });
+      const copyId = newEntityId();
+      this._insertItem(ctx, list, {
+        id: copyId,
+        groupId: this._validGroup(ctx.uid, list, mine.groupId),
+        name: r.name,
+        qty: r.qty,
+        unit: r.unit,
+        note: r.note,
+        pos: mine.pos,
+        checked: !!r.checked,
+        parked: !!r.parked,
+        prio: r.prio,
+      });
+      if (r.checked) db.q('UPDATE items SET checked_by = ? WHERE space_uid = ? AND id = ?').run(r.checked_by, ctx.uid, copyId);
+      this._pushItem(ctx, copyId);
+      copies++;
+      delete places[list.id];
+      if (r.list_id === list.id) {
+        // the others keep it: it moves over to the next list of the group
+        const home = others[0];
+        const p = places[home.id] ?? { groupId: null, pos: r.pos };
+        delete places[home.id];
+        db.q('UPDATE items SET list_id = ?, group_id = ?, pos = ?, places = ? WHERE space_uid = ? AND id = ?').run(
+          home.id,
+          this._validGroup(ctx.uid, home, p.groupId),
+          p.pos,
+          JSON.stringify(places),
+          ctx.uid,
+          r.id,
+        );
+      } else db.q('UPDATE items SET places = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(places), ctx.uid, r.id);
+      this._pushItem(ctx, r.id);
+    }
+    db.q('UPDATE lists SET link_id = NULL WHERE space_uid = ? AND id = ?').run(ctx.uid, list.id);
+    this._pushList(ctx, list.id);
+    if (others.length === 1) {
+      // a group of one is no group
+      const last = others[0];
+      db.q('UPDATE lists SET link_id = NULL WHERE space_uid = ? AND id = ?').run(ctx.uid, last.id);
+      this._pushList(ctx, last.id);
+      for (const r of db.q("UPDATE items SET shared = 0, places = '{}' WHERE space_uid = ? AND list_id = ? AND shared = 1 RETURNING id, deleted_at").all(ctx.uid, last.id)) {
+        if (!r.deleted_at) this._pushItem(ctx, r.id);
+      }
+    }
+    this._act(ctx, list.id, 'list.unlink', { names: [list.name] });
+    return { copies };
+  },
+
   'list.delete'(ctx, op) {
     const list = this._list(ctx.uid, eid(op.id));
     const count = this.db.q('SELECT COUNT(*) AS c FROM lists WHERE space_uid = ? AND deleted_at IS NULL').get(ctx.uid).c;
     if (count <= 1) throw new OpError('invalid', 'the last list cannot be deleted');
+    // the rest of a list group keeps the shared items
+    if (list.link_id) OPS['list.unlink'].call(this, ctx, { id: list.id });
     this.db.q('UPDATE lists SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(ctx.now, ctx.uid, list.id);
     this._pushList(ctx, list.id);
     this._act(ctx, null, 'list.delete', { name: list.name, listId: list.id });
@@ -720,11 +959,12 @@ const OPS = {
   // Checked items leave the list and go to the inactive items (shadow list) – nothing is lost.
   'list.clearChecked'(ctx, op) {
     const list = this._list(ctx.uid, eid(op.listId));
-    const rows = this.db.q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND checked = 1 AND parked = 0 AND deleted_at IS NULL').all(ctx.uid, list.id);
+    // in a list group this includes shared items checked off in another shop – they are bought
+    const rows = this._visibleItems(ctx.uid, list, 'i.checked = 1 AND i.parked = 0');
     const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
     for (const r of rows) {
       const meta = { ...JSON.parse(r.meta), checked: entry, parked: entry };
-      this.db.q('UPDATE items SET checked = 0, checked_by = NULL, parked = 1, meta = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(meta), ctx.uid, r.id);
+      this.db.q('UPDATE items SET checked = 0, checked_by = NULL, checked_in = NULL, parked = 1, meta = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(meta), ctx.uid, r.id);
       this._pushItem(ctx, r.id);
     }
     if (rows.length) this._act(ctx, list.id, 'list.clearChecked', { count: rows.length, names: rows.slice(0, 20).map((r) => r.name) });
@@ -734,10 +974,9 @@ const OPS = {
   /** Delete all inactive items of a list (restorable from the history for a while). */
   'list.clearParked'(ctx, op) {
     const list = this._list(ctx.uid, eid(op.listId));
-    const rows = this.db
-      .q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND list_id = ? AND parked = 1 AND deleted_at IS NULL RETURNING id, name')
-      .all(ctx.now, ctx.uid, list.id);
+    const rows = this._visibleItems(ctx.uid, list, 'i.parked = 1');
     for (const r of rows) {
+      this.db.q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(ctx.now, ctx.uid, r.id);
       ctx.changes.push({ e: 'item', del: r.id });
       this._dropConflicts(ctx, r.id);
     }
@@ -756,8 +995,8 @@ const OPS = {
       if (!r) continue;
       const meta = { ...JSON.parse(r.meta), checked: entry, parked: entry };
       this.db
-        .q('UPDATE items SET checked = ?, checked_by = ?, parked = ?, meta = ? WHERE space_uid = ? AND id = ?')
-        .run(checked ? 1 : 0, checked ? (r.checked_by ?? ctx.dev.name) : null, parked ? 1 : 0, JSON.stringify(meta), ctx.uid, id);
+        .q('UPDATE items SET checked = ?, checked_by = ?, checked_in = ?, parked = ?, meta = ? WHERE space_uid = ? AND id = ?')
+        .run(checked ? 1 : 0, checked ? (r.checked_by ?? ctx.dev.name) : null, checked ? (r.checked_in ?? r.list_id) : null, parked ? 1 : 0, JSON.stringify(meta), ctx.uid, id);
       this._pushItem(ctx, id);
     }
   },
@@ -810,6 +1049,14 @@ const OPS = {
         moves.push({ id: it.id, groupId: gid });
         this._pushItem(ctx, it.id);
       }
+      // shared items placed in this group in another shop of a list group
+      const placed = this.db.q("SELECT id, places FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND places LIKE ?").all(ctx.uid, `%${gid}%`);
+      for (const it of placed) {
+        const places = JSON.parse(it.places);
+        for (const p of Object.values(places)) if (p.groupId === gid) p.groupId = null;
+        this.db.q('UPDATE items SET places = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(places), ctx.uid, it.id);
+        this._pushItem(ctx, it.id);
+      }
       this.db.q('UPDATE groups SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(ctx.now, ctx.uid, gid);
       ctx.changes.push({ e: 'group', del: gid });
     }
@@ -841,9 +1088,7 @@ const OPS = {
     const norm = normalizeName(name);
     // Same unchecked item already on the list (e.g. added on two devices while offline) → merge
     if (!op.force && !op.parked) {
-      const dup = this.db
-        .q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND checked = 0 AND parked = 0 AND deleted_at IS NULL')
-        .get(ctx.uid, list.id, norm);
+      const dup = this._visibleItems(ctx.uid, list, 'i.norm = ? AND i.checked = 0 AND i.parked = 0', [norm])[0];
       if (dup) {
         const sum = addAmounts({ qty: dup.qty, unit: dup.unit }, { qty, unit }) ?? { qty: dup.qty, unit: dup.unit };
         const meta = JSON.parse(dup.meta);
@@ -859,7 +1104,8 @@ const OPS = {
     const count = this.db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL').get(ctx.uid, list.id).c;
     if (count >= LIMITS.itemsPerList) throw new OpError('limit', 'too many items');
     const groupId = this._validGroup(ctx.uid, list, op.groupId);
-    this._insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos: num(op.pos ?? ctx.now), checked: !!op.checked, parked: !!op.parked, prio: op.prio });
+    this._insertItem(ctx, list, { id, groupId, name, qty, unit, note: n, pos: num(op.pos ?? ctx.now), checked: !!op.checked, parked: !!op.parked, prio: op.prio, shared: !!op.shared });
+    this._fillPlaces(ctx, this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ?').get(ctx.uid, id));
     this._pushItem(ctx, id);
     if (op.learn !== false) this._learn(ctx, list, norm, groupId);
     this._suggest(ctx, name, norm);
@@ -870,7 +1116,8 @@ const OPS = {
    * Several items at once, as the app's add bar does it (used by AI assistants):
    * an open item with the same name gets the amount added, a checked or inactive one comes
    * back, new ones land in the given or the learned group.
-   * items: [{ name, qty, unit, note, prio, group }] → { added, merged, reactivated } (names)
+   * items: [{ name, qty, unit, note, prio, group, shared }] → { added, merged, reactivated } (names)
+   * In a list group new items go to every list of it unless shared is false.
    */
   'item.addMany'(ctx, op) {
     const list = this._list(ctx.uid, eid(op.listId, 'listId'));
@@ -889,15 +1136,13 @@ const OPS = {
         qty = '';
       }
       const unit = qty ? str(e.unit, LIMITS.unit) : '';
-      const same = this.db
-        .q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL ORDER BY (checked = 0 AND parked = 0) DESC, pos')
-        .all(ctx.uid, list.id, norm);
+      const same = this._visibleItems(ctx.uid, list, 'i.norm = ?', [norm], '(i.checked = 0 AND i.parked = 0) DESC, i.pos');
       const done = !same.some((i) => !i.checked && !i.parked) && same[0];
       if (done) {
         const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
         const meta = { ...JSON.parse(done.meta), checked: entry, parked: entry, ...(qty && { amount: entry }), ...(prio && { prio: entry }) };
         this.db
-          .q('UPDATE items SET checked = 0, checked_by = NULL, parked = 0, qty = ?, unit = ?, prio = ?, meta = ? WHERE space_uid = ? AND id = ?')
+          .q('UPDATE items SET checked = 0, checked_by = NULL, checked_in = NULL, parked = 0, qty = ?, unit = ?, prio = ?, meta = ? WHERE space_uid = ? AND id = ?')
           .run(qty || done.qty, qty ? unit : done.unit, prio || done.prio, JSON.stringify(meta), ctx.uid, done.id);
         this._pushItem(ctx, done.id);
         this._act(ctx, list.id, 'item.uncheck', { name: done.name });
@@ -912,7 +1157,8 @@ const OPS = {
         if (m?.group_name || m?.subgroup_name) groupId = this._ensurePath(ctx, list, m.group_name, m.subgroup_name);
       }
       const pos = this.db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ? AND group_id IS ?').get(ctx.uid, list.id, groupId).m + 1;
-      const r = OPS['item.add'].call(this, ctx, { id: newEntityId(), listId: list.id, name, qty, unit, note: e.note, prio, groupId, pos, learn: !!groupName });
+      const shared = !!list.link_id && e.shared !== false && op.shared !== false;
+      const r = OPS['item.add'].call(this, ctx, { id: newEntityId(), listId: list.id, name, qty, unit, note: e.note, prio, groupId, pos, learn: !!groupName, shared });
       if (r?.merged) {
         if (prio) this.db.q('UPDATE items SET prio = ? WHERE space_uid = ? AND id = ?').run(prio, ctx.uid, r.merged), this._pushItem(ctx, r.merged);
         out.merged.push(name);
@@ -930,6 +1176,14 @@ const OPS = {
       return { rejected: 'deleted', name: item.name };
     }
     const list = this._list(ctx.uid, item.list_id);
+    // listId: the list the change was made in – a shared item of a list group has its own
+    // group and position in every shop, and "bought at …" names that shop
+    let view = list;
+    if (op.listId && op.listId !== item.list_id) {
+      const l = this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ? AND deleted_at IS NULL').get(ctx.uid, String(op.listId));
+      if (l && this._shows(ctx.uid, l, item)) view = l;
+    }
+    const foreign = view.id !== list.id;
     const fields = op.fields && typeof op.fields === 'object' ? op.fields : {};
     const base = op.base && typeof op.base === 'object' ? op.base : {};
     const meta = JSON.parse(item.meta);
@@ -942,9 +1196,27 @@ const OPS = {
     if ('note' in fields) incoming.note = note(fields.note);
     if ('checked' in fields) incoming.checked = !!fields.checked;
     if ('parked' in fields) incoming.parked = !!fields.parked;
-    if ('groupId' in fields) incoming.groupId = fields.groupId ? this._validGroup(ctx.uid, list, eid(fields.groupId, 'groupId')) : null;
+    if ('groupId' in fields) incoming.groupId = fields.groupId ? this._validGroup(ctx.uid, view, eid(fields.groupId, 'groupId')) : null;
     if ('pos' in fields) incoming.pos = num(fields.pos);
     if ('prio' in fields) incoming.prio = prioOf(fields.prio);
+
+    // place in another shop of the list group: no conflicts, the last move counts
+    let places = null;
+    let placeGroup;
+    if (foreign && ('groupId' in incoming || 'pos' in incoming)) {
+      places = JSON.parse(item.places || '{}');
+      const cur = places[view.id] ?? { groupId: null, pos: item.pos };
+      if ('groupId' in incoming && incoming.groupId !== (cur.groupId ?? null)) placeGroup = incoming.groupId;
+      places[view.id] = { groupId: 'groupId' in incoming ? incoming.groupId : (cur.groupId ?? null), pos: 'pos' in incoming ? incoming.pos : cur.pos };
+      delete incoming.groupId;
+      delete incoming.pos;
+    }
+    // shared: on every list of the list group, or only here (the list it was changed in)
+    let share;
+    if ('shared' in fields) {
+      const want = !!fields.shared && !!list.link_id;
+      if (want !== !!item.shared) share = want;
+    }
 
     for (const [f, value] of Object.entries(incoming)) {
       if (f === 'pos') {
@@ -977,7 +1249,7 @@ const OPS = {
       }
     }
 
-    if (!Object.keys(updates).length && !conflicts.length) return {};
+    if (!Object.keys(updates).length && !conflicts.length && !places && share === undefined) return {};
     const cols = [];
     const args = [];
     const set = (col, val) => {
@@ -987,9 +1259,22 @@ const OPS = {
     if ('name' in updates) set('name', updates.name), set('norm', normalizeName(updates.name));
     if ('amount' in updates) set('qty', updates.amount.qty), set('unit', updates.amount.unit);
     if ('note' in updates) set('note', updates.note);
-    if ('checked' in updates) set('checked', updates.checked ? 1 : 0), set('checked_by', updates.checked ? ctx.dev.name : null);
+    if ('checked' in updates) set('checked', updates.checked ? 1 : 0), set('checked_by', updates.checked ? ctx.dev.name : null), set('checked_in', updates.checked ? view.id : null);
     if ('parked' in updates) set('parked', updates.parked ? 1 : 0);
-    if (updates.parked && !('checked' in updates) && item.checked) set('checked', 0), set('checked_by', null);
+    if (updates.parked && !('checked' in updates) && item.checked) set('checked', 0), set('checked_by', null), set('checked_in', null);
+    if (share === true) set('shared', 1);
+    else if (share === false) {
+      set('shared', 0);
+      // "only here" in another shop: the item moves over to that list, with its place there
+      if (foreign) {
+        const p = (places ?? JSON.parse(item.places || '{}'))[view.id] ?? {};
+        set('list_id', view.id);
+        set('group_id', this._validGroup(ctx.uid, view, p.groupId ?? null));
+        set('pos', typeof p.pos === 'number' ? p.pos : item.pos);
+      }
+      places = {};
+    }
+    if (places) set('places', JSON.stringify(places));
     if ('groupId' in updates) set('group_id', updates.groupId);
     if ('pos' in updates) set('pos', updates.pos);
     if ('prio' in updates) set('prio', updates.prio);
@@ -997,26 +1282,30 @@ const OPS = {
     this.db.q(`UPDATE items SET ${cols.join(', ')} WHERE space_uid = ? AND id = ?`).run(...args, ctx.uid, id);
 
     const name = updates.name ?? item.name;
+    if (share === true) this._fillPlaces(ctx, this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ?').get(ctx.uid, id));
+    if (share !== undefined) this._act(ctx, view.id, share ? 'item.share' : 'item.unshare', { name });
     if ('name' in updates) this._suggest(ctx, name, normalizeName(name));
     if ('groupId' in updates && op.learn !== false) this._learn(ctx, list, normalizeName(name), updates.groupId);
-    if ('checked' in updates) this._act(ctx, list.id, updates.checked ? 'item.check' : 'item.uncheck', { name });
+    if (placeGroup !== undefined && op.learn !== false) this._learn(ctx, view, normalizeName(name), placeGroup);
+    if ('checked' in updates) this._act(ctx, view.id, updates.checked ? 'item.check' : 'item.uncheck', { name });
     if (updates.checked) {
       // remember where this device is in the shop (only while checked in)
-      const groupId = 'groupId' in updates ? updates.groupId : item.group_id;
+      const groupId = foreign ? (JSON.parse(item.places || '{}')[view.id]?.groupId ?? null) : 'groupId' in updates ? updates.groupId : item.group_id;
       const spot = pathLabel(this._groupPath(ctx.uid, groupId));
       const r = this.db
         .q('UPDATE devices SET spot_group = ?, spot_item = ?, spot_at = ? WHERE space_uid = ? AND dev_id = ? AND shopping_until > ? RETURNING *')
         .get(spot, name, ctx.now, ctx.uid, ctx.dev.dev_id, ctx.now);
       if (r) ctx.changes.push({ e: 'device', row: mapDevice(r) });
       // everything on the list is in the cart → tell everybody in the shop
-      const open = this.db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL AND parked = 0 AND checked = 0').get(ctx.uid, list.id).c;
-      if (open === 0) ctx.allDone = { listId: list.id, listName: list.name };
+      const open = this._visibleItems(ctx.uid, view, 'i.parked = 0 AND i.checked = 0').length;
+      if (open === 0) ctx.allDone = { listId: view.id, listName: view.name };
     }
-    if ('parked' in updates) this._act(ctx, list.id, updates.parked ? 'item.park' : 'item.unpark', { name });
+    if ('parked' in updates) this._act(ctx, view.id, updates.parked ? 'item.park' : 'item.unpark', { name });
     if ('name' in updates || 'amount' in updates || 'note' in updates) {
-      this._act(ctx, list.id, 'item.edit', { name, from: item.name, amount: updates.amount, note: 'note' in updates });
+      this._act(ctx, view.id, 'item.edit', { name, from: item.name, amount: updates.amount, note: 'note' in updates });
     }
     if ('groupId' in updates) this._act(ctx, list.id, 'item.move', { name, to: this._groupPath(ctx.uid, updates.groupId) });
+    if (placeGroup !== undefined) this._act(ctx, view.id, 'item.move', { name, to: this._groupPath(ctx.uid, placeGroup) });
 
     for (const c of conflicts) recordConflict.call(this, ctx, item, c);
     this._pushItem(ctx, id);
@@ -1123,7 +1412,7 @@ const OPS = {
         this.db.q('UPDATE items SET prio = ?, meta = ? WHERE space_uid = ? AND id = ?').run(prioOf(v), JSON.stringify(meta), ctx.uid, item.id);
         break;
       case 'checked':
-        this.db.q('UPDATE items SET checked = ?, checked_by = ?, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? choice.byName : null, JSON.stringify(meta), ctx.uid, item.id);
+        this.db.q('UPDATE items SET checked = ?, checked_by = ?, checked_in = ?, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? choice.byName : null, v ? item.list_id : null, JSON.stringify(meta), ctx.uid, item.id);
         break;
       case 'parked':
         this.db.q('UPDATE items SET parked = ?, checked = CASE WHEN ? THEN 0 ELSE checked END, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? 1 : 0, JSON.stringify(meta), ctx.uid, item.id);
@@ -1317,6 +1606,8 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
     const ctx = { uid, dev: device, rev, at: now, now, changes: [] };
     const stats = { lists: 0, added: 0, skipped: 0, reactivated: 0 };
     const live = () => db.q('SELECT * FROM lists WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid);
+    const links = []; // [list id, names of the lists of its list group]
+    const toShare = []; // new items meant for the whole list group
 
     for (const l of doc.lists) {
       const listName = str(l.name, LIMITS.listName);
@@ -1355,6 +1646,7 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
           .get(uid, norm, list.travel_lang, text, now);
         if (row) ctx.changes.push({ e: 'translation', row: mapTranslation(row) });
       };
+      if (Array.isArray(l.link) && l.link.length) links.push([list.id, l.link.slice(0, IMPORT_LIMITS.lists).map((n) => str(n, LIMITS.listName)).filter(Boolean)]);
       let pos = db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ?').get(uid, list.id).m;
       for (const raw of Array.isArray(l.items) ? l.items : []) {
         const name = str(raw?.name, LIMITS.itemName);
@@ -1362,7 +1654,7 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
         keepTranslation(normalizeName(name), raw);
         const state = ['open', 'checked', 'parked'].includes(raw.state) ? raw.state : 'open';
         const norm = normalizeName(name);
-        const existing = db.q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND norm = ? AND deleted_at IS NULL ORDER BY parked, checked').get(uid, list.id, norm);
+        const existing = this._visibleItems(uid, list, 'i.norm = ?', [norm], 'i.parked, i.checked')[0];
         if (existing) {
           if (state === 'open' && (existing.checked || existing.parked)) {
             const entry = { v: rev, at: now, by: device.dev_id };
@@ -1394,12 +1686,28 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
           checked: state === 'checked',
           parked: state === 'parked',
           prio: raw.prio,
+          shared: !raw.local,
         });
+        if (!raw.local) toShare.push(id);
         this._pushItem(ctx, id);
         if (groupId) this._learn(ctx, list, norm, groupId);
         this._suggest(ctx, name, norm);
         stats.added++;
       }
+    }
+    // list groups from the file: link the lists named there (existing items are not merged)
+    for (const [id, names] of links) {
+      for (const n of names) {
+        const other = live().find((x) => x.name.toLowerCase() === n.toLowerCase() || x.name.replace(/,/g, ' ').toLowerCase() === n.toLowerCase());
+        if (other && other.id !== id) OPS['list.link'].call(this, ctx, { id, other: other.id, share: false });
+      }
+    }
+    for (const id of toShare) {
+      const r = db.q('SELECT i.* FROM items i JOIN lists l ON l.space_uid = i.space_uid AND l.id = i.list_id WHERE i.space_uid = ? AND i.id = ? AND l.link_id IS NOT NULL').get(uid, id);
+      if (!r) continue;
+      if (!r.shared) db.q('UPDATE items SET shared = 1 WHERE space_uid = ? AND id = ?').run(uid, id);
+      this._fillPlaces(ctx, { ...r, shared: 1 });
+      this._pushItem(ctx, id);
     }
     this._act(ctx, null, 'import', stats);
     return { changes: ctx.changes, rev, stats };
