@@ -291,12 +291,14 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 
 ### 11.2 Hinzufügen
 - In einer verbundenen Liste geht jeder neue Artikel standardmäßig an den ganzen Verbund.
-- Neben dem Prioritäts-Knopf ein Ketten-Knopf: an = im Verbund (Standard), aus = nur diese Liste („Nur Conad“). Wie der Prioritäts-Knopf gilt er für den nächsten Artikel und springt danach zurück.
+- Neben dem Prioritäts-Knopf ein Ketten-Knopf: an = im Verbund, aus = nur diese Liste („Nur Conad“). Wie der Prioritäts-Knopf gilt er für den nächsten Artikel und springt danach auf die Grundeinstellung zurück.
+- **Deutlich sichtbar:** aktiv = kräftig grün hinterlegte Kette mit „Verbund“ (Skin-Farbe `--ok`, in allen Skins auf Kontrast geprüft); aus = neutral wie die übrigen Knöpfe. Man soll vor dem Hinzufügen sehen, wohin der Artikel geht.
+- **Grundeinstellung pro Gerät** (Einstellungen → Dieses Gerät → „Neue Artikel im Listenverbund“): „in alle verbundenen Listen“ (Standard, Opt-out) oder „nur in diese Liste“ (Opt-in).
 - Listen ohne Verbund zeigen den Knopf nicht – für sie ändert sich nichts.
 - Bereits vorhandener Artikel (gleicher Name) im Verbund → wie heute: Menge erhöhen bzw. wieder aktivieren statt Duplikat.
 
 ### 11.3 Im Laden
-- Ein gemeinsamer Artikel hat *einen* Status. In Lidl abgehakt → in Conad ebenfalls abgehakt, mit Hinweis „bei Lidl gekauft“, bis jemand ihn wieder aktiv setzt.
+- Ein gemeinsamer Artikel hat *einen* Status. In Lidl abgehakt → in Conad ebenfalls abgehakt (durchgestrichen, am Gruppenende) mit grünem Etikett „bei Lidl gekauft“. Er bleibt abgehakt in der Liste – nach „Inaktiv“ kommt er erst wie bisher über „Einkauf abschließen“ oder „Abgehakte zu ‚Inaktiv‘ verschieben“, dann für alle. Haken wieder weg (egal wo) → überall offen, Etikett weg. „Abgehaktes ausblenden“ blendet ihn wie jeden abgehakten Artikel aus.
 - Gruppen und Reihenfolge bleiben pro Laden (bei Lidl „Fleischtheke“, bei Conad „Macelleria“). ShopWiz lernt die Platzierung pro Liste wie heute; kennt ein Laden den Artikel noch nicht, steht er dort zunächst ohne Gruppe.
 - Inaktive Artikel sind ebenfalls gemeinsam (gemeinsames Stammsortiment); „Nur hier“-Artikel bleiben auch inaktiv nur in ihrer Liste.
 - „Einkauf abschließen“ schiebt die in *diesem* Laden abgehakten gemeinsamen Artikel nach „Inaktiv“ – damit für alle.
