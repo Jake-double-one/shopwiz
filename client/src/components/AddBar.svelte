@@ -343,6 +343,10 @@
   .input {
     font-size: 1rem;
   }
+  /* the example has to fit on narrow phones – only the hint shrinks, typed text stays 16px (no zoom on iOS) */
+  .input::placeholder {
+    font-size: min(1rem, 3vw);
+  }
   .pop,
   .sugg {
     margin-bottom: 8px;
