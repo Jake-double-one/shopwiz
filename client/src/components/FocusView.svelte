@@ -6,7 +6,7 @@
   import { t } from '../lib/i18n.svelte.js';
   import { listTree } from '../lib/model.js';
   import FocusItem from './FocusItem.svelte';
-  import { prefs } from '../lib/prefs.svelte.js';
+  import { prefs, setHideChecked } from '../lib/prefs.svelte.js';
   import { setFocusBars } from '../lib/theme.js';
 
   /** children: calls from the others in the shop still show up; ontogglescreen: keep the screen on (if the browser can) */
@@ -35,6 +35,9 @@
 <div class="focus" role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onkeydown={(e) => e.key === 'Escape' && onclose()}>
   <div class="banner">
     <button class="exit" onclick={onclose}><Icon name="x" size={18} />{t('focus.exit')}</button>
+    <button class="screen" aria-pressed={prefs.hideChecked} onclick={() => setHideChecked(!prefs.hideChecked)} aria-label={t('hideChecked.toggle')} title={t('hideChecked.toggle')}>
+      <Icon name={prefs.hideChecked ? 'eyeOff' : 'eye'} />
+    </button>
     {#if ontogglescreen}
       <button class="screen" aria-pressed={screenOn} onclick={ontogglescreen} aria-label={t('screen.toggle')} title={t('screen.toggle')}><Icon name="screen" /></button>
     {/if}
@@ -66,7 +69,7 @@
     overscroll-behavior: contain;
     background: var(--f-bg);
     color: var(--f-ink);
-    padding: max(18px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom));
+    padding: 0 20px max(40px, env(safe-area-inset-bottom));
     outline: none;
   }
   /* the way out: a banner across the top (plus "keep the screen on") */
@@ -77,7 +80,7 @@
     display: flex;
     align-items: stretch;
     width: calc(100% + 40px);
-    margin: calc(-1 * max(18px, env(safe-area-inset-top))) -20px 18px;
+    margin: 0 -20px 18px;
     padding-top: env(safe-area-inset-top);
     border-bottom: 1px solid var(--f-dim);
     background: var(--f-bg);

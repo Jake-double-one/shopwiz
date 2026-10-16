@@ -876,6 +876,17 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   await swipe('Tea', -200);
   await expect(focus.getByRole('checkbox', { name: 'Tea' })).toHaveCount(0);
 
+  // hide checked items right here
+  await focus.getByRole('button', { name: 'Hide checked items' }).click();
+  await expect(focus.getByRole('checkbox', { name: 'Bread' })).toHaveCount(0);
+  await focus.getByRole('button', { name: 'Hide checked items' }).click();
+  // the banner stays at the very top while scrolling, nothing shows above it
+  await page.evaluate(() => {
+    const f = document.querySelector('.focus');
+    for (let i = 0; i < 40; i++) f.querySelector('ul').append(f.querySelector('li').cloneNode(true));
+    f.scrollTop = 400;
+  });
+  expect(await focus.locator('.banner').evaluate((el) => el.getBoundingClientRect().top)).toBe(0);
   await page.reload();
   await expect(focus).toBeVisible();
   await focus.getByRole('button', { name: 'Leave focus mode' }).click();
