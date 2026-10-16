@@ -880,6 +880,9 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   // "Aa" opens a strip with − / + below the banner
   await focus.getByRole('button', { name: 'Text size in focus mode' }).click();
   await expect(focus.getByRole('group', { name: 'Text size in focus mode' })).toBeVisible();
+  // the normal size has its own mark, so the way back is easy to find
+  await expect(focus.locator('.dot.origin')).toHaveCount(1);
+  await expect(focus.locator('.dot.on')).toHaveCount(3);
   await focus.getByRole('button', { name: 'Larger text' }).click();
   await focus.getByRole('button', { name: 'Larger text' }).click();
   expect(await nameSize()).toBeGreaterThan(before * 1.2);
@@ -1084,6 +1087,8 @@ test('share text to the app: one item per line goes to the list open last', asyn
   await dialog.getByRole('button', { name: 'Add 2 items' }).click();
   await expect(item(page, 'flour')).toContainText('200 g');
   await expect(item(page, 'eggs')).toHaveCount(1);
+  // no pinch zoom: text size is a setting instead
+  await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /user-scalable=no/);
   const manifest = await (await page.request.get('/manifest.webmanifest')).json();
   expect(manifest.share_target).toMatchObject({ action: '/share', method: 'GET' });
 });
@@ -1108,7 +1113,7 @@ test('text size per device: three sizes, nothing breaks out of a narrow phone', 
   await expect(page.locator('html')).toHaveAttribute('data-text', 'large');
   await noOverflow();
   await page.getByRole('button', { name: 'Schließen' }).first().click();
-  expect(await page.locator('.item .name').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);
+  expect(await page.locator('.item .name').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(19);
   await noOverflow();
   await page.getByRole('button', { name: 'Listen-Optionen' }).click();
   await noOverflow();
@@ -1124,6 +1129,8 @@ test('text size per device: three sizes, nothing breaks out of a narrow phone', 
   await page.getByRole('button', { name: 'Fokus-Modus', exact: true }).click();
   const focus = page.getByRole('dialog', { name: /Fokus-Modus/ });
   await focus.getByRole('button', { name: 'Schriftgröße im Fokus-Modus' }).click();
+  // its normal size follows the text size of the settings (small: 14px × 1.3)
+  expect(await focus.locator('.name').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeCloseTo(18.2, 1);
   const larger = focus.getByRole('button', { name: 'Größere Schrift' });
   while (await larger.isEnabled()) await larger.click();
   expect(await page.evaluate(() => document.querySelector('.focus').scrollWidth <= window.innerWidth)).toBe(true);

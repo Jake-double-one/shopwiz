@@ -12,6 +12,8 @@
 html {
   background: var(--bg);
   font-size: 16px;
+  /* no pinch zoom – the text size is a setting (and the focus mode has its own) */
+  touch-action: pan-x pan-y;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -41,7 +43,7 @@ html[data-text='small'] {
   font-size: 14px;
 }
 html[data-text='large'] {
-  font-size: 18px;
+  font-size: 20px;
 }
 /* typing fields never below 16px – iOS would zoom in on them */
 input,

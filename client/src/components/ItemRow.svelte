@@ -110,7 +110,7 @@
 
 <style>
   .item.swipe-on {
-    touch-action: pan-y pinch-zoom;
+    touch-action: pan-y;
   }
   .item.swiping,
   .item.settling {

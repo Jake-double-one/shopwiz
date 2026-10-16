@@ -62,9 +62,9 @@
     <div class="sizer" id="focus-sizer" role="group" aria-label={t('focus.textSize')}>
       <button class="step" disabled={sizeIdx <= 0} onclick={() => resize(-1)} aria-label={t('focus.smaller')} title={t('focus.smaller')}>A−</button>
       <span class="dots" aria-hidden="true">
-        {#each FOCUS_SIZES as s, i (s)}<span class="dot" class:on={i <= sizeIdx}></span>{/each}
+        {#each FOCUS_SIZES as s, i (s)}<span class="dot" class:on={i <= sizeIdx} class:origin={s === 1}></span>{/each}
       </span>
-      <span class="sr-only" aria-live="polite">{t('focus.sizeStep', { n: sizeIdx + 1, of: FOCUS_SIZES.length })}</span>
+      <span class="sr-only" aria-live="polite">{t('focus.sizeStep', { n: sizeIdx + 1, of: FOCUS_SIZES.length })}{prefs.focusSize === 1 ? ` · ${t('textSize.normal')}` : ''}</span>
       <button class="step big" disabled={sizeIdx >= FOCUS_SIZES.length - 1} onclick={() => resize(1)} aria-label={t('focus.larger')} title={t('focus.larger')}>A+</button>
     </div>
   {/if}
@@ -195,6 +195,12 @@
   .dot.on {
     background: var(--f-ink);
     border-color: var(--f-ink);
+  }
+  /* the normal size (= the text size from the settings): a square, so you always find the way back */
+  .dot.origin {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
   }
   .screen[aria-pressed='true'] {
     background: var(--f-ink);

@@ -311,7 +311,7 @@
     font-size: 14px;
   }
   .ts-sample.large {
-    font-size: 18px;
+    font-size: 20px;
   }
   .ts-name {
     font-family: var(--mono);

@@ -1,6 +1,6 @@
 // Svelte action: swipe a row sideways with a finger (touch / pen only, never the mouse).
 // params: { enabled, actionFor(dir: 'left' | 'right') → action | null, onrun(action), onchange({ dx, action, armed, swiping, settling }) }
-// Vertical moves are left to the browser (the row needs `touch-action: pan-y pinch-zoom`).
+// Vertical moves are left to the browser (the row needs `touch-action: pan-y`).
 
 export function swipeable(node, params) {
   let p = params;

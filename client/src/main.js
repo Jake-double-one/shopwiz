@@ -15,6 +15,9 @@ ensureSkins().then(() => applyTheme()); // dev server only – the real page has
 applyPrioStyle();
 applyTextSize();
 
+// iOS Safari ignores user-scalable=no – stop its pinch gesture here
+for (const type of ['gesturestart', 'gesturechange']) document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+
 // On-screen keyboards (iOS Safari in particular) cover the page instead of shrinking it.
 // --kb holds the covered height so dialogs and the input bar can sit right above the keyboard.
 const vv = window.visualViewport;

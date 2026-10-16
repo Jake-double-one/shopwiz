@@ -42,7 +42,7 @@
     position: relative;
   }
   li.swipe-on {
-    touch-action: pan-y pinch-zoom;
+    touch-action: pan-y;
   }
   li.moving {
     overflow: hidden;
@@ -67,7 +67,7 @@
     align-items: center;
     gap: 14px;
     width: 100%;
-    min-height: calc(54px * var(--f-scale, 1));
+    min-height: calc(3.375rem * var(--f-scale, 1));
     padding: 8px 0;
     border: 0;
     background: var(--f-bg);
@@ -79,19 +79,19 @@
     display: grid;
     place-items: center;
     flex: none;
-    width: calc(28px * var(--f-scale, 1));
-    height: calc(28px * var(--f-scale, 1));
+    width: calc(1.75rem * var(--f-scale, 1));
+    height: calc(1.75rem * var(--f-scale, 1));
     border: 2px solid var(--f-ink);
     border-radius: 8px;
   }
   /* icons grow with the focus mode's text size */
   .box > :global(svg) {
-    width: calc(20px * var(--f-scale, 1));
-    height: calc(20px * var(--f-scale, 1));
+    width: calc(1.25rem * var(--f-scale, 1));
+    height: calc(1.25rem * var(--f-scale, 1));
   }
   .prio-in :global(svg) {
-    width: calc(16px * var(--f-scale, 1));
-    height: calc(16px * var(--f-scale, 1));
+    width: calc(1rem * var(--f-scale, 1));
+    height: calc(1rem * var(--f-scale, 1));
   }
   .done .box {
     background: var(--f-ink);
