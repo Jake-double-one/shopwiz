@@ -21,6 +21,14 @@
   // text size of the focus mode only – in the shop other things count (arm's length, a trolley)
   const sizeIdx = $derived(FOCUS_SIZES.indexOf(prefs.focusSize));
   const resize = (d) => setFocusSize(FOCUS_SIZES[sizeIdx + d]);
+  // "Aa" opens a strip below the banner; a tap anywhere else closes it (and does nothing else)
+  let sizing = $state(false);
+  function closeOutside(e) {
+    if (!sizing || e.target.closest?.('.sizer, .aa')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    sizing = false;
+  }
 
   let root = $state();
   onMount(() => {
@@ -36,17 +44,30 @@
   });
 </script>
 
-<div class="focus" style:--f-scale={prefs.focusSize} role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onkeydown={(e) => e.key === 'Escape' && onclose()}>
+<div class="focus" style:--f-scale={prefs.focusSize} role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onclickcapture={closeOutside} onkeydown={(e) => e.key === 'Escape' && (sizing ? (sizing = false) : onclose())}>
+  <div class="top">
   <div class="banner">
     <button class="exit" onclick={onclose}><Icon name="x" size={18} />{t('focus.exit')}</button>
-    <button class="screen size" disabled={sizeIdx <= 0} onclick={() => resize(-1)} aria-label={t('focus.smaller')} title={t('focus.smaller')}><span aria-hidden="true">A<span class="pm">−</span></span></button>
-    <button class="screen size big" disabled={sizeIdx >= FOCUS_SIZES.length - 1} onclick={() => resize(1)} aria-label={t('focus.larger')} title={t('focus.larger')}><span aria-hidden="true">A<span class="pm">+</span></span></button>
+    <button class="screen aa" aria-expanded={sizing} aria-controls="focus-sizer" onclick={() => (sizing = !sizing)} aria-label={t('focus.textSize')} title={t('focus.textSize')}>
+      <span aria-hidden="true">A<small>a</small></span>
+    </button>
     <button class="screen" aria-pressed={prefs.hideChecked} onclick={() => setHideChecked(!prefs.hideChecked)} aria-label={t('hideChecked.toggle')} title={t('hideChecked.toggle')}>
       <Icon name={prefs.hideChecked ? 'eyeOff' : 'eye'} />
     </button>
     {#if ontogglescreen}
       <button class="screen" aria-pressed={screenOn} onclick={ontogglescreen} aria-label={t('screen.toggle')} title={t('screen.toggle')}><Icon name="screen" /></button>
     {/if}
+  </div>
+  {#if sizing}
+    <div class="sizer" id="focus-sizer" role="group" aria-label={t('focus.textSize')}>
+      <button class="step" disabled={sizeIdx <= 0} onclick={() => resize(-1)} aria-label={t('focus.smaller')} title={t('focus.smaller')}>A−</button>
+      <span class="dots" aria-hidden="true">
+        {#each FOCUS_SIZES as s, i (s)}<span class="dot" class:on={i <= sizeIdx}></span>{/each}
+      </span>
+      <span class="sr-only" aria-live="polite">{t('focus.sizeStep', { n: sizeIdx + 1, of: FOCUS_SIZES.length })}</span>
+      <button class="step big" disabled={sizeIdx >= FOCUS_SIZES.length - 1} onclick={() => resize(1)} aria-label={t('focus.larger')} title={t('focus.larger')}>A+</button>
+    </div>
+  {/if}
   </div>
   {@render children?.()}
   {#each blocks as b (b.id)}
@@ -79,17 +100,19 @@
     outline: none;
   }
   /* the way out: a banner across the top (plus "keep the screen on") */
-  .banner {
+  .top {
     position: sticky;
     top: 0;
     z-index: 1;
-    display: flex;
-    align-items: stretch;
     width: calc(100% + 40px);
     margin: 0 -20px 18px;
     padding-top: env(safe-area-inset-top);
-    border-bottom: 1px solid var(--f-dim);
     background: var(--f-bg);
+  }
+  .banner {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--f-dim);
   }
   .exit {
     flex: 1;
@@ -119,20 +142,59 @@
     background: none;
     color: var(--f-dim);
   }
-  .screen.size {
-    width: 48px;
+  .screen.aa {
+    color: var(--f-ink);
+    font-weight: 700;
+    font-size: 1.15rem;
+  }
+  .aa small {
+    font-size: 0.75em;
+  }
+  .screen.aa[aria-expanded='true'] {
+    background: var(--f-ink);
+    color: var(--f-bg);
+  }
+  /* below the banner, stays at the top with it while scrolling */
+  .sizer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 20px;
+    border-bottom: 1px solid var(--f-dim);
+  }
+  .step {
+    flex: none;
+    min-width: 56px;
+    min-height: 44px;
+    border: 2px solid var(--f-ink);
+    border-radius: 12px;
+    background: var(--f-bg);
+    color: var(--f-ink);
     font-weight: 700;
     font-size: 1rem;
-    color: var(--f-ink);
   }
-  .screen.size.big {
+  .step.big {
     font-size: 1.3rem;
   }
-  .screen.size:disabled {
+  .step:disabled {
     opacity: 0.3;
   }
-  .pm {
-    font-size: 0.8em;
+  .dots {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+  }
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--f-dim);
+  }
+  .dot.on {
+    background: var(--f-ink);
+    border-color: var(--f-ink);
   }
   .screen[aria-pressed='true'] {
     background: var(--f-ink);

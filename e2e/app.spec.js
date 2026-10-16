@@ -877,6 +877,9 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   // its own text size, in steps, remembered on this device – the normal list stays as it is
   const nameSize = () => focus.locator('.name').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   const before = await nameSize();
+  // "Aa" opens a strip with − / + below the banner
+  await focus.getByRole('button', { name: 'Text size in focus mode' }).click();
+  await expect(focus.getByRole('group', { name: 'Text size in focus mode' })).toBeVisible();
   await focus.getByRole('button', { name: 'Larger text' }).click();
   await focus.getByRole('button', { name: 'Larger text' }).click();
   expect(await nameSize()).toBeGreaterThan(before * 1.2);
@@ -888,6 +891,10 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   for (let i = 0; i < 10; i++) if (await focus.getByRole('button', { name: 'Smaller text' }).isEnabled()) await focus.getByRole('button', { name: 'Smaller text' }).click();
   expect(await nameSize()).toBeLessThan(before);
   for (let i = 0; i < 2; i++) await focus.getByRole('button', { name: 'Larger text' }).click();
+  // a tap next to it only closes the strip – it does not check anything off
+  await focus.getByRole('checkbox', { name: 'Tea' }).click();
+  await expect(focus.getByRole('group', { name: 'Text size in focus mode' })).toHaveCount(0);
+  await expect(focus.getByRole('checkbox', { name: 'Tea' })).toHaveAttribute('aria-checked', 'false');
 
   // swiping works here, too: right checks off, left makes inactive
   const cdp = await ctx.newCDPSession(page);
@@ -1116,9 +1123,14 @@ test('text size per device: three sizes, nothing breaks out of a narrow phone', 
   // focus mode on a narrow phone: the banner with its text-size buttons fits, the largest size, too
   await page.getByRole('button', { name: 'Fokus-Modus', exact: true }).click();
   const focus = page.getByRole('dialog', { name: /Fokus-Modus/ });
+  await focus.getByRole('button', { name: 'Schriftgröße im Fokus-Modus' }).click();
   const larger = focus.getByRole('button', { name: 'Größere Schrift' });
   while (await larger.isEnabled()) await larger.click();
   expect(await page.evaluate(() => document.querySelector('.focus').scrollWidth <= window.innerWidth)).toBe(true);
   expect(await focus.locator('.banner').evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(80);
+  // the strip sits right below the banner, not under it
+  const gap = await page.evaluate(() => document.querySelector('.sizer').getBoundingClientRect().top - document.querySelector('.banner').getBoundingClientRect().bottom);
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(2);
   await ctx.close();
 });
