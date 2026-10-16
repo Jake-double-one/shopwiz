@@ -77,6 +77,13 @@
         return t(`history.${e.action}`, { name: p.name });
       case 'list.address':
         return p.address ? t('history.address', { address: p.address }) : t('history.addressRemoved');
+      case 'item.share':
+      case 'item.unshare':
+        return t(`history.${e.action}`, { name: p.name });
+      case 'list.link':
+        return t('history.list.link', { name: names(p), count: p.merged ?? 0 });
+      case 'list.unlink':
+        return t('history.list.unlink', { name: names(p) });
       case 'list.groupMode':
         return t(p.mode === 'shared' ? 'history.modeShared' : 'history.modeOwn');
       case 'group.delete':

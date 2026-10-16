@@ -4,7 +4,7 @@
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree } from '../lib/model.js';
+  import { listTree, boughtAt } from '../lib/model.js';
   import FocusItem from './FocusItem.svelte';
   import { prefs, setHideChecked } from '../lib/prefs.svelte.js';
   import { setFocusBars } from '../lib/theme.js';
@@ -48,7 +48,7 @@
       {#if b.name}<h2>{b.name}</h2>{/if}
       <ul>
         {#each b.items as it (it.id)}
-          <FocusItem item={it} />
+          <FocusItem item={it} bought={boughtAt(v, list, it)} />
         {/each}
       </ul>
     </section>

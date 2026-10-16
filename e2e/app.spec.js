@@ -687,6 +687,20 @@ test('important / not important: shortcut, add-bar button, details, display styl
   await expect(page.locator('html')).toHaveAttribute('data-prio', 'badge');
   await page.getByRole('button', { name: 'Close' }).first().click();
   await expect(item(page, 'Diapers').locator('.prio-mark')).toBeVisible();
+
+  // focus mode: the mark sits on the check box in the same style – the row itself is not highlighted
+  await page.getByRole('button', { name: 'Focus mode' }).click();
+  const focus = page.getByRole('dialog', { name: 'Weekly – focus mode' });
+  const diapers = focus.getByRole('checkbox', { name: 'Diapers' });
+  await expect(diapers).toHaveAccessibleDescription('Important');
+  await expect(diapers.locator('.prio-mark')).toBeVisible();
+  await expect(diapers.locator('.prio-in')).toBeHidden();
+  await page.evaluate(() => (document.documentElement.dataset.prio = 'box'));
+  await expect(diapers.locator('.prio-in')).toBeVisible();
+  await expect(diapers.locator('.prio-mark')).toBeHidden();
+  const bg = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(await bg(diapers)).toBe(await bg(focus.getByRole('checkbox', { name: 'Basil' })));
+  await focus.getByRole('button', { name: 'Leave focus mode' }).click();
 });
 
 test('AI assistant: connect, read only until allowed, its items appear live, remove it', async ({ page }) => {
@@ -941,4 +955,95 @@ test('recommend ShopWiz: a line and the start page, never the ID', async ({ page
   const text = await page.evaluate(() => navigator.clipboard.readText());
   expect(text).toMatch(/ http:\/\/localhost:8098\/$/);
   expect(text).not.toContain(id);
+});
+
+test('list group: one need in two shops, bought once, green chain, only here, leave with a copy', async ({ page, browser }) => {
+  const id = await createList(page, 'Lidl');
+  await add(page, '1 l Milk');
+  const newList = async (p, name) => {
+    await p.locator('.list-title').click();
+    await p.getByLabel('New list').fill(name);
+    await p.getByRole('button', { name: 'Create list' }).click();
+    await expect(p.locator('.list-title')).toContainText(name);
+  };
+  const openList = async (p, name) => {
+    await p.locator('.list-title').click();
+    await p.locator('.lists .pick', { hasText: name }).click();
+    await expect(p.locator('.list-title .name')).toHaveText(name);
+  };
+  await newList(page, 'DIY');
+  await add(page, 'Screws');
+  await newList(page, 'Conad');
+  await add(page, '2 l Milk');
+  await add(page, 'Bread');
+  // no list group yet: no chain in the add bar
+  await expect(page.locator('.link-pick')).toHaveCount(0);
+
+  // link Conad with Lidl – existing items are shared, the two milks become one
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByRole('checkbox', { name: 'Lidl' }).click();
+  await expect(page.getByText('Share the existing items in the group?')).toBeVisible();
+  await page.getByRole('button', { name: 'Yes, share' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Lidl' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'DIY' })).not.toBeChecked();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await expect(page.getByText('Lists linked – 1 duplicate item merged')).toBeVisible();
+  await expect(page.locator('.list-title .linked')).toHaveCount(1);
+  await expect(item(page, 'Milk')).toHaveCount(1);
+  await expect(item(page, 'Milk')).toContainText('2 l');
+  await expect(item(page, 'Milk').locator('.shared-mark')).toHaveCount(1);
+
+  // the add bar shows clearly where the next item goes: green = the whole group, tap = only here
+  const chain = page.locator('.link-pick');
+  await expect(chain).toHaveText('Group');
+  await expect(chain).toHaveAttribute('aria-pressed', 'true');
+  expect(await chain.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+  await chain.click();
+  await expect(chain).toHaveText('Only Conad');
+  await add(page, 'Charcoal');
+  await expect(chain).toHaveText('Group'); // back to the default for the next one
+  await add(page, 'Eggs');
+
+  // a second device shops at Lidl
+  const b = await join(browser, id, 'Sam');
+  await openList(b.page, 'Lidl');
+  await expect(item(b.page, 'Bread')).toHaveCount(1);
+  await expect(item(b.page, 'Eggs')).toHaveCount(1);
+  await expect(item(b.page, 'Charcoal')).toHaveCount(0);
+  await expect(item(b.page, 'Milk')).toHaveCount(1);
+  await b.page.getByRole('checkbox', { name: 'Bread', exact: true }).click();
+  // one status: checked in Conad, too – with where it was bought
+  await expect(page.getByRole('checkbox', { name: 'Bread', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(item(page, 'Bread')).toContainText('bought at Lidl');
+  await expect(item(b.page, 'Bread')).not.toContainText('bought at');
+  // the DIY store sees nothing of it
+  await openList(b.page, 'DIY');
+  await expect(b.page.locator('.item')).toHaveCount(1);
+  await openList(b.page, 'Lidl');
+
+  // details: "only here" takes an item out of the other shops
+  await page.getByRole('button', { name: 'Edit Eggs' }).click();
+  await page.getByRole('radio', { name: 'Only here (Conad)' }).click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(item(b.page, 'Eggs')).toHaveCount(0);
+  await expect(item(page, 'Eggs')).toHaveCount(1);
+
+  // per-device default: only the current list
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('radio', { name: 'only go to the current list' }).check();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await expect(chain).toHaveText('Only Conad');
+  await expect(chain).toHaveAttribute('aria-pressed', 'false');
+
+  // Lidl leaves the group: it keeps its own copy, Conad keeps the shared items
+  await b.page.getByRole('button', { name: 'List options' }).click();
+  await b.page.getByRole('button', { name: 'Take this list out of the group' }).click();
+  await b.page.getByRole('button', { name: 'Close' }).first().click();
+  await expect(b.page.locator('.list-title .linked')).toHaveCount(0);
+  await expect(page.locator('.list-title .linked')).toHaveCount(0);
+  await expect(item(b.page, 'Milk')).toHaveCount(1);
+  await expect(item(page, 'Milk')).toHaveCount(1);
+  await b.page.getByRole('checkbox', { name: 'Milk', exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Milk', exact: true })).toHaveAttribute('aria-checked', 'false');
+  await b.ctx.close();
 });

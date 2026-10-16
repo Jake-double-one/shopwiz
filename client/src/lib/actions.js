@@ -4,7 +4,7 @@ import { t, i18n } from './i18n.svelte.js';
 import { api } from './api.js';
 import { setDeviceName } from './device.js';
 import { parseEntry, normalizeName, addAmounts, splitPrio } from '../../../shared/parse.js';
-import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, translationOf, listTree, listAsText } from './model.js';
+import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, translationOf, listTree, listAsText, showsItem } from './model.js';
 
 const v = () => sync.data;
 const undoToast = (text, undo) => toast({ text, action: { label: t('undo'), run: undo } });
@@ -89,7 +89,9 @@ export function addEntry(listId, raw, opts = {}) {
   }
   const siblings = listItems(v(), listId).filter((i) => (i.groupId ?? null) === groupId);
   const id = newId();
-  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }), ...(prio && { prio }) });
+  // in a list group: for every list of it, unless the add bar says "only here"
+  const shared = !!list.linkId && opts.shared !== false;
+  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }), ...(prio && { prio }), ...(shared && { shared }) });
   return { status: 'added', id, groupId };
 }
 
@@ -100,8 +102,9 @@ export function increaseAmount(item, parsed) {
   undoToast(t('toast.amountIncreased', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, { amount: before }, { silent: true }));
 }
 
+/** item.view: the list it is shown in – for a shared item of a list group that shop's place and "bought at". */
 export function editItem(item, fields, { learn } = {}) {
-  sync.send({ k: 'item.set', id: item.id, fields, base: baseOf(item, fields), ...(learn === false && { learn: false }) });
+  sync.send({ k: 'item.set', id: item.id, fields, base: baseOf(item, fields), ...(item.view && item.view !== item.listId && { listId: item.view }), ...(learn === false && { learn: false }) });
 }
 
 export function toggleItem(item) {
@@ -188,6 +191,20 @@ export function addList(name, groupMode = 'own') {
   return id;
 }
 
+// ----- list groups (Listenverbund) -----
+
+/** Link a list with another one (and everything that is linked to it). share: existing items, too. */
+export function linkLists(list, other, share = true) {
+  const opId = sync.send({ k: 'list.link', id: list.id, other: other.id, share });
+  pendingLinks.add(opId);
+}
+/** op ids of links made on this device – their result gets a toast with undo */
+export const pendingLinks = new Set();
+export function undoLink(opId) {
+  sync.send({ k: 'list.linkUndo', opId });
+}
+export const unlinkList = (list) => sync.send({ k: 'list.unlink', id: list.id });
+
 export const renameList = (list, name) => sync.send({ k: 'list.update', id: list.id, name });
 export const setGroupMode = (list, groupMode) => sync.send({ k: 'list.update', id: list.id, groupMode });
 export const setAddress = (list, address) => sync.send({ k: 'list.update', id: list.id, address });
@@ -212,7 +229,7 @@ export function missingTranslations(list) {
   if (!lang) return [];
   const names = new Map();
   for (const it of Object.values(v().items)) {
-    if (it.listId === list.id && !translationOf(v(), it.name, lang)) names.set(normalizeName(it.name), it.name);
+    if (showsItem(v(), list, it) && !translationOf(v(), it.name, lang)) names.set(normalizeName(it.name), it.name);
   }
   return [...names.values()];
 }
@@ -223,7 +240,7 @@ export function translatedNames(list) {
   if (!lang) return [];
   const names = new Map();
   for (const it of Object.values(v().items)) {
-    if (it.listId === list.id && translationOf(v(), it.name, lang)) names.set(normalizeName(it.name), it.name);
+    if (showsItem(v(), list, it) && translationOf(v(), it.name, lang)) names.set(normalizeName(it.name), it.name);
   }
   return [...names.values()];
 }

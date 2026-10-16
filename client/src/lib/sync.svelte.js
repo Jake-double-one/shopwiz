@@ -59,6 +59,13 @@ function learn(v, listId, name, groupId) {
   v.memory[`${scope}|${norm}`] = { scope, norm, ...groupPath(v, groupId) };
 }
 
+/** Does a list show the item – its own, or a shared one of its list group? */
+function shows(v, listId, it) {
+  if (it.listId === listId) return true;
+  const link = v.lists[listId]?.linkId;
+  return !!it.shared && !!link && v.lists[it.listId]?.linkId === link;
+}
+
 /** Optimistic, local version of the server's op handlers. Never mutates existing objects. */
 function reduce(v, op, at, me) {
   const myName = me?.name ?? '';
@@ -67,8 +74,31 @@ function reduce(v, op, at, me) {
       v.space = { ...v.space, ...(op.name !== undefined && { name: op.name }), ...(op.ttlDays !== undefined && { ttlDays: op.ttlDays }) };
       break;
     case 'list.add':
-      v.lists[op.id] = { id: op.id, name: op.name, pos: op.pos, groupMode: op.groupMode === 'shared' ? 'shared' : 'own', createdAt: at };
+      v.lists[op.id] = { id: op.id, name: op.name, pos: op.pos, groupMode: op.groupMode === 'shared' ? 'shared' : 'own', linkId: null, createdAt: at };
       break;
+    case 'list.link': {
+      const a = v.lists[op.id];
+      const b = v.lists[op.other];
+      if (!a || !b) break;
+      const link = a.linkId ?? b.linkId ?? `new-${op.id}`;
+      for (const l of Object.values(v.lists)) {
+        if (l.id === a.id || l.id === b.id || (l.linkId && (l.linkId === a.linkId || l.linkId === b.linkId))) {
+          if (op.share !== false && !l.linkId) {
+            for (const it of Object.values(v.items)) if (it.listId === l.id && !it.shared) v.items[it.id] = { ...it, shared: true };
+          }
+          v.lists[l.id] = { ...l, linkId: link };
+        }
+      }
+      break;
+    }
+    case 'list.unlink': {
+      const l = v.lists[op.id];
+      if (!l?.linkId) break;
+      const rest = Object.values(v.lists).filter((x) => x.linkId === l.linkId && x.id !== l.id);
+      v.lists[l.id] = { ...l, linkId: null };
+      if (rest.length === 1) v.lists[rest[0].id] = { ...rest[0], linkId: null };
+      break;
+    }
     case 'list.update': {
       const l = v.lists[op.id];
       if (l) {
@@ -91,16 +121,16 @@ function reduce(v, op, at, me) {
       break;
     case 'list.clearChecked':
       for (const it of Object.values(v.items)) {
-        if (it.listId === op.listId && it.checked && !it.parked) v.items[it.id] = { ...it, checked: false, checkedBy: null, parked: true };
+        if (shows(v, op.listId, it) && it.checked && !it.parked) v.items[it.id] = { ...it, checked: false, checkedBy: null, checkedIn: null, parked: true };
       }
       break;
     case 'list.clearParked':
-      for (const it of Object.values(v.items)) if (it.listId === op.listId && it.parked) delete v.items[it.id];
+      for (const it of Object.values(v.items)) if (shows(v, op.listId, it) && it.parked) delete v.items[it.id];
       break;
     case 'item.setState':
       for (const id of op.ids) {
         const it = v.items[id];
-        if (it) v.items[id] = { ...it, checked: !!op.checked, checkedBy: op.checked ? (it.checkedBy ?? myName) : null, parked: !!op.parked && !op.checked };
+        if (it) v.items[id] = { ...it, checked: !!op.checked, checkedBy: op.checked ? (it.checkedBy ?? myName) : null, checkedIn: op.checked ? (it.checkedIn ?? it.listId) : null, parked: !!op.parked && !op.checked };
       }
       break;
     case 'group.add':
@@ -141,6 +171,9 @@ function reduce(v, op, at, me) {
         checkedBy: op.checked && !op.parked ? myName : null,
         parked: !!op.parked,
         prio: op.prio > 0 ? 1 : op.prio < 0 ? -1 : 0,
+        shared: !!op.shared && !!v.lists[op.listId]?.linkId,
+        checkedIn: op.checked && !op.parked ? op.listId : null,
+        places: {},
         addedBy: myName,
         pos: op.pos,
         meta: {},
@@ -158,19 +191,35 @@ function reduce(v, op, at, me) {
       if (!it) break;
       const f = op.fields;
       const next = { ...it, pending: true };
+      // changed in another shop of the list group: group and position are that shop's
+      const view = op.listId && op.listId !== it.listId && shows(v, op.listId, it) ? op.listId : it.listId;
+      const foreign = view !== it.listId;
       if ('name' in f) next.name = f.name;
       if ('amount' in f) Object.assign(next, { qty: f.amount.qty ?? '', unit: f.amount.unit ?? '' });
       if ('note' in f) next.note = f.note;
-      if ('checked' in f) Object.assign(next, { checked: !!f.checked, checkedBy: f.checked ? myName : null });
+      if ('checked' in f) Object.assign(next, { checked: !!f.checked, checkedBy: f.checked ? myName : null, checkedIn: f.checked ? view : null });
       if ('parked' in f) {
         next.parked = !!f.parked;
-        if (f.parked && !('checked' in f)) Object.assign(next, { checked: false, checkedBy: null });
+        if (f.parked && !('checked' in f)) Object.assign(next, { checked: false, checkedBy: null, checkedIn: null });
       }
-      if ('groupId' in f) next.groupId = f.groupId;
-      if ('pos' in f) next.pos = f.pos;
+      if (foreign && ('groupId' in f || 'pos' in f)) {
+        const cur = it.places?.[view] ?? { groupId: null, pos: it.pos };
+        next.places = { ...it.places, [view]: { groupId: 'groupId' in f ? f.groupId : cur.groupId, pos: 'pos' in f ? f.pos : cur.pos } };
+      } else {
+        if ('groupId' in f) next.groupId = f.groupId;
+        if ('pos' in f) next.pos = f.pos;
+      }
+      if ('shared' in f && !!v.lists[it.listId]?.linkId) {
+        next.shared = !!f.shared;
+        if (!f.shared && foreign) {
+          const p = (next.places ?? {})[view] ?? {};
+          Object.assign(next, { listId: view, groupId: p.groupId ?? null, pos: p.pos ?? it.pos });
+        }
+        if (!f.shared) next.places = {};
+      }
       if ('prio' in f) next.prio = f.prio > 0 ? 1 : f.prio < 0 ? -1 : 0;
       v.items[op.id] = next;
-      if ('groupId' in f && op.learn !== false) learn(v, it.listId, next.name, f.groupId);
+      if ('groupId' in f && op.learn !== false) learn(v, view, next.name, f.groupId);
       if ('name' in f) {
         const norm = normalizeName(f.name);
         const s = v.suggestions[norm];
@@ -418,7 +467,7 @@ class Sync {
         this.rebuild();
         this.persistSoon();
         if (!msg.ok) this.emit('rejected', { op: p?.op, error: msg.error });
-        else if (p) this.emit('ack', { op: p.op, result: msg.result });
+        else if (p) this.emit('ack', { id: p.id, op: p.op, result: msg.result });
         break;
       }
       case 'presence':

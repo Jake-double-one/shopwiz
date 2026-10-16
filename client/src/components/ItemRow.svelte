@@ -11,7 +11,8 @@
 
   /** inactive: row of the shadow list – tapping puts it back on the list */
   /** translation/country: travel mode – shown under the name; onshow: show it big to shop staff */
-  let { item, fresh = false, conflict = false, inactive = false, translation = '', country = '', trLang = '', onedit, onshow } = $props();
+  /** linked: shared item of a list group (chain mark); bought: name of the other shop it was checked off in */
+  let { item, fresh = false, conflict = false, inactive = false, translation = '', country = '', trLang = '', linked = false, bought = '', onedit, onshow } = $props();
   const activate = () => setParked(item, false);
   // +/- next to the amount (only shown on wide screens, see CSS)
   const stepper = $derived(!inactive && !item.checked);
@@ -77,6 +78,8 @@
     <button class="body" onclick={() => (inactive ? activate() : toggleItem(item))} tabindex="-1">
       <span class="name">
         {item.name}
+        {#if linked}<span class="shared-mark" title={t('link.sharedItem')}><Icon name="link" size={13} /><span class="sr-only">{t('link.sharedItem')}</span></span>{/if}
+        {#if bought}<span class="badge ok">{t('link.boughtAt', { name: bought })}</span>{/if}
         {#if fresh}<span class="badge">{t('item.new')}</span>{/if}
         {#if conflict}<span class="badge warn" title={t('conflict.title')}>!</span>{/if}
       </span>
@@ -311,6 +314,20 @@
     padding: 1px 7px;
     vertical-align: 2px;
     text-decoration: none;
+  }
+  .badge.ok {
+    background: var(--ok);
+    color: var(--surface);
+    text-transform: none;
+    letter-spacing: 0.02em;
+    font-weight: 700;
+  }
+  .shared-mark {
+    display: inline-grid;
+    place-items: center;
+    margin-left: 5px;
+    vertical-align: -1px;
+    color: var(--ok);
   }
   .badge.warn {
     background: var(--alert);

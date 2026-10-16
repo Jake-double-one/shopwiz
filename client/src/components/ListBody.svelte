@@ -3,7 +3,7 @@
   import ItemRow from './ItemRow.svelte';
   import GroupBlock from './GroupBlock.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { listTree, posBetween, dropPos, translationOf } from '../lib/model.js';
+  import { listTree, posBetween, dropPos, translationOf, listItems, viewItem, boughtAt, linkedLists } from '../lib/model.js';
   import { moveItem, moveGroup, clearChecked, clearParked, editItem, addEntry } from '../lib/actions.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sortable } from '../lib/sortable.js';
@@ -20,6 +20,8 @@
   const trOf = (item) => (travel ? translationOf(v, item.name, travel.lang) : '');
 
   const full = $derived(listTree(v, list));
+  // list group: shared items carry a small chain
+  const linkOn = $derived(linkedLists(v, list).length > 0);
   const q = $derived(normalizeName(query));
   const searching = $derived(!!q);
   const matches = (it) => normalizeName(it.name).includes(q) || normalizeName(it.note).includes(q) || (!!travel && normalizeName(trOf(it)).includes(q));
@@ -38,7 +40,7 @@
     };
   });
   const shadowEmpty = $derived(!tree.shadow.ungrouped.length && !tree.shadow.groups.length);
-  const checkedCount = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked && !i.parked).length);
+  const checkedCount = $derived(listItems(v, list.id).filter((i) => i.checked && !i.parked).length);
   const conflictIds = $derived(new Set(Object.values(v.conflicts).map((c) => c.itemId)));
   const empty = $derived(!full.ungrouped.length && !full.groups.length);
   const nothingShown = $derived(!tree.ungrouped.length && !tree.groups.length);
@@ -80,8 +82,10 @@
   }
 
   function onItemMove({ id, from, to, newIndex }) {
-    const item = sync.data.items[id];
-    if (!item) return;
+    const raw = sync.data.items[id];
+    if (!raw) return;
+    // a shared item of the list group: its place in this shop
+    const item = viewItem(sync.data, list, raw);
     const groupId = to.group || null;
     const toParked = !!to.parked;
     const target = itemsIn(groupId, toParked).filter((i) => i.id !== id);
@@ -126,7 +130,7 @@
 <div class="sheet card" class:hidden={nothingShown}>
   <ul class="items ungrouped" data-group="" data-empty="" use:sortable={itemSort} class:empty-drop={!tree.ungrouped.length}>
     {#each tree.ungrouped as item (item.id)}
-      <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} {onedit} {onshow} />
+      <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} linked={linkOn && item.shared} bought={boughtAt(v, list, item)} {onedit} {onshow} />
     {/each}
   </ul>
   {#if !tree.ungrouped.length && tree.groups.length}
@@ -144,7 +148,7 @@
         onadd={() => onaddto(node.group.id)}>
         <ul class="items" data-group={node.group.id} data-empty={t('group.empty')} use:sortable={itemSort}>
           {#each node.items as item (item.id)}
-            <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} {onedit} {onshow} />
+            <ItemRow {item} fresh={freshIds.has(item.id)} conflict={conflictIds.has(item.id)} translation={trOf(item)} country={travel?.country} trLang={travel?.lang} linked={linkOn && item.shared} bought={boughtAt(v, list, item)} {onedit} {onshow} />
           {/each}
         </ul>
       </GroupBlock>
@@ -177,7 +181,7 @@
     </form>
     <ul class="items shadow-items" data-parked="1" data-group="" data-empty={shadowEmpty ? t('inactive.empty') : ''} use:sortable={itemSort}>
       {#each tree.shadow.ungrouped as item (item.id)}
-        <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
+        <ItemRow {item} inactive conflict={conflictIds.has(item.id)} linked={linkOn && item.shared} {onedit} />
       {/each}
     </ul>
     {#each tree.shadow.groups as node (node.group.id)}
@@ -190,7 +194,7 @@
         </header>
         <ul class="items shadow-items" data-parked="1" data-group={node.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
           {#each node.items as item (item.id)}
-            <ItemRow {item} inactive conflict={conflictIds.has(item.id)} {onedit} />
+            <ItemRow {item} inactive conflict={conflictIds.has(item.id)} linked={linkOn && item.shared} {onedit} />
           {/each}
         </ul>
       </section>

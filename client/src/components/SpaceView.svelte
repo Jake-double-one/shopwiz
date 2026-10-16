@@ -24,8 +24,8 @@
   import { sync } from '../lib/sync.svelte.js';
   import { t, relTime } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
-  import { sortedLists, progress, isShopping, listItems, listTree, translationOf } from '../lib/model.js';
-  import { setShopping, restoreItems, addList, finishShopping } from '../lib/actions.js';
+  import { sortedLists, progress, isShopping, listItems, listTree, translationOf, viewItem, linkedLists } from '../lib/model.js';
+  import { setShopping, restoreItems, addList, finishShopping, pendingLinks, undoLink } from '../lib/actions.js';
   import { prefs, setHideChecked, setFocus } from '../lib/prefs.svelte.js';
   import { navUrl } from '../lib/nav.js';
   import { toast, dismissNotices } from '../lib/toast.svelte.js';
@@ -236,6 +236,13 @@
       } else if (type === 'ack') {
         const r = d.result ?? {};
         if (r.merged) toast(t('toast.merged', { name: v.items[r.merged]?.name ?? d.op.name }));
+        if (d.op.k === 'list.link' && pendingLinks.delete(d.id) && r.linked) {
+          toast({
+            text: r.mergedItems ? t('link.merged', { count: r.mergedItems }) : t('link.done', { count: r.linked }),
+            timeout: 8000,
+            action: { label: t('undo'), run: () => undoLink(d.id) },
+          });
+        }
         if (r.conflicts) toast({ text: t('toast.conflict'), action: { label: t('conflict.review'), run: () => open('conflicts') } });
         if (r.rejected === 'deleted') {
           toast({ text: t('toast.editDeleted', { name: r.name }), timeout: 8000, action: { label: t('restore'), run: () => restoreItems([d.op.id]) } });
@@ -322,6 +329,9 @@
       <div class="row title-row">
         <button class="list-title" onclick={() => open('lists')} aria-haspopup="dialog">
           <span class="name">{list.name}</span>
+          {#if list.linkId && linkedLists(v, list).length}
+            <span class="linked" title={t('link.withNames', { names: linkedLists(v, list).map((l) => l.name).join(', ') })}><Icon name="link" size={18} /><span class="sr-only">{t('link.withNames', { names: linkedLists(v, list).map((l) => l.name).join(', ') })}</span></span>
+          {/if}
           <Icon name="down" size={22} />
         </button>
         {#if list.address}
@@ -490,7 +500,7 @@
   {:else if sheet?.kind === 'listMenu'}
     <ListMenu {v} {list} {lists} onclose={closeSheet} onopen={open} onswitch={(lid) => (listId = lid)} />
   {:else if sheet?.kind === 'item' && v.items[sheet.itemId]}
-    <ItemSheet {v} {list} item={v.items[sheet.itemId]} onclose={closeSheet} ontransfer={(item) => open('transfer', { itemIds: [item.id], label: item.name })} />
+    <ItemSheet {v} {list} item={viewItem(v, list, v.items[sheet.itemId])} onclose={closeSheet} ontransfer={(item) => open('transfer', { itemIds: [item.id], label: item.name })} />
   {:else if sheet?.kind === 'group'}
     <GroupSheet
       {v}
@@ -634,6 +644,13 @@
   .list-title :global(svg) {
     flex: 0 0 auto;
     color: var(--muted);
+  }
+  .list-title .linked {
+    display: inline-grid;
+    place-items: center;
+  }
+  .list-title .linked :global(svg) {
+    color: var(--ok);
   }
   .nav-btn {
     display: inline-flex;

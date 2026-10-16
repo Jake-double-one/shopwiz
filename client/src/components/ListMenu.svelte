@@ -4,7 +4,8 @@
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import Flag from './Flag.svelte';
-  import { renameList, setGroupMode, deleteList, clearChecked, shareListText, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, shareListText, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain, linkLists, unlinkList } from '../lib/actions.js';
+  import { listItems, linkedLists } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -14,8 +15,34 @@
   let name = $state(untrack(() => list.name));
   let address = $state(untrack(() => list.address ?? ''));
   let confirmDelete = $state(false);
-  const checked = $derived(Object.values(v.items).filter((i) => i.listId === list.id && i.checked).length);
+  const checked = $derived(listItems(v, list.id).filter((i) => i.checked && !i.parked).length);
   const online = $derived(sync.status === 'online');
+
+  // ----- list group (Listenverbund): shared items in several shops -----
+  const others = $derived(lists.filter((l) => l.id !== list.id));
+  const partners = $derived(linkedLists(v, list));
+  const isLinked = (other) => partners.some((p) => p.id === other.id);
+  let asking = $state(null); // list waiting for "share existing items?"
+  function toggleLink(e, other) {
+    const on = e.currentTarget.checked;
+    e.currentTarget.checked = isLinked(other);
+    if (on) {
+      // the question only matters when there is something to share
+      if (listItems(v, list.id).some((i) => !i.shared) || listItems(v, other.id).some((i) => !i.shared)) asking = other;
+      else linkLists(list, other, true);
+    } else {
+      unlinkList(other);
+      toast(t('link.left', { name: other.name }));
+    }
+  }
+  function confirmLink(share) {
+    linkLists(list, asking, share);
+    asking = null;
+  }
+  function leave() {
+    unlinkList(list);
+    toast(t('link.left', { name: list.name }));
+  }
 
   // ----- travel mode: show items in the language of the shop's country -----
   const travel = $derived(list.travel);
@@ -98,6 +125,34 @@
     <input type="checkbox" checked={!!list.prioShortcuts} onchange={(e) => setPrioShortcuts(list, e.currentTarget.checked)} />
     <span><b>{t('prio.shortcuts')}</b><br /><small class="muted">{t('prio.shortcutsHint')}</small></span>
   </label>
+
+  {#if others.length}
+    <fieldset class="mode link">
+      <legend class="eyebrow"><Icon name="link" size={14} /> {t('link.title')}</legend>
+      <p class="micro">{t('link.hint')}</p>
+      {#each others as o (o.id)}
+        <label class="switch-row">
+          <input type="checkbox" checked={isLinked(o)} disabled={!online || !!asking} onchange={(e) => toggleLink(e, o)} />
+          <span><b>{o.name}</b>{#if o.linkId && !isLinked(o)}<br /><small class="muted">{t('link.otherGroup', { names: linkedLists(v, o).map((l) => l.name).join(', ') })}</small>{/if}</span>
+        </label>
+      {/each}
+      {#if asking}
+        <div class="hint ask" role="group" aria-label={t('link.ask')}>
+          <span><b>{t('link.ask')}</b><br /><small>{t('link.askHint', { a: list.name, b: asking.name })}</small></span>
+        </div>
+        <div class="row wrap-row">
+          <button class="btn main" onclick={() => confirmLink(true)}>{t('link.askYes')}</button>
+          <button class="btn" onclick={() => confirmLink(false)}>{t('link.askNo')}</button>
+          <button class="btn" onclick={() => (asking = null)}>{t('cancel')}</button>
+        </div>
+      {/if}
+      {#if partners.length}
+        <button class="btn block" disabled={!online} onclick={leave}><Icon name="x" />{t('link.leave')}</button>
+        <p class="micro">{t('link.leaveHint')}</p>
+      {/if}
+      {#if !online}<p class="micro">{t('link.offline')}</p>{/if}
+    </fieldset>
+  {/if}
 
   <fieldset class="mode travel">
     <legend class="eyebrow">{t('travel.title')}</legend>
@@ -234,6 +289,40 @@
   .shortcuts input {
     margin-top: 4px;
     accent-color: var(--dusk);
+  }
+  .link {
+    display: grid;
+    gap: 4px;
+  }
+  .link legend {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .link .switch-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 4px 0;
+  }
+  .link .switch-row input {
+    margin-top: 4px;
+    accent-color: var(--ok);
+  }
+  .link .micro {
+    margin: 0 0 6px;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+  .link .ask {
+    margin-top: 6px;
+  }
+  .link .row {
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .link .btn.block {
+    margin-top: 8px;
   }
   .travel {
     display: grid;

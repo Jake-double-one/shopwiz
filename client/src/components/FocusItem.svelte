@@ -9,7 +9,8 @@
   import { prefs, swipeAction } from '../lib/prefs.svelte.js';
   import { swipeable } from '../lib/swipe.js';
 
-  let { item } = $props();
+  /** bought: list group – the other shop it was checked off in */
+  let { item, bought = '' } = $props();
   const amount = $derived(formatAmount(item.qty, item.unit));
   const prio = $derived(item.prio ?? 0);
 
@@ -24,13 +25,16 @@
   <button class="row" class:done={item.checked} class:prio-up={prio > 0} class:prio-down={prio < 0} role="checkbox" aria-checked={item.checked} aria-describedby={prio ? `fprio-${item.id}` : undefined} onclick={() => toggleItem(item)}>
     <span class="box">
       {#if item.checked}<Icon name="check" size={20} />{:else if prio}<span class="prio-in"><PrioIcon {prio} size={16} /></span>{/if}
-      {#if prio}<span class="prio-mark"><PrioIcon {prio} size={12} /></span><span class="sr-only" id="fprio-{item.id}">{t(prio > 0 ? 'prio.up' : 'prio.down')}</span>{/if}
+      {#if prio}<span class="prio-mark"><PrioIcon {prio} size={12} /></span>{/if}
     </span>
     <span class="text">
       {#if amount}<span class="amount">{amount}</span>{/if}
       <span class="name">{item.name}</span>
+      {#if bought}<span class="bought">{t('link.boughtAt', { name: bought })}</span>{/if}
     </span>
   </button>
+  <!-- read as the description of the check box, not as part of its name -->
+  {#if prio}<span hidden id="fprio-{item.id}">{t(prio > 0 ? 'prio.up' : 'prio.down')}</span>{/if}
 </li>
 
 <style>
@@ -148,6 +152,17 @@
   .amount {
     font-weight: 400;
     margin-right: 6px;
+  }
+  .bought {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 8px;
+    border: 1.5px solid var(--f-ink);
+    border-radius: 999px;
+    color: var(--f-ink);
+    font-size: 0.8rem;
+    font-weight: 600;
+    vertical-align: 3px;
   }
   .done .text {
     color: var(--f-dim);

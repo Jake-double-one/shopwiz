@@ -8,7 +8,14 @@ export const prefs = $state({
   swipe: SWIPE_MODES.includes(load('swipe')) ? load('swipe') : 'right',
   hideChecked: !!load('hideChecked', false),
   focus: !!load('focus', false),
+  // list groups: new items go to every list of the group ('all', default) or only to this one ('here')
+  linkDefault: load('linkDefault') === 'here' ? 'here' : 'all',
 });
+
+export function setLinkDefault(mode) {
+  prefs.linkDefault = mode === 'here' ? 'here' : 'all';
+  save('linkDefault', prefs.linkDefault);
+}
 
 /** Focus mode: only the list – categories and items to check off, nothing else */
 export function setFocus(on) {

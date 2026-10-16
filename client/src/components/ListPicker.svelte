@@ -24,7 +24,7 @@
       {@const p = progress(v, l.id)}
       <li>
         <button class="pick" class:current={l.id === current.id} onclick={() => onpick(l.id)} aria-current={l.id === current.id}>
-          <span class="name">{l.name}</span>
+          <span class="name">{l.name}{#if l.linkId && lists.some((o) => o.id !== l.id && o.linkId === l.linkId)}<span class="linked" title={t('link.title')}><Icon name="link" size={14} /></span>{/if}</span>
           <span class="mono count">{p.done}/{p.total}</span>
           {#if l.id === current.id}<Icon name="check" size={18} />{/if}
         </button>
@@ -45,6 +45,13 @@
 </Sheet>
 
 <style>
+  .linked {
+    display: inline-grid;
+    place-items: center;
+    margin-left: 6px;
+    vertical-align: -2px;
+    color: var(--ok);
+  }
   .lists {
     list-style: none;
     margin: 0 0 18px;

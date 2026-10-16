@@ -7,7 +7,7 @@
   import AiSection from './AiSection.svelte';
   import { PRIO_STYLES, setPrioStyle } from '../lib/theme.js';
   import { load } from '../lib/storage.js';
-  import { prefs, setSwipe, SWIPE_MODES } from '../lib/prefs.svelte.js';
+  import { prefs, setSwipe, SWIPE_MODES, setLinkDefault } from '../lib/prefs.svelte.js';
   import { t } from '../lib/i18n.svelte.js';
   import { updateSpace, renameDevice } from '../lib/actions.js';
   import { api } from '../lib/api.js';
@@ -159,6 +159,13 @@
         {/each}
       </div>
     </div>
+    <div class="prio-style link-default">
+      <span class="ps-label" id="link-default-label">{t('link.defaultSetting')}</span>
+      <div role="radiogroup" aria-labelledby="link-default-label">
+        <label><input type="radio" name="link-default" checked={prefs.linkDefault !== 'here'} onchange={() => setLinkDefault('all')} /><span>{t('link.defaultAll')}</span></label>
+        <label><input type="radio" name="link-default" checked={prefs.linkDefault === 'here'} onchange={() => setLinkDefault('here')} /><span>{t('link.defaultHere')}</span></label>
+      </div>
+    </div>
   </section>
 
   <section>
@@ -237,6 +244,15 @@
 </Sheet>
 
 <style>
+  .link-default label {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 4px 0;
+  }
+  .link-default input {
+    accent-color: var(--ok);
+  }
   section + section {
     margin-top: 18px;
     padding-top: 16px;

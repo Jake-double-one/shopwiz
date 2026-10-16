@@ -6,7 +6,7 @@
   import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
   import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName } from '../lib/actions.js';
-  import { groupOptions, translationOf } from '../lib/model.js';
+  import { groupOptions, translationOf, linkedLists, boughtAt } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { langName } from '../../../shared/countries.js';
   import { normalizeName } from '../../../shared/parse.js';
@@ -21,6 +21,11 @@
   let note = $state(initial.note);
   let prio = $state(initial.prio ?? 0);
   const options = $derived(groupOptions(v, list));
+
+  // list group: on every list of it, or only on this one
+  const partners = $derived(linkedLists(v, list));
+  let shared = $state(!!initial.shared);
+  const bought = $derived(boughtAt(v, list, item));
 
   // travel mode: translation of this name (shared by every item with the same name)
   const travel = $derived(list.travel);
@@ -58,6 +63,7 @@
     if (validQty && (q !== item.qty || unit.trim() !== item.unit)) fields.amount = { qty: q, unit: unit.trim().slice(0, 16) };
     if (note.trim() !== item.note) fields.note = note.trim();
     if (prio !== (item.prio ?? 0)) fields.prio = prio;
+    if (partners.length && shared !== !!item.shared) fields.shared = shared;
     if (Object.keys(fields).length) editItem(item, fields);
     if (travel) {
       const finalName = fields.name ?? item.name;
@@ -127,6 +133,18 @@
         {/each}
       </div>
     </div>
+    {#if partners.length}
+      <div class="field prio-field">
+        <span class="prio-label" id="link-label"><Icon name="link" size={12} /> {t('link.appliesTo')}</span>
+        <div class="prio-seg link-seg" role="radiogroup" aria-labelledby="link-label">
+          <button type="button" role="radio" aria-checked={shared} class="all" onclick={() => (shared = true)}>
+            <Icon name="link" size={14} />{[list.name, ...partners.map((l) => l.name)].join(' · ')}
+          </button>
+          <button type="button" role="radio" aria-checked={!shared} onclick={() => (shared = false)}>{t('link.onlyHere', { name: list.name })}</button>
+        </div>
+        {#if bought}<p class="micro bought">{t('link.boughtAt', { name: bought })}</p>{/if}
+      </div>
+    {/if}
     <label class="field">
       <span>{t('item.note')}</span>
       <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={note} rows="2" maxlength="500"></textarea>
@@ -220,6 +238,26 @@
   .prio-seg button.up[aria-checked='true'] {
     background: color-mix(in srgb, var(--sun-soft) 60%, var(--surface));
     box-shadow: inset 0 -2px 0 var(--sun);
+  }
+  .link-seg {
+    grid-template-columns: 1fr 1fr;
+  }
+  .link-seg button {
+    padding: 6px 8px;
+    line-height: 1.25;
+  }
+  .link-seg button.all[aria-checked='true'] {
+    background: var(--ok);
+    color: var(--surface);
+    font-weight: 700;
+    box-shadow: none;
+  }
+  .bought {
+    margin: 6px 0 0;
+    color: var(--ok);
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0.02em;
   }
   .prio-seg button.up :global(svg) {
     color: var(--sun);

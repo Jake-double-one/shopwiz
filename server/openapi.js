@@ -54,6 +54,7 @@ export function openApi(publicUrl) {
                     items,
                     text: { type: 'string', description: 'Alternative: spoken text like "milk, bread and 200g minced meat"' },
                     forLater: { type: 'boolean', description: 'true = new items go straight to "Inactive" (remembered, not needed now)' },
+                    onlyThisList: { type: 'boolean', description: 'Lists in a list group share new items with every linked list (listGroup). true = only this list' },
                   },
                 },
               },

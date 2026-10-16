@@ -278,7 +278,7 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 3. MCP-Endpunkt `/mcp` (offizielles SDK, Streamable HTTP) auf denselben Funktionen + Tests.
 4. Anleitungen: Claude, ChatGPT, Grok, Siri-Kurzbefehl, Home Assistant (README + Hilfe).
 
-## 11. Listenverbund – geplant
+## 11. Listenverbund – umgesetzt
 
 **Problem:** Mehrere Lebensmittelläden in einer ID (z. B. Lidl, Conad 1, Conad 2). 400 g Hackfleisch sollen in *einem* dieser Läden gekauft werden – egal in welchem. Ein Baumarkt soll davon nichts sehen. Eine Laden-Auswahl bei jedem Artikel wäre im Laden zu umständlich.
 
@@ -318,8 +318,8 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 - `lists.link_id`: Kennung des Verbunds (NULL = keiner).
 - Artikel behalten ihre Ursprungsliste (`items.list_id`) und bekommen `items.shared` (im Verbund sichtbar) und `items.checked_in` (Liste, in der abgehakt wurde → „bei Lidl gekauft“).
 - Ansicht einer Liste = eigene Artikel + gemeinsame Artikel der anderen Verbund-Listen.
-- Gruppe/Reihenfolge pro Laden: Tabelle `item_places (item_id, list_id, group_id, pos)` für gemeinsame Artikel in fremden Listen; das bestehende Lernen pro Liste liefert die erste Platzierung.
-- Neue Operationen: `list.link` (Verbund setzen, mit Zusammenführen), `list.unlink` (mit Kopien), `item.set` um `shared` erweitert. Alles über die vorhandenen Operationen: Verlauf, Rückgängig, Live-Sync, Offline-Konflikte.
+- Gruppe/Reihenfolge pro Laden: Spalte `items.places` (`{listId: {groupId, pos}}`) für gemeinsame Artikel in den anderen Listen – so reist die Platzierung mit dem Artikel durch Sync und Rückgängig; das bestehende Lernen pro Liste liefert die erste Platzierung.
+- Neue Operationen: `list.link` (Verbund setzen, mit Zusammenführen), `list.linkUndo` (nimmt ein Verbinden samt Zusammenführen zurück), `list.unlink` (mit Kopien), `item.set` um `shared` und die Liste erweitert, in der geändert wurde (`listId`: Platz in diesem Laden, „bei … gekauft“). Alles über die vorhandenen Operationen: Verlauf, Rückgängig, Live-Sync, Offline-Konflikte.
 - Mitziehen: Backup (`> 🔗 Lidl, Conad 1` unter der Liste, `↯` bzw. Markierung für „nur hier“), Teilen als Text, Fokus-Modus, Suche, Übertragen in andere ID, KI-Schnittstelle („zu allen Lebensmittel-Listen hinzufügen“ ergibt sich von selbst; `read_list` zeigt den Verbund).
 
 ### 11.7 Umsetzungsschritte

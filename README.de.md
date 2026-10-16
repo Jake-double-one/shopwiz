@@ -52,6 +52,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Teilnehmer** | Jedes Gerät gibt sich einen Namen. Die Details eines Artikels zeigen, wer ihn hinzugefügt oder abgehakt hat. Geräte können entfernt werden. |
 | **„Ich bin im Laden“** | Die anderen sehen, dass du gerade einkaufst. Was währenddessen dazukommt, wird bei dir hervorgehoben. |
 | **Reisemodus** | Einkaufen im Ausland? Pro Liste steht unter jedem Artikel die Übersetzung – mit der Flagge des Landes, das aus der Ladenadresse kommt. Antippen zeigt sie groß fürs Personal. Alles auf einmal übersetzen oder einzelne Artikel korrigieren. |
+| **Listenverbund** | Mehrere Läden mit ähnlichem Sortiment (z. B. Lidl und zwei Conad) teilen sich ihre Artikel: 400 g Hack stehen in allen, abgehakt wird einmal – egal wo – mit grünem Etikett „bei Lidl gekauft“. Gruppen und Reihenfolge bleiben pro Laden. Der Baumarkt sieht davon nichts. |
 | **KI-Assistenten** | Claude, ChatGPT, Grok oder Siri lesen deine Listen und – wenn pro ID erlaubt – fügen Artikel hinzu oder haken ab. Jeder ist ein eigener Teilnehmer mit eigenem Schlüssel. |
 | **Sich im Laden finden** | In großen Läden sieht jeder Eingecheckte, wo die anderen sind (die Gruppe ihres zuletzt abgehakten Artikels). Ein **Rufen**-Knopf schickt eines von vier festen Signalen – „Wo bist du?“, „Komm zu mir“, „Treffen an der Kasse“, „Ich bin fertig“ – kein Chat. |
 | **Bildschirm anlassen** | Optionaler Knopf, damit das Handy beim Einkaufen nicht sperrt. |
@@ -137,7 +138,28 @@ Eine Liste im Reisemodus behält Land und Sprache, ihre Artikel die Übersetzung
 
 Beim Import bleiben Übersetzungen, die die ID schon hat, erhalten.
 
+Eine Liste im Listenverbund nennt die verbundenen Listen; ihre gemeinsamen Artikel stehen einmal, unter ihrer Ursprungsliste:
+
+```markdown
+## Lidl
+> 🔗 Conad 1, Conad 2            ← Listenverbund
+- [ ] 400 g Hackfleisch          ← gemeinsam
+- [ ] ↯ Grillkohle               ← „↯“ nur in dieser Liste
+```
+
 Einfache Zeilen wie `Milch`, `- 2 Brot` oder `* Äpfel` funktionieren auch. Ein Name, der mit einer Zahl beginnt und keine Menge hat, steht in Anführungszeichen (`"4711 Kölnisch Wasser"`).
+
+### Listenverbund
+
+Für mehrere Lebensmittelläden in einer ID: Ein Artikel soll in *einem* davon gekauft werden – egal in welchem.
+
+- **Verbinden:** Listenmenü → „Listenverbund“ → die anderen Listen anhaken. Die Verbindung gilt für alle Beteiligten (hakt man in Lidl Conad 1 und Conad 2 an, sind alle drei verbunden), eine Liste gehört zu höchstens einem Verbund. Ein grünes Ketten-Symbol am Listennamen zeigt ihn.
+- **Bestehende Artikel:** Beim Verbinden fragt ShopWiz einmal „Bestehende Artikel im Verbund teilen?“. Ja: gleiche Artikel werden zu einem zusammengeführt (größere Menge, Notizen zusammen, offen schlägt abgehakt, wichtig schlägt normal) – mit Rückgängig. Nein: Nur neue Artikel werden geteilt.
+- **Hinzufügen:** Neben dem Prioritäts-Knopf zeigt ein grüner Knopf „Verbund“, dass der nächste Artikel in alle verbundenen Listen kommt. Antippen: „Nur Conad“. Die Grundeinstellung ist pro Gerät wählbar (Einstellungen → „Neue Artikel im Listenverbund“).
+- **Im Laden:** Ein gemeinsamer Artikel hat einen Status. In Lidl abgehakt → in Conad ebenfalls abgehakt, mit grünem Etikett „bei Lidl gekauft“. Nach „Inaktiv“ kommt er wie gewohnt über „Einkauf abschließen“ – dann für alle. Gruppen und Reihenfolge lernt jeder Laden für sich; kennt ein Laden den Artikel noch nicht, steht er dort ohne Gruppe.
+- **Artikeldetails:** „Gilt für“ – alle verbundenen Listen oder „Nur hier“.
+- **Lösen:** Verlässt eine Liste den Verbund, behält sie eine eigene Kopie aller gemeinsamen Artikel, die anderen behalten die gemeinsamen. Bleibt nur eine Liste übrig, endet der Verbund.
+- Verbinden und Lösen geht nur online. KI-Assistenten sehen den Verbund (`listGroup`) und fügen in den ganzen Verbund hinzu, mit `onlyThisList` nur in eine Liste.
 
 ### Sich im Laden wiederfinden
 

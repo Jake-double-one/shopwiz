@@ -2,7 +2,8 @@
   import Icon from './Icon.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import { t } from '../lib/i18n.svelte.js';
-  import { suggestionsFor, learnedPlacement, groupOptions, groupLabel } from '../lib/model.js';
+  import { suggestionsFor, learnedPlacement, groupOptions, groupLabel, linkedLists } from '../lib/model.js';
+  import { prefs } from '../lib/prefs.svelte.js';
   import { addEntry, increaseAmount, deleteSuggestion, editItem, prioFromText } from '../lib/actions.js';
   import { parseEntry, splitLines, formatAmount, addAmounts } from '../../../shared/parse.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -27,6 +28,13 @@
   const prio = $derived(typed.prio || manualPrio);
   const cyclePrio = () => (manualPrio = typed.prio ? 0 : manualPrio === 0 ? 1 : manualPrio === 1 ? -1 : 0);
 
+  // list group: the next item goes to every list of it (green chain) or only to this one;
+  // like the importance it falls back to the device's default after each item
+  const partners = $derived(linkedLists(v, list));
+  let shareFlip = $state(false);
+  const share = $derived(partners.length > 0 && (prefs.linkDefault !== 'here') !== shareFlip);
+  const shareOpt = () => (partners.length ? { shared: share } : {});
+
   const parsed = $derived(parseEntry(typed.text));
   const sugg = $derived(showSugg ? suggestionsFor(v, list, parsed.name || text) : []);
   const options = $derived(groupOptions(v, list));
@@ -39,13 +47,14 @@
 
   function submit(raw = text, opts = {}) {
     if (!parseEntry(raw).name) return;
-    const r = addEntry(list.id, raw, { ...(target && { groupId: target }), ...(manualPrio && { prio: manualPrio }), ...opts });
+    const r = addEntry(list.id, raw, { ...(target && { groupId: target }), ...(manualPrio && { prio: manualPrio }), ...shareOpt(), ...opts });
     if (r.status === 'duplicate') {
       dup = { existing: r.existing, parsed: r.parsed, raw };
       return;
     }
     text = '';
     manualPrio = 0;
+    shareFlip = false;
     active = -1;
     showSugg = false;
     input?.focus();
@@ -85,7 +94,7 @@
   function addPasted() {
     let added = 0;
     for (const line of pasted) {
-      const r = addEntry(list.id, line, { ...(target && { groupId: target }), quiet: true });
+      const r = addEntry(list.id, line, { ...(target && { groupId: target }), ...shareOpt(), quiet: true });
       if (r.status === 'duplicate') {
         const cur = sync.data.items[r.existing.id] ?? r.existing;
         const sum = addAmounts({ qty: cur.qty, unit: cur.unit }, { qty: r.parsed.qty, unit: r.parsed.unit });
@@ -110,6 +119,7 @@
             dup = null;
             text = '';
             manualPrio = 0;
+            shareFlip = false;
             input?.focus();
           }}>{t('dup.increase')}</button>
         <button
@@ -176,6 +186,18 @@
         {#if prio}<PrioIcon {prio} size={11} />{/if}
         {t(prio > 0 ? 'prio.up' : prio < 0 ? 'prio.down' : 'prio.normal')}
       </button>
+      {#if partners.length}
+        <button
+          type="button"
+          class="link-pick"
+          class:on={share}
+          aria-pressed={share}
+          onclick={() => (shareFlip = !shareFlip)}
+          title={share ? t('link.addAll', { names: [list.name, ...partners.map((l) => l.name)].join(', ') }) : t('link.addHere', { name: list.name })}>
+          <Icon name="link" size={13} />
+          {share ? t('link.group') : t('link.only', { name: list.name })}
+        </button>
+      {/if}
     </div>
     <div class="row">
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false"
@@ -272,6 +294,30 @@
   }
   .prio-pick.up :global(svg) {
     color: var(--sun);
+  }
+  .link-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-width: 45%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 9px;
+  }
+  /* clearly visible where the next item goes: strong green = the whole list group */
+  .link-pick.on {
+    color: var(--surface);
+    background: var(--ok);
+    border-color: var(--ok);
+    font-weight: 700;
   }
   .prio-pick.down {
     color: var(--ink);

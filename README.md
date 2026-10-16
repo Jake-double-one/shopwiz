@@ -54,6 +54,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **“I'm shopping”** | Others see that you are in the shop. Items added meanwhile are highlighted on your phone. |
 | **Find each other** | In a big shop, everybody checked in sees where the others are (the group of their last checked item). A **Call** button sends one of four fixed signals – “Where are you?”, “Come to me”, “Meet at the checkout”, “I'm done” – no chat. |
 | **Travel mode** | Shopping abroad? Per list, items get their translation underneath – with the country's flag, taken from the shop address. Tap it to show it big to the staff. Translate everything at once or correct single items. |
+| **List groups** | Several shops that sell similar things (say Lidl and two Conads) share their items: 400 g of mince is on all of them and is checked off once – wherever – with a green “bought at Lidl” label. Groups and order stay per shop. The DIY store sees none of it. |
 | **AI assistants** | Claude, ChatGPT, Grok or Siri read your lists and – if allowed per ID – add or check off items. Each one is its own participant with its own key. |
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
@@ -138,7 +139,28 @@ A list in travel mode keeps its country and language, and its items their transl
 
 On import, translations that the ID already has are kept.
 
+A list in a list group names the linked lists; shared items are written once, under the list they came from:
+
+```markdown
+## Lidl
+> 🔗 Conad 1, Conad 2           ← list group
+- [ ] 400 g Mince               ← shared
+- [ ] ↯ Charcoal                ← "↯" only on this list
+```
+
 Plain lines like `Milk`, `- 2 Bread` or `* Apples` work too. A name that starts with a number and has no amount is written in quotes (`"4711 Cologne"`).
+
+### List groups
+
+For several grocery shops in one ID: an item should be bought in *one* of them – no matter which.
+
+- **Link:** list menu → “List group” → tick the other lists. The link holds for everybody involved (ticking Conad 1 and Conad 2 in Lidl links all three); a list belongs to one group at most. A green chain next to the list name shows it.
+- **Existing items:** when linking, ShopWiz asks once “Share the existing items in the group?”. Yes: items with the same name become one (the larger amount, notes joined, open beats checked, important beats normal) – with undo. No: only new items are shared.
+- **Adding:** next to the priority button, a green “Group” button shows that the next item goes to every linked list. Tap it: “Only Conad”. The default can be set per device (Settings → “New items in a list group”).
+- **In the shop:** a shared item has one status. Checked off at Lidl → checked at Conad, too, with a green “bought at Lidl” label. It goes to “Inactive” as usual with “Finish shopping” – then for everybody. Each shop learns groups and order on its own; a shop that doesn't know the item yet shows it without a group.
+- **Item details:** “Applies to” – every linked list, or “Only here”.
+- **Leaving:** a list that leaves the group keeps its own copy of all shared items; the others keep the shared ones. With one list left, the group ends.
+- Linking and leaving only work online. AI assistants see the group (`listGroup`) and add to the whole group, or with `onlyThisList` to one list.
 
 ### Finding each other in the shop
 

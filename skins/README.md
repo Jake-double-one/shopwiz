@@ -35,7 +35,7 @@ volumes:
   --sun: #ffc24a;           /* main buttons, "important" */
   --sun-soft: #4a3713;      /* soft background of important rows */
   --alert: #ff8a73;         /* errors, delete */
-  --ok: #6fd3a0;            /* online dot */
+  --ok: #6fd3a0;            /* online dot, list group (chain, "bought at …"); text on --surface and --surface on it */
   --control: #6f8aa3;       /* checkbox borders, drag handles */
   --control-ink: #c9d8e6;
   --on-dusk: #06223a;       /* text/check mark on the accent */

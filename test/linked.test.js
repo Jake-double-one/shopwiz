@@ -185,3 +185,34 @@ describe('list groups (Listenverbund)', () => {
     expect(uid2).not.toBe(uid);
   });
 });
+
+describe('list groups for AI assistants', () => {
+  it('read_list shows the group, adding reaches every linked list, checking says where', async () => {
+    const { createAi } = await import('../server/ai.js');
+    const { store, uid, op, lidl, conad, item, snap } = setup();
+    op({ k: 'list.link', id: lidl, other: conad });
+    op({ k: 'group.add', id: 'gmeatcona', listId: conad, name: 'Macelleria' });
+    const ai = createAi({ store, hub: { broadcast() {} }, config: { mcpEnabled: true }, log: console });
+    const { key } = store.createAiDevice(uid, 'Claude');
+    store.db.q('UPDATE spaces SET ai_write = 1 WHERE uid = ?').run(uid);
+    const ctx = () => ai.auth(key);
+
+    expect(ai.listLists(ctx()).lists.find((l) => l.name === 'Lidl').listGroup).toEqual(['Conad']);
+    const added = ai.addItems(ctx(), 'Lidl', ['400 g mince', 'charcoal'], {});
+    expect(added).toMatchObject({ listGroup: ['Conad'], sharedWithListGroup: true });
+    ai.addItems(ctx(), 'Lidl', ['matches'], { onlyThisList: true });
+    const read = ai.readList(ctx(), 'Conad');
+    expect(read.list.listGroup).toEqual(['Lidl']);
+    expect(read.items.map((i) => i.name).sort()).toEqual(['charcoal', 'mince']);
+
+    // moving in Conad changes Conad's place only; checking there shows "bought at Conad" in Lidl
+    ai.updateItem(ctx(), 'Conad', 'mince', { group: 'Macelleria' });
+    const mince = snap().items.find((i) => i.name === 'mince');
+    expect(mince.groupId).toBeNull();
+    expect(mince.places[conad].groupId).toBe('gmeatcona');
+    ai.setDone(ctx(), 'Conad', ['mince']);
+    expect(item(mince.id).checkedIn).toBe(conad);
+    expect(ai.readList(ctx(), 'Lidl').items.find((i) => i.name === 'mince')).toMatchObject({ done: true, boughtAt: 'Conad' });
+    expect(ai.readList(ctx(), 'Lidl').items.find((i) => i.name === 'matches')).toMatchObject({ onlyThisList: true });
+  });
+});

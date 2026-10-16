@@ -8,7 +8,7 @@
   import { api } from '../lib/api.js';
 
   let { onclose } = $props();
-  const TOPICS = ['start', 'add', 'check', 'groups', 'prio', 'shop', 'travel', 'lists', 'ai', 'offline', 'backup', 'privacy'];
+  const TOPICS = ['start', 'add', 'check', 'groups', 'prio', 'shop', 'lists', 'link', 'travel', 'ai', 'offline', 'backup', 'privacy'];
   let open = $state(null);
   const builtAt = $derived(
     build.time && !Number.isNaN(Date.parse(build.time))

@@ -298,7 +298,7 @@ export async function buildApp(config) {
   app.get('/api/v1/openapi.json', async () => openApi(config.publicUrl));
   app.get('/api/v1/lists', rest((ctx) => ai.listLists(ctx)));
   app.get('/api/v1/lists/:list', rest((ctx, req) => ai.readList(ctx, req.params.list, { inactive: req.query?.inactive === '1' || req.query?.inactive === 'true' })));
-  app.post('/api/v1/lists/:list/items', rest((ctx, req) => ai.addItems(ctx, req.params.list, itemsOf(req.body), { forLater: req.body?.forLater === true })));
+  app.post('/api/v1/lists/:list/items', rest((ctx, req) => ai.addItems(ctx, req.params.list, itemsOf(req.body), { forLater: req.body?.forLater === true, onlyThisList: req.body?.onlyThisList === true })));
   app.post('/api/v1/lists/:list/check', rest((ctx, req) => ai.setDone(ctx, req.params.list, itemsOf(req.body), req.body?.done !== false)));
   app.post('/api/v1/lists/:list/remove', rest((ctx, req) => ai.removeItems(ctx, req.params.list, itemsOf(req.body))));
   app.post('/api/v1/lists/:list/inactive', rest((ctx, req) => ai.moveToInactive(ctx, req.params.list, itemsOf(req.body) ?? [], { allChecked: req.body?.allChecked === true })));

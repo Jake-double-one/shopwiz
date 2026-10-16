@@ -14,6 +14,37 @@ export function groupSet(v, list) {
   return Object.values(v.groups).filter((g) => g.listId === owner);
 }
 
+// ----- list groups (Listenverbund) -----
+
+/** The other lists of a list's list group, in list order. */
+export function linkedLists(v, list) {
+  if (!list?.linkId) return [];
+  return sortedLists(v).filter((l) => l.linkId === list.linkId && l.id !== list.id);
+}
+
+/** Is the item on this list – its own, or a shared one of the list group? */
+export function showsItem(v, list, it) {
+  if (it.listId === list.id) return true;
+  if (!it.shared || !list.linkId) return false;
+  return v.lists[it.listId]?.linkId === list.linkId;
+}
+
+/**
+ * The item as this list shows it: a shared item of another shop of the list group has its own
+ * group and position here. view = the list it is shown in (edits go there).
+ */
+export function viewItem(v, list, it) {
+  if (it.listId === list.id) return it.view === list.id ? it : { ...it, view: list.id };
+  const p = it.places?.[list.id];
+  return { ...it, view: list.id, groupId: p?.groupId ?? null, pos: p?.pos ?? it.pos };
+}
+
+/** Shop name for "bought at …" when the item was checked off in another list. */
+export function boughtAt(v, list, it) {
+  if (!it.checked || !it.shared || !it.checkedIn || it.checkedIn === list.id) return '';
+  return v.lists[it.checkedIn]?.name ?? '';
+}
+
 /**
  * Two trees with the same structure:
  * - the active list: only groups that contain items on the list (open or checked),
@@ -28,8 +59,7 @@ export function listTree(v, list) {
   const active = new Map();
   const parked = new Map();
   const all = [];
-  for (const it of Object.values(v.items)) {
-    if (it.listId !== list.id) continue;
+  for (const it of listItems(v, list.id)) {
     const key = it.groupId && ids.has(it.groupId) ? it.groupId : '';
     const target = it.parked ? parked : active;
     if (!target.has(key)) target.set(key, []);
@@ -77,13 +107,18 @@ export function dropPos(item, shown, index) {
   return posBetween(before, after);
 }
 
+/** Everything a list shows (as shown there): its own items and the shared ones of its list group. */
 export function listItems(v, listId) {
-  return Object.values(v.items).filter((it) => it.listId === listId);
+  const list = v.lists[listId];
+  if (!list) return [];
+  const out = [];
+  for (const it of Object.values(v.items)) if (showsItem(v, list, it)) out.push(viewItem(v, list, it));
+  return out;
 }
 
 /** Items that are actually on the list (not in the inactive shadow list). */
 export function activeItems(v, listId) {
-  return Object.values(v.items).filter((it) => it.listId === listId && !it.parked);
+  return listItems(v, listId).filter((it) => !it.parked);
 }
 
 export function progress(v, listId) {

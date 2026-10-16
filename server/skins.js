@@ -30,7 +30,7 @@ export function contrast(a, b) {
 /** Text on its backgrounds needs 4.5:1, checkbox borders 3:1 (WCAG AA) → list of shortfalls */
 export function contrastProblems(v) {
   const text = [['ink', 'bg'], ['ink', 'surface'], ['ink', 'surface-2'], ['ink', 'dusk-soft'], ['ink', 'sun-soft'], ['muted', 'bg'], ['muted', 'surface'],
-    ['dusk', 'surface'], ['dusk', 'bg'], ['alert', 'surface'], ['on-dusk', 'dusk'], ['on-sun', 'sun'], ['on-alert', 'alert'], ['focus-ink', 'focus-bg']];
+    ['dusk', 'surface'], ['dusk', 'bg'], ['alert', 'surface'], ['ok', 'surface'], ['surface', 'ok'], ['on-dusk', 'dusk'], ['on-sun', 'sun'], ['on-alert', 'alert'], ['focus-ink', 'focus-bg']];
   const out = [];
   const check = (a, b, min) => {
     if (!COLOR_RE.test(v[a] ?? '') || !COLOR_RE.test(v[b] ?? '')) return;
