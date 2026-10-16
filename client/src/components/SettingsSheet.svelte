@@ -5,7 +5,7 @@
   import Prefs from './Prefs.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import AiSection from './AiSection.svelte';
-  import { PRIO_STYLES, setPrioStyle } from '../lib/theme.js';
+  import { PRIO_STYLES, setPrioStyle, TEXT_SIZES, setTextSize } from '../lib/theme.js';
   import { load } from '../lib/storage.js';
   import { prefs, setSwipe, SWIPE_MODES, setLinkDefault } from '../lib/prefs.svelte.js';
   import { t } from '../lib/i18n.svelte.js';
@@ -26,6 +26,7 @@
   let busy = $state(false);
   let showId = $state(false);
   let prioStyle = $state(load('prioStyle', 'box'));
+  let textSize = $state(load('textSize', 'normal'));
   const online = $derived(sync.status === 'online');
   const others = knownSpaces().filter((s) => s.id !== spaceId);
 
@@ -108,6 +109,17 @@
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
     </label>
     <Prefs />
+    <div class="prio-style">
+      <span class="ps-label" id="text-size-label">{t('textSize.label')}</span>
+      <div class="ps-tiles" role="radiogroup" aria-labelledby="text-size-label">
+        {#each TEXT_SIZES as s (s)}
+          <button type="button" role="radio" aria-checked={textSize === s} aria-label={t(`textSize.${s}`)} class="ps-tile ts-tile" onclick={() => (textSize = setTextSize(s))}>
+            <span class="ts-sample {s}" aria-hidden="true">{t('prio.sample')}</span>
+            <span class="ts-name" aria-hidden="true">{t(`textSize.${s}`)}</span>
+          </button>
+        {/each}
+      </div>
+    </div>
     <div class="prio-style">
       <span class="ps-label" id="prio-style-label">{t('prio.style')}</span>
       <div class="ps-tiles" role="radiogroup" aria-labelledby="prio-style-label">
@@ -285,6 +297,27 @@
     border-radius: 12px;
     background: var(--surface);
     color: var(--ink);
+  }
+  /* samples in the real sizes, whatever size is set right now */
+  .ts-tile {
+    gap: 2px;
+  }
+  .ts-sample {
+    font-weight: 600;
+    line-height: 1.2;
+    font-size: 16px;
+  }
+  .ts-sample.small {
+    font-size: 14px;
+  }
+  .ts-sample.large {
+    font-size: 18px;
+  }
+  .ts-name {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
   }
   .ps-tile[aria-checked='true'] {
     border-color: var(--dusk);

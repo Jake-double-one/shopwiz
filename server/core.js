@@ -105,6 +105,7 @@ export const mapItem = (r) => ({
   prio: r.prio ?? 0,
   shared: !!r.shared,
   checkedIn: r.checked_in ?? null,
+  bought: r.bought ?? 0,
   places: JSON.parse(r.places || '{}'),
   checkedBy: r.checked_by,
   addedBy: r.added_by,
@@ -398,7 +399,7 @@ export class Store {
       };
       copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, link_id, created_at');
       copy('groups', 'id, list_id, parent_id, name, pos, created_at');
-      copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, shared, checked_in, places, checked_by, added_by, pos, meta, created_at');
+      copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, shared, checked_in, places, bought, checked_by, added_by, pos, meta, created_at');
       copy('memory', 'scope, norm, group_name, subgroup_name, updated_at');
       copy('suggestions', 'norm, name, uses, last_used_at');
       copy('translations', 'norm, lang, text, auto, updated_at');
@@ -1260,6 +1261,7 @@ const OPS = {
     if ('amount' in updates) set('qty', updates.amount.qty), set('unit', updates.amount.unit);
     if ('note' in updates) set('note', updates.note);
     if ('checked' in updates) set('checked', updates.checked ? 1 : 0), set('checked_by', updates.checked ? ctx.dev.name : null), set('checked_in', updates.checked ? view.id : null);
+    if (updates.checked) set('bought', (item.bought ?? 0) + 1);
     if ('parked' in updates) set('parked', updates.parked ? 1 : 0);
     if (updates.parked && !('checked' in updates) && item.checked) set('checked', 0), set('checked_by', null), set('checked_in', null);
     if (share === true) set('shared', 1);

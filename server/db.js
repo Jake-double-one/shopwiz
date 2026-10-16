@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS items (
   shared     INTEGER NOT NULL DEFAULT 0,   -- 1 = on every list of the home list's list group
   checked_in TEXT,                         -- list the item was checked off in ("bought at Lidl")
   places     TEXT NOT NULL DEFAULT '{}',   -- shared items: {listId: {groupId, pos}} in the other lists
+  bought     INTEGER NOT NULL DEFAULT 0,   -- how often it was checked off (inactive items sort by it)
   prio       INTEGER NOT NULL DEFAULT 0,   -- 1 = important, -1 = not important
   checked_by TEXT,
   added_by   TEXT,
@@ -201,6 +202,7 @@ function migrate(db) {
   if (!listCols.includes('link_id')) db.exec('ALTER TABLE lists ADD COLUMN link_id TEXT');
   if (!cols.includes('shared')) db.exec('ALTER TABLE items ADD COLUMN shared INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('checked_in')) db.exec('ALTER TABLE items ADD COLUMN checked_in TEXT');
+  if (!cols.includes('bought')) db.exec('ALTER TABLE items ADD COLUMN bought INTEGER NOT NULL DEFAULT 0');
   if (!cols.includes('places')) db.exec("ALTER TABLE items ADD COLUMN places TEXT NOT NULL DEFAULT '{}'");
   if (!listCols.includes('prio_shortcuts')) db.exec('ALTER TABLE lists ADD COLUMN prio_shortcuts INTEGER NOT NULL DEFAULT 0');
   const trCols = db.prepare('PRAGMA table_info(translations)').all().map((c) => c.name);

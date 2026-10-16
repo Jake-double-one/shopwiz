@@ -68,7 +68,11 @@ export function listTree(v, list) {
   }
   const rank = (it) => (it.checked ? 0 : -(it.prio ?? 0));
   const sortActive = (arr = []) => arr.sort((a, b) => a.checked - b.checked || rank(a) - rank(b) || byPos(a, b));
-  const sortParked = (arr = []) => arr.sort(byPos);
+  // inactive items: the ones bought most often first – rarely used ones gather at the end for tidying up
+  // (counted since checking off is counted; before that, how often the name was added decides)
+  const uses = (it) => it.bought ?? 0;
+  const added = (it) => v.suggestions?.[normalizeName(it.name)]?.uses ?? 0;
+  const sortParked = (arr = []) => arr.sort((a, b) => uses(b) - uses(a) || added(b) - added(a) || a.name.localeCompare(b.name));
   const top = groups.filter((g) => !g.parentId || !ids.has(g.parentId)).sort(byPos);
   const subsOf = (g) => groups.filter((s) => s.parentId === g.id).sort(byPos);
   const hasAny = (id) => active.has(id) || parked.has(id);

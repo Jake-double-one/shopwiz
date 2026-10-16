@@ -115,6 +115,21 @@ export function applyPrioStyle(style = load('prioStyle', 'box')) {
   return s;
 }
 
+/** Text size of this device: 'small' | 'normal' | 'large' */
+export const TEXT_SIZES = ['small', 'normal', 'large'];
+
+export function applyTextSize(size = load('textSize', 'normal')) {
+  const s = TEXT_SIZES.includes(size) ? size : 'normal';
+  if (s === 'normal') delete document.documentElement.dataset.text;
+  else document.documentElement.dataset.text = s;
+  return s;
+}
+
+export function setTextSize(size) {
+  save('textSize', size);
+  return applyTextSize(size);
+}
+
 export function setPrioStyle(style) {
   save('prioStyle', style);
   return applyPrioStyle(style);

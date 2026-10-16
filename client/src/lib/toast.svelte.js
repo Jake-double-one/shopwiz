@@ -5,7 +5,7 @@ export const toasts = $state([]);
 export function toast(opts) {
   const o = typeof opts === 'string' ? { text: opts } : opts;
   // with a button (undo, restore …) there is more time to decide
-  const t = { id: ++seq, timeout: o.action ? 10000 : 5000, kind: 'info', ...o };
+  const t = { id: ++seq, timeout: o.action ? 7000 : 5000, kind: 'info', ...o };
   // keep it calm: at most two at a time
   toasts.push(t);
   while (toasts.length > 2) toasts.shift();

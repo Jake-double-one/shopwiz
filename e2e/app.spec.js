@@ -874,6 +874,13 @@ test('focus mode: only the list, tap or swipe there, stays on until left', async
   expect(await barColor()).toBe('#ffffff');
   await focus.getByRole('checkbox', { name: 'Bread' }).click();
   await expect(focus.getByRole('checkbox', { name: 'Bread' })).toHaveAttribute('aria-checked', 'true');
+  // one more / one less right in the shop – not for what is already checked
+  await focus.getByRole('button', { name: 'One more Milk' }).click();
+  await expect(focus.getByRole('checkbox', { name: /Milk/ })).toHaveText('3× Milk');
+  await focus.getByRole('button', { name: 'One less Milk' }).click();
+  await expect(focus.getByRole('checkbox', { name: /Milk/ })).toHaveText('2× Milk');
+  await expect(focus.getByRole('button', { name: 'One less Tea' })).toBeDisabled();
+  await expect(focus.getByRole('button', { name: 'One more Bread' })).toHaveCount(0);
 
   // swiping works here, too: right checks off, left makes inactive
   const cdp = await ctx.newCDPSession(page);
@@ -992,7 +999,7 @@ test('list group: one need in two shops, bought once, green chain, only here, le
   await expect(page.getByText('Lists linked – 1 duplicate item merged')).toBeVisible();
   // the undo notice shows how long undo is possible: a line along the bottom fills up
   const undoToast = page.locator('.toast', { hasText: 'Lists linked' });
-  await expect(undoToast.locator('.progress')).toHaveCSS('animation-duration', '10s');
+  await expect(undoToast.locator('.progress')).toHaveCSS('animation-duration', '7s');
   await expect(page.locator('.list-title .linked')).toHaveCount(1);
   await expect(item(page, 'Milk')).toHaveCount(1);
   await expect(item(page, 'Milk')).toContainText('2 l');
@@ -1051,4 +1058,53 @@ test('list group: one need in two shops, bought once, green chain, only here, le
   await b.page.getByRole('checkbox', { name: 'Milk', exact: true }).click();
   await expect(page.getByRole('checkbox', { name: 'Milk', exact: true })).toHaveAttribute('aria-checked', 'false');
   await b.ctx.close();
+});
+
+test('share text to the app: one item per line goes to the list open last', async ({ page }) => {
+  await createList(page, 'Weekly');
+  await page.goto(`/share?title=Recipe&text=${encodeURIComponent('- 200 g flour\n- 3 eggs\nhttps://example.com/cake')}`);
+  await expect(page.locator('.list-title')).toContainText('Weekly');
+  await expect(page).toHaveURL(ID_URL);
+  const dialog = page.getByRole('alertdialog', { name: 'Add these items?' });
+  await expect(dialog.locator('li')).toHaveText(['200 g flour', '3 eggs']);
+  await dialog.getByRole('button', { name: 'Add 2 items' }).click();
+  await expect(item(page, 'flour')).toContainText('200 g');
+  await expect(item(page, 'eggs')).toHaveCount(1);
+  const manifest = await (await page.request.get('/manifest.webmanifest')).json();
+  expect(manifest.share_target).toMatchObject({ action: '/share', method: 'GET' });
+});
+
+test('text size per device: three sizes, nothing breaks out of a narrow phone', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 360, height: 760 }, locale: 'de-DE' });
+  const page = await ctx.newPage();
+  await page.goto('/');
+  await page.getByLabel('Name der Liste').fill('Wocheneinkauf beim Supermarkt');
+  await page.getByLabel('Name dieses Geräts').fill('Alex');
+  await page.getByRole('button', { name: 'Liste erzeugen' }).click();
+  await page.waitForURL(ID_URL);
+  const input = page.getByPlaceholder(/Artikel hinzufügen/);
+  for (const t of ['2 l Milch // laktosefrei', '! Windeln Größe 4', '500 g Hackfleisch gemischt']) {
+    await input.fill(t);
+    await input.press('Enter');
+  }
+  const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Einstellungen' }).click();
+  await expect(page.getByRole('radio', { name: 'Normal', exact: true }).first()).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Groß' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'large');
+  await noOverflow();
+  await page.getByRole('button', { name: 'Schließen' }).first().click();
+  expect(await page.locator('.item .name').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(17);
+  await noOverflow();
+  await page.getByRole('button', { name: 'Listen-Optionen' }).click();
+  await noOverflow();
+  await page.getByRole('button', { name: 'Schließen' }).first().click();
+  // the typing field stays at 16px also with small text (iOS would zoom in otherwise)
+  await page.getByRole('button', { name: 'Einstellungen' }).click();
+  await page.getByRole('radio', { name: 'Klein' }).click();
+  await page.getByRole('button', { name: 'Schließen' }).first().click();
+  expect(await input.evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'small');
+  await ctx.close();
 });

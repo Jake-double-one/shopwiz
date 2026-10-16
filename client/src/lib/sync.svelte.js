@@ -198,6 +198,7 @@ function reduce(v, op, at, me) {
       if ('amount' in f) Object.assign(next, { qty: f.amount.qty ?? '', unit: f.amount.unit ?? '' });
       if ('note' in f) next.note = f.note;
       if ('checked' in f) Object.assign(next, { checked: !!f.checked, checkedBy: f.checked ? myName : null, checkedIn: f.checked ? view : null });
+      if (f.checked && !it.checked) next.bought = (it.bought ?? 0) + 1;
       if ('parked' in f) {
         next.parked = !!f.parked;
         if (f.parked && !('checked' in f)) Object.assign(next, { checked: false, checkedBy: null, checkedIn: null });

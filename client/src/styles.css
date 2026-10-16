@@ -11,6 +11,7 @@
 }
 html {
   background: var(--bg);
+  font-size: 16px;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -19,7 +20,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.45;
   min-height: 100dvh;
 }
@@ -34,6 +35,19 @@ select,
 textarea {
   font: inherit;
   color: inherit;
+}
+/* text size per device (settings): everything in rem follows */
+html[data-text='small'] {
+  font-size: 14px;
+}
+html[data-text='large'] {
+  font-size: 18px;
+}
+/* typing fields never below 16px – iOS would zoom in on them */
+input,
+textarea,
+select.select {
+  font-size: max(16px, 1em);
 }
 button {
   cursor: pointer;

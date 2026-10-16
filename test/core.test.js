@@ -502,3 +502,19 @@ describe('importance', () => {
   });
 });
 
+
+describe('purchase count', () => {
+  it('counts how often an item was checked off (inactive items sort by it)', () => {
+    const { listId, op, devA, item } = setup();
+    op(devA, { k: 'item.add', id: 'itemmilk1', listId, name: 'Milk' });
+    for (let i = 0; i < 3; i++) {
+      op(devA, { k: 'item.set', id: 'itemmilk1', fields: { checked: true } });
+      op(devA, { k: 'list.clearChecked', listId });
+      op(devA, { k: 'item.set', id: 'itemmilk1', fields: { parked: false } });
+    }
+    // checking twice in a row is one purchase
+    op(devA, { k: 'item.set', id: 'itemmilk1', fields: { checked: true } });
+    op(devA, { k: 'item.set', id: 'itemmilk1', fields: { checked: true } });
+    expect(item('itemmilk1').bought).toBe(4);
+  });
+});

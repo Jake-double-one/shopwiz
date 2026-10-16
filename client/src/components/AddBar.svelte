@@ -8,6 +8,7 @@
   import { parseEntry, splitLines, formatAmount, addAmounts } from '../../../shared/parse.js';
   import { toast } from '../lib/toast.svelte.js';
   import { sync } from '../lib/sync.svelte.js';
+  import { shared } from '../lib/share.svelte.js';
 
   let { v, list, target = $bindable(null) } = $props();
 
@@ -17,6 +18,14 @@
   let showSugg = $state(false);
   let dup = $state(null);
   let pasted = $state(null);
+
+  // text shared to the app from elsewhere: the same question as for pasted lines
+  $effect(() => {
+    if (shared.lines?.length) {
+      pasted = shared.lines;
+      shared.lines = null;
+    }
+  });
 
   export function focus() {
     input?.focus();
@@ -341,7 +350,7 @@
     flex: 0 0 auto;
   }
   .input {
-    font-size: 1rem;
+    font-size: max(16px, 1rem);
   }
   /* the example has to fit on narrow phones – only the hint shrinks, typed text stays 16px (no zoom on iOS) */
   .input::placeholder {
