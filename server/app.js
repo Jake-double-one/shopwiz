@@ -306,6 +306,7 @@ export async function buildApp(config) {
   app.patch('/api/v1/lists/:list/items/:item', rest((ctx, req) => ai.updateItem(ctx, req.params.list, req.params.item, req.body ?? {})));
   app.post('/api/v1/lists/:list/groups', rest((ctx, req) => ai.addGroups(ctx, req.params.list, req.body?.groups ?? req.body?.group)));
   app.put('/api/v1/lists/:list/groups', rest((ctx, req) => ai.orderGroups(ctx, req.params.list, req.body?.groups)));
+  app.put('/api/v1/lists/:list/items/order', rest((ctx, req) => ai.orderItems(ctx, req.params.list, req.body?.group ?? '', req.body?.items)));
   app.patch('/api/v1/lists/:list/groups/:group', rest((ctx, req) => ai.renameGroup(ctx, req.params.list, req.params.group, req.body?.name)));
   app.delete('/api/v1/lists/:list/groups/:group', rest((ctx, req) => ai.deleteGroup(ctx, req.params.list, req.params.group)));
   app.put('/api/v1/lists/:list/translations', rest((ctx, req) => ai.setTranslations(ctx, req.params.list, req.body?.translations, req.body?.language)));

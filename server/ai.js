@@ -382,6 +382,37 @@ export function createAi({ store, hub, config, log }) {
     return { list: list.name, groups: order.map((g) => g.name), ...(unknown.length && { notFound: unknown }) };
   }
 
+  /** Items of one group (or without group: "") in this order; items not named keep their order after them */
+  function orderItems(ctx, ref, groupRef, names) {
+    needWrite(ctx);
+    const list = findList(ctx.uid, ref);
+    const g = groupRef ? findGroup(ctx.uid, list, groupRef) : null;
+    if (groupRef && !g) throw new AiError('notfound', `no group "${groupRef}" – groups: ${groupsOf(ctx.uid, list).map((x) => x.name).join(', ')}`, 404);
+    const all = db
+      .q('SELECT * FROM items WHERE space_uid = ? AND list_id = ? AND group_id IS ? AND deleted_at IS NULL AND parked = 0 ORDER BY pos, id')
+      .all(ctx.uid, list.id, g?.id ?? null);
+    const first = [];
+    const unknown = [];
+    for (const n of (Array.isArray(names) ? names : []).slice(0, 200)) {
+      const norm = normalizeName(String(n ?? ''));
+      const it = all.find((x) => x.id === n) ?? all.find((x) => x.norm === norm && !first.includes(x));
+      if (!it) unknown.push(String(n));
+      else if (!first.includes(it)) first.push(it);
+    }
+    if (!first.length) throw new AiError('invalid', `none of these items is in ${g ? `group "${g.name}"` : 'the part without group'} – items there: ${all.map((x) => x.name).join(', ')}`);
+    const order = [...first, ...all.filter((x) => !first.includes(x))];
+    order.forEach((it, i) => {
+      if (it.pos !== i + 1) run(ctx, { k: 'item.set', id: it.id, fields: { pos: i + 1 }, base: {} });
+    });
+    return {
+      list: list.name,
+      group: g?.name ?? '',
+      items: order.map((x) => x.name),
+      note: 'Within a group, open items come first (important ones on top), checked ones last – the order applies inside those parts.',
+      ...(unknown.length && { notFound: unknown }),
+    };
+  }
+
   function deleteGroup(ctx, ref, groupRef) {
     needWrite(ctx);
     const list = findList(ctx.uid, ref);
@@ -564,6 +595,20 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
       ({ list, groups }) => orderGroups(ctx, list, groups),
     );
     tool(
+      'order_items',
+      {
+        title: 'Sort items',
+        description:
+          'Put the items of one group in this order (e.g. the way along the shelf). Items not named keep their order after them. To move an item into another group use update_item.',
+        inputSchema: {
+          list: listArg,
+          group: z.string().optional().describe('Group name; empty = the items without group'),
+          items: z.array(z.string()).min(1).max(200).describe('Item names or ids in the wanted order'),
+        },
+      },
+      ({ list, group, items }) => orderItems(ctx, list, group, items),
+    );
+    tool(
       'rename_group',
       { title: 'Rename a group', description: 'Give a group a new name.', inputSchema: { list: listArg, group: z.string(), name: z.string() } },
       ({ list, group, name }) => renameGroup(ctx, list, group, name),
@@ -660,5 +705,5 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
     }
   }
 
-  return { auth, connect, listLists, readList, addItems, setDone, removeItems, moveToInactive, bringBack, updateItem, addGroups, renameGroup, orderGroups, deleteGroup, setTranslations, setTravelMode, handleMcp };
+  return { auth, connect, listLists, readList, addItems, setDone, removeItems, moveToInactive, bringBack, updateItem, addGroups, renameGroup, orderGroups, orderItems, deleteGroup, setTranslations, setTravelMode, handleMcp };
 }

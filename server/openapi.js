@@ -142,6 +142,26 @@ export function openApi(publicUrl) {
           responses: ok,
         },
       },
+      '/api/v1/lists/{list}/items/order': {
+        put: {
+          operationId: 'orderItems',
+          summary: 'Sort the items of one group (items not named keep their order after them)',
+          parameters: [listParam],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { group: { type: 'string', description: 'Group name; empty = items without group' }, items: names },
+                  required: ['items'],
+                },
+              },
+            },
+          },
+          responses: ok,
+        },
+      },
       '/api/v1/lists/{list}/groups/{group}': {
         patch: {
           operationId: 'renameGroup',

@@ -87,7 +87,7 @@ describe('AI assistants', () => {
     expect(init.body.result.serverInfo.name).toBe('shopwiz');
     const tools = await mcp(`/mcp/${key}`, 'tools/list', {});
     expect(tools.body.result.tools.map((t) => t.name)).toEqual([
-      'list_lists', 'read_list', 'add_items', 'check_items', 'update_item', 'add_groups', 'order_groups', 'rename_group', 'delete_group', 'set_travel_mode', 'set_translations', 'move_to_inactive', 'bring_back',
+      'list_lists', 'read_list', 'add_items', 'check_items', 'update_item', 'add_groups', 'order_groups', 'order_items', 'rename_group', 'delete_group', 'set_travel_mode', 'set_translations', 'move_to_inactive', 'bring_back',
     ]);
     const added = await mcp(`/mcp/${key}`, 'tools/call', { name: 'add_items', arguments: { items: [{ name: 'apples', quantity: 6 }] } });
     expect(toolData(added).added).toEqual(['apples']);
@@ -182,6 +182,26 @@ describe('AI assistants', () => {
     // REST
     expect((await (await req('POST', '/api/v1/lists/default/bring-back', { auth: key, body: { items: ['sugar'] } })).json()).backOnList).toEqual(['sugar']);
     expect((await (await req('POST', '/api/v1/lists/default/inactive', { auth: key, body: { items: ['sugar'] } })).json()).movedToInactive).toEqual(['sugar']);
+  });
+
+  it('sorts items within a group, over MCP and REST', async () => {
+    app.store.db.q('UPDATE spaces SET ai_write = 1').run();
+    const call = async (name, args) => toolData(await mcp(`/mcp/${key}`, 'tools/call', { name, arguments: args }));
+    await call('add_items', { items: ['apple', 'pear', 'plum', 'kiwi'].map((name) => ({ name, group: 'Fruit' })) });
+    expect(await call('order_items', { group: 'fruit', items: ['kiwi', 'plum', 'mango'] })).toMatchObject({
+      group: 'Fruit',
+      items: ['kiwi', 'plum', 'apple', 'pear'],
+      notFound: ['mango'],
+    });
+    const fruit = (l) => l.items.filter((i) => i.group === 'Fruit').map((i) => i.name);
+    expect(fruit(await call('read_list', {}))).toEqual(['kiwi', 'plum', 'apple', 'pear']);
+    // items without group
+    await call('add_items', { items: [{ name: 'foil', group: '' }, { name: 'candles' }] });
+    const r = await (await req('PUT', '/api/v1/lists/default/items/order', { auth: key, body: { items: ['pear', 'apple'], group: 'Fruit' } })).json();
+    expect(r.items.slice(0, 2)).toEqual(['pear', 'apple']);
+    expect((await req('PUT', '/api/v1/lists/default/items/order', { auth: key, body: { items: ['unicorn'], group: 'Fruit' } })).status).toBe(400);
+    const bad = await mcp(`/mcp/${key}`, 'tools/call', { name: 'order_items', arguments: { group: 'Nope', items: ['kiwi'] } });
+    expect(bad.body.result.isError).toBe(true);
   });
 
   it('a new ID cuts the assistants', async () => {
