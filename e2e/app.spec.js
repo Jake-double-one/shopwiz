@@ -986,6 +986,8 @@ test('list group: one need in two shops, bought once, green chain, only here, le
   await page.getByRole('button', { name: 'Yes, share' }).click();
   await expect(page.getByRole('checkbox', { name: 'Lidl' })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'DIY' })).not.toBeChecked();
+  // its own look – not the underlined style of text links
+  expect(await page.locator('fieldset.link-group').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('none');
   await page.getByRole('button', { name: 'Close' }).first().click();
   await expect(page.getByText('Lists linked – 1 duplicate item merged')).toBeVisible();
   await expect(page.locator('.list-title .linked')).toHaveCount(1);

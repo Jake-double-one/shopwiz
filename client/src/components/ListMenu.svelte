@@ -127,7 +127,7 @@
   </label>
 
   {#if others.length}
-    <fieldset class="mode link">
+    <fieldset class="mode link-group">
       <legend class="eyebrow"><Icon name="link" size={14} /> {t('link.title')}</legend>
       <p class="micro">{t('link.hint')}</p>
       {#each others as o (o.id)}
@@ -290,38 +290,38 @@
     margin-top: 4px;
     accent-color: var(--dusk);
   }
-  .link {
+  .link-group {
     display: grid;
     gap: 4px;
   }
-  .link legend {
+  .link-group legend {
     display: inline-flex;
     align-items: center;
     gap: 6px;
   }
-  .link .switch-row {
+  .link-group .switch-row {
     display: flex;
     gap: 10px;
     align-items: flex-start;
     padding: 4px 0;
   }
-  .link .switch-row input {
+  .link-group .switch-row input {
     margin-top: 4px;
     accent-color: var(--ok);
   }
-  .link .micro {
+  .link-group .micro {
     margin: 0 0 6px;
     text-transform: none;
     letter-spacing: 0.02em;
   }
-  .link .ask {
+  .link-group .ask {
     margin-top: 6px;
   }
-  .link .row {
+  .link-group .row {
     gap: 8px;
     margin-bottom: 6px;
   }
-  .link .btn.block {
+  .link-group .btn.block {
     margin-top: 8px;
   }
   .travel {
