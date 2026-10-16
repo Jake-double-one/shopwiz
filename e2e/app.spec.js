@@ -992,7 +992,7 @@ test('list group: one need in two shops, bought once, green chain, only here, le
   await expect(page.getByText('Lists linked – 1 duplicate item merged')).toBeVisible();
   // the undo notice shows how long undo is possible: a line along the bottom fills up
   const undoToast = page.locator('.toast', { hasText: 'Lists linked' });
-  await expect(undoToast.locator('.progress')).toHaveCSS('animation-duration', '8s');
+  await expect(undoToast.locator('.progress')).toHaveCSS('animation-duration', '10s');
   await expect(page.locator('.list-title .linked')).toHaveCount(1);
   await expect(item(page, 'Milk')).toHaveCount(1);
   await expect(item(page, 'Milk')).toContainText('2 l');

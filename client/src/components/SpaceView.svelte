@@ -239,13 +239,12 @@
         if (d.op.k === 'list.link' && pendingLinks.delete(d.id) && r.linked) {
           toast({
             text: r.mergedItems ? t('link.merged', { count: r.mergedItems }) : t('link.done', { count: r.linked }),
-            timeout: 8000,
             action: { label: t('undo'), run: () => undoLink(d.id) },
           });
         }
         if (r.conflicts) toast({ text: t('toast.conflict'), action: { label: t('conflict.review'), run: () => open('conflicts') } });
         if (r.rejected === 'deleted') {
-          toast({ text: t('toast.editDeleted', { name: r.name }), timeout: 8000, action: { label: t('restore'), run: () => restoreItems([d.op.id]) } });
+          toast({ text: t('toast.editDeleted', { name: r.name }), action: { label: t('restore'), run: () => restoreItems([d.op.id]) } });
         }
         if (syncingCount && sync.pendingCount === 0) {
           toast(t('toast.synced', { count: syncingCount }));

@@ -3,7 +3,9 @@ export const toasts = $state([]);
 
 /** show({ text, action: { label, run }, timeout, kind }) */
 export function toast(opts) {
-  const t = { id: ++seq, timeout: 5000, kind: 'info', ...(typeof opts === 'string' ? { text: opts } : opts) };
+  const o = typeof opts === 'string' ? { text: opts } : opts;
+  // with a button (undo, restore …) there is more time to decide
+  const t = { id: ++seq, timeout: o.action ? 10000 : 5000, kind: 'info', ...o };
   // keep it calm: at most two at a time
   toasts.push(t);
   while (toasts.length > 2) toasts.shift();
