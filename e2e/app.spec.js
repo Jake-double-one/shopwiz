@@ -1153,11 +1153,13 @@ test('text size per device: three sizes, nothing breaks out of a narrow phone', 
 
 test('new item with details: long press on +, the app shortcut, another one, duplicates, other list', async ({ page, browser }) => {
   const id = await createList(page, 'Weekly');
-  const plus = page.getByRole('button', { name: 'Add', exact: true });
+  const plus = page.locator('.bar button.add');
   const longPress = async () => {
     const box = await plus.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
+    // while held, the button visibly fills up
+    await expect(plus).toHaveClass(/pressing/);
     await page.waitForTimeout(700);
     await page.mouse.up();
   };
@@ -1174,6 +1176,7 @@ test('new item with details: long press on +, the app shortcut, another one, dup
   await expect(dialog.getByLabel('Amount')).toHaveValue('2');
   await expect(dialog.getByLabel('Unit')).toHaveValue('l');
   await expect(page.getByPlaceholder('Add item, e.g. 2 milk')).toHaveValue('');
+  await expect(plus).not.toHaveClass(/pressing/);
   await dialog.getByRole('radio', { name: 'Important', exact: true }).click();
   await dialog.getByLabel('Note').fill('lactose free');
   // "Another": added, the dialog stays for the next one

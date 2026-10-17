@@ -73,11 +73,14 @@
   // ----- long press on +: add with details (amount, note, priority, group, list) -----
   let pressTimer;
   let longPressed = false;
+  let pressing = $state(false); // the button fills up while held
   function pressStart(e) {
     if (e.button > 0 || !ondetails) return;
     longPressed = false;
+    pressing = true;
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
+      pressing = false;
       longPressed = true;
       navigator.vibrate?.(15);
       const raw = text.trim();
@@ -88,7 +91,10 @@
       ondetails(raw);
     }, 500);
   }
-  const pressEnd = () => clearTimeout(pressTimer);
+  const pressEnd = () => {
+    clearTimeout(pressTimer);
+    pressing = false;
+  };
   function addClick(e) {
     // the click that ends a long press must not add anything as well
     if (longPressed) {
@@ -261,6 +267,7 @@
       <button
         class="btn main add"
         class:idle={!parsed.name}
+        class:pressing
         type="submit"
         aria-label={t('add.button')}
         title={t('add.longPress')}
@@ -398,6 +405,37 @@
   }
   .add.idle {
     opacity: 0.55;
+  }
+  /* long press: the button fills up from the bottom until the dialog opens (500 ms) */
+  .add {
+    position: relative;
+    overflow: hidden;
+  }
+  .add :global(svg) {
+    position: relative;
+    z-index: 1;
+  }
+  .add::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--on-sun);
+    opacity: 0.28;
+    transform: scaleY(0);
+    transform-origin: bottom;
+    pointer-events: none;
+  }
+  .add.pressing {
+    opacity: 1;
+  }
+  .add.pressing::after {
+    /* a short tap shows nothing: the fill starts after a moment */
+    animation: fill-up 380ms linear 120ms forwards;
+  }
+  @keyframes fill-up {
+    to {
+      transform: scaleY(1);
+    }
   }
   .input {
     font-size: max(16px, 1rem);
