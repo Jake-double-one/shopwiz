@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy } from 'svelte';
   import Icon from './Icon.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import { t } from '../lib/i18n.svelte.js';
@@ -76,12 +77,23 @@
   // while held, a line fills up across the whole bar – the thumb covers the button itself
   let pressing = $state(false);
   const HOLD_MS = 800;
+  // Only lifting the finger (or sliding clearly away) ends the hold. Phones send "cancel" or
+  // "leave" on their own – Android's long-press gesture after ~0.5 s, a closing keyboard that
+  // moves the bar – so those don't count.
+  let pressFrom = null;
   function pressStart(e) {
     if (e.button > 0 || !ondetails) return;
+    // keep the focus in the input: the keyboard stays and the bar doesn't jump under the finger
+    e.preventDefault();
     longPressed = false;
     pressing = true;
+    pressFrom = { x: e.clientX, y: e.clientY };
+    addEventListener('pointerup', pressEnd, true);
+    addEventListener('touchend', pressEnd, true);
+    addEventListener('pointermove', pressMove, true);
     clearTimeout(pressTimer);
     pressTimer = setTimeout(() => {
+      stopListening();
       pressing = false;
       longPressed = true;
       navigator.vibrate?.(15);
@@ -93,10 +105,21 @@
       ondetails(raw);
     }, HOLD_MS);
   }
-  const pressEnd = () => {
+  function pressMove(e) {
+    if (pressFrom && Math.hypot(e.clientX - pressFrom.x, e.clientY - pressFrom.y) > 40) pressEnd();
+  }
+  function stopListening() {
+    pressFrom = null;
+    removeEventListener('pointerup', pressEnd, true);
+    removeEventListener('touchend', pressEnd, true);
+    removeEventListener('pointermove', pressMove, true);
+  }
+  function pressEnd() {
     clearTimeout(pressTimer);
+    stopListening();
     pressing = false;
-  };
+  }
+  onDestroy(pressEnd);
   function addClick(e) {
     // the click that ends a long press must not add anything as well
     if (longPressed) {
@@ -277,9 +300,6 @@
         title={t('add.longPress')}
         onclick={addClick}
         onpointerdown={pressStart}
-        onpointerup={pressEnd}
-        onpointerleave={pressEnd}
-        onpointercancel={pressEnd}
         oncontextmenu={(e) => e.preventDefault()}><Icon name="plus" /></button>
     </div>
   </form>
@@ -407,6 +427,9 @@
     /* long press: no text selection or system menu on phones */
     -webkit-touch-callout: none;
     user-select: none;
+    -webkit-user-select: none;
+    /* no browser gesture (scroll, zoom) may take over while the button is held */
+    touch-action: none;
   }
   .add.idle {
     opacity: 0.55;

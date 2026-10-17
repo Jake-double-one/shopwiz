@@ -1270,3 +1270,49 @@ test('typed text is only ever text: script, HTML and SQL in names and notes do n
   expect(html).toContain('&lt;b&gt;List&lt;/b&gt;');
   await b.ctx.close();
 });
+
+test('long press on + with a finger: Android breaking in after 0.4 s and an open keyboard do not stop it', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await createList(page);
+  const input = page.getByPlaceholder('Add item, e.g. 2 milk');
+  await input.fill('Butter');
+  await input.focus();
+  const box = await page.locator('.bar button.add').boundingBox();
+  const cdp = await ctx.newCDPSession(page);
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+  await expect(page.locator('.bar .hold-line')).toHaveCount(1);
+  await page.waitForTimeout(400);
+  // what the phone does on its own: cancel the pointer, and the field may lose focus
+  await page.evaluate(() => {
+    const b = document.querySelector('.bar button.add');
+    b.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }));
+    b.dispatchEvent(new PointerEvent('pointerleave', { bubbles: false }));
+  });
+  await expect(page.locator('.bar .hold-line')).toHaveCount(1);
+  await page.waitForTimeout(600);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  const dialog = page.getByRole('dialog', { name: 'New item' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Butter');
+  await expect(page.locator('.item')).toHaveCount(0); // the end of the press added nothing by itself
+  await dialog.getByRole('button', { name: 'Close' }).click();
+
+  // a short tap still just adds
+  await input.fill('Jam');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+  await page.waitForTimeout(80);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(item(page, 'Jam')).toHaveCount(1);
+  await expect(dialog).toHaveCount(0);
+  // sliding away from the button lets go
+  await input.fill('Tea');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at] });
+  await page.waitForTimeout(200);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: at.x - 120, y: at.y - 80 }] });
+  await page.waitForTimeout(900);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(dialog).toHaveCount(0);
+  await ctx.close();
+});
