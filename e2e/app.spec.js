@@ -1186,6 +1186,9 @@ test('new item with details: long press on +, the app shortcut, another one, dup
   await expect(page.getByPlaceholder('Add item, e.g. 2 milk')).toHaveValue('');
   await expect(plus).not.toHaveClass(/pressing/);
   await dialog.getByRole('radio', { name: 'Important', exact: true }).click();
+  // note (and the list) sit below the buttons – needed less often
+  const y = async (l) => (await l.boundingBox()).y;
+  expect(await y(dialog.getByLabel('Note'))).toBeGreaterThan(await y(dialog.getByRole('button', { name: 'Another' })));
   await dialog.getByLabel('Note').fill('lactose free');
   // "Another": added, the dialog stays for the next one
   await dialog.getByRole('button', { name: 'Another' }).click();

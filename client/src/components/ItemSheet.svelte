@@ -150,14 +150,6 @@
 
 <Sheet title={create ? t('add.newTitle') : item.name} eyebrow={create ? list.name : t('item.editTitle')} onclose={close}>
   <form onsubmit={(e) => (e.preventDefault(), create ? addNew(false) : close())}>
-    {#if create && lists.length > 1}
-      <label class="field">
-        <span>{t('add.toList')}</span>
-        <select class="select input" bind:value={listId}>
-          {#each lists as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
-        </select>
-      </label>
-    {/if}
     <label class="field">
       <span>{t('item.name')}</span>
       <!-- svelte-ignore a11y_autofocus -->
@@ -229,10 +221,12 @@
         {#if bought}<p class="micro bought">{t('link.boughtAt', { name: bought })}</p>{/if}
       </div>
     {/if}
-    <label class="field">
-      <span>{t('item.note')}</span>
-      <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={note} rows="2" maxlength="500"></textarea>
-    </label>
+    {#if !create}
+      <label class="field">
+        <span>{t('item.note')}</span>
+        <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={note} rows="2" maxlength="500"></textarea>
+      </label>
+    {/if}
     <label class="field">
       <span>{t('item.group')}</span>
       {#if create}
@@ -267,6 +261,19 @@
           <button type="button" class="btn" onclick={() => addNew(true)}><Icon name="plus" size={18} />{t('add.another')}</button>
         </div>
       {/if}
+      <!-- less often needed: below the buttons (the target list is named at the top) -->
+      <label class="field after">
+        <span>{t('item.note')}</span>
+        <textarea data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input" bind:value={note} rows="2" maxlength="500"></textarea>
+      </label>
+      {#if lists.length > 1}
+        <label class="field">
+          <span>{t('add.toList')}</span>
+          <select class="select input" bind:value={listId}>
+            {#each lists as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
+          </select>
+        </label>
+      {/if}
     {:else}
     <p class="micro meta">
       {#if item.addedBy}{t('item.addedBy', { name: item.addedBy, date: clock(item.createdAt) })}{/if}
@@ -285,6 +292,9 @@
 </Sheet>
 
 <style>
+  .after {
+    margin-top: 20px;
+  }
   .sugg {
     list-style: none;
     margin: -8px 0 14px;
