@@ -1,5 +1,5 @@
 // ShopWiz service worker: the app shell works offline. Data sync is handled by the app itself.
-const CACHE = 'shopwiz-v2';
+const CACHE = 'shopwiz-v3';
 const SHELL = ['/', '/manifest.webmanifest', '/icon.svg', '/icon-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -21,13 +21,16 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname === '/ws') return;
 
-  // App pages (/, /<ID>): network first, fall back to the cached shell
+  // App pages (/, /<ID>, /add, /share): network first, fall back to the cached shell
   if (req.mode === 'navigate') {
+    // only the app itself may become the offline shell – not e.g. /licenses.txt opened as a page
+    const appPage = /^\/(?:[0-9A-Za-z-]{10,14}|add|share)?$/.test(url.pathname);
     event.respondWith(
       fetch(req)
         .then((res) => {
           const copy = res.clone();
-          if (res.ok) caches.open(CACHE).then((c) => c.put('/', copy));
+          const html = (res.headers.get('content-type') || '').includes('text/html');
+          if (res.ok && html && appPage) caches.open(CACHE).then((c) => c.put('/', copy));
           return res;
         })
         .catch(() => caches.match('/')),

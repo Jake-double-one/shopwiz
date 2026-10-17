@@ -22,6 +22,7 @@ export const LIMITS = {
   qty: 12,
   listsPerSpace: 50,
   groupsPerSpace: 500,
+  devicesPerSpace: 100,
   itemsPerList: 2000,
   batch: 300,
 };
@@ -258,6 +259,8 @@ export class Store {
       db.q('UPDATE devices SET last_seen_at = ?, name = ? WHERE space_uid = ? AND token_hash = ?').run(now, devName, uid, tokenHash);
       return { ...existing, last_seen_at: now, name: devName, isNew: false };
     }
+    // every new token is a new device row – an ID cannot be filled up endlessly
+    if (db.q('SELECT COUNT(*) AS c FROM devices WHERE space_uid = ?').get(uid).c >= LIMITS.devicesPerSpace) throw new OpError('limit', 'too many devices');
     const devId = newEntityId().slice(0, 12);
     db.q('INSERT INTO devices (space_uid, token_hash, dev_id, name, last_seen_at, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       uid,
@@ -498,8 +501,9 @@ export class Store {
     return db.tx(() => {
       const rev = db.q('UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev').get(now, uid).rev;
       const ctx = { uid, dev: device, rev, at: madeAt, now, changes: [] };
-      const handler = OPS[op.k];
-      if (!handler) throw new OpError('invalid', `unknown op ${op.k}`);
+      // own handlers only – never something every object has (valueOf, constructor, …)
+      const handler = Object.hasOwn(OPS, op.k) ? OPS[op.k] : null;
+      if (typeof handler !== 'function') throw new OpError('invalid', 'unknown op');
       const result = handler.call(this, ctx, op) ?? {};
       db.q('INSERT INTO applied_ops (space_uid, op_id, result, created_at) VALUES (?, ?, ?, ?)').run(uid, opId, JSON.stringify(result), now);
       return { result: visible(result), changes: ctx.changes, rev, kickedHash: ctx.kicked, allDone: ctx.allDone };
@@ -667,6 +671,8 @@ export class Store {
         )
         .get(ctx.uid, scopeList, parentId, name);
     const create = (parentId, name) => {
+      // the same limit as for groups added by hand; past it the item simply has no group
+      if (this.db.q('SELECT COUNT(*) AS c FROM groups WHERE space_uid = ? AND deleted_at IS NULL').get(ctx.uid).c >= LIMITS.groupsPerSpace) return null;
       const maxPos = this.db
         .q('SELECT COALESCE(MAX(pos), 0) AS m FROM groups WHERE space_uid = ? AND list_id IS ? AND parent_id IS ? AND deleted_at IS NULL')
         .get(ctx.uid, scopeList, parentId).m;
@@ -678,9 +684,10 @@ export class Store {
       return { id };
     };
     const top = find(null, groupName) || create(null, groupName);
+    if (!top) return null;
     if (!subgroupName) return top.id;
     const sub = find(top.id, subgroupName) || create(top.id, subgroupName);
-    return sub.id;
+    return sub?.id ?? top.id;
   }
 }
 
@@ -847,7 +854,8 @@ const OPS = {
 
   /** Take back a "list.link" (by its op id): links, merged and shared items as before. */
   'list.linkUndo'(ctx, op) {
-    const done = this.db.q('SELECT result FROM applied_ops WHERE space_uid = ? AND op_id = ?').get(ctx.uid, String(op.opId ?? ''));
+    // only right after linking (the undo button) – not as a way back to some old state later
+    const done = this.db.q('SELECT result FROM applied_ops WHERE space_uid = ? AND op_id = ? AND created_at > ?').get(ctx.uid, String(op.opId ?? ''), ctx.now - 15 * 60_000);
     const undo = done && JSON.parse(done.result)._undo;
     if (!undo) return {};
     for (const l of undo.lists) {
@@ -1071,10 +1079,13 @@ const OPS = {
       if (this.db.q('UPDATE groups SET deleted_at = NULL WHERE space_uid = ? AND id = ? RETURNING id').get(ctx.uid, id)) this._pushGroup(ctx, id);
     }
     for (const m of Array.isArray(op.moves) ? op.moves.slice(0, LIMITS.itemsPerList) : []) {
-      const r = this.db
-        .q('UPDATE items SET group_id = ? WHERE space_uid = ? AND id = ? AND group_id IS NULL RETURNING id')
-        .get(eid(m.groupId), ctx.uid, eid(m.id));
-      if (r) this._pushItem(ctx, r.id);
+      const it = this.db.q('SELECT list_id FROM items WHERE space_uid = ? AND id = ? AND group_id IS NULL AND deleted_at IS NULL').get(ctx.uid, eid(m.id));
+      const list = it && this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, it.list_id);
+      // only back into a group of the item's own list
+      const gid = list ? this._validGroup(ctx.uid, list, eid(m.groupId)) : null;
+      if (!gid) continue;
+      this.db.q('UPDATE items SET group_id = ? WHERE space_uid = ? AND id = ?').run(gid, ctx.uid, m.id);
+      this._pushItem(ctx, m.id);
     }
   },
 

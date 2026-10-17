@@ -3,7 +3,8 @@
 // so nothing has to be translated by hand.
 
 /** ISO 3166 country → languages spoken in shops there (BCP 47, first = default). */
-export const COUNTRY_LANGS = {
+// no prototype: a country code like "constructor" must not count as known
+export const COUNTRY_LANGS = Object.assign(Object.create(null), {
   AD: ['ca'], AE: ['ar', 'en'], AL: ['sq'], AR: ['es'], AT: ['de'], AU: ['en'], BA: ['bs'], BE: ['nl', 'fr', 'de'],
   BG: ['bg'], BR: ['pt-BR'], BY: ['ru'], CA: ['en', 'fr'], CH: ['de', 'fr', 'it'], CL: ['es'], CN: ['zh'], CO: ['es'],
   CR: ['es'], CU: ['es'], CY: ['el', 'tr'], CZ: ['cs'], DE: ['de'], DK: ['da'], DO: ['es'], EE: ['et'], EG: ['ar'],
@@ -14,7 +15,7 @@ export const COUNTRY_LANGS = {
   NL: ['nl'], NO: ['nb'], NZ: ['en'], PE: ['es'], PH: ['en'], PL: ['pl'], PT: ['pt'], RO: ['ro'], RS: ['sr'], RU: ['ru'],
   SA: ['ar'], SE: ['sv'], SG: ['en', 'zh'], SI: ['sl'], SK: ['sk'], SM: ['it'], TH: ['th'], TN: ['ar', 'fr'], TR: ['tr'],
   TW: ['zh-TW'], TZ: ['sw', 'en'], UA: ['uk'], US: ['en'], VA: ['it'], VN: ['vi'], ZA: ['en', 'af'],
-};
+});
 
 export const COUNTRIES = Object.keys(COUNTRY_LANGS);
 export const LANG_RE = /^[a-z]{2,3}(-[A-Z]{2})?$/;

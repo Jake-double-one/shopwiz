@@ -8,7 +8,6 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { z } from 'zod';
 import { OpError, mapDevice, newEntityId } from './core.js';
 import { parseEntry, normalizeName, splitPrio, formatAmount } from '../shared/parse.js';
-import { formatSpaceId } from '../shared/ids.js';
 import { COUNTRY_LANGS, LANG_RE, countryName, langName } from '../shared/countries.js';
 
 const PRIO_NAMES = { 1: 'important', 0: 'normal', '-1': 'not important' };
@@ -31,8 +30,10 @@ const prioIn = (p) => {
 
 /** "2 Milch, Brot und 200g Hack" → ["2 Milch", "Brot", "200g Hack"] (dictation, e.g. Siri) */
 export function splitSpoken(text) {
+  // capped, and a pattern without nested whitespace runs: long blank text must not stall the server
   return String(text ?? '')
-    .split(/\s*(?:[,;\n]|\s+und\s+|\s+and\s+|\s+sowie\s+)\s*/i)
+    .slice(0, 4000)
+    .split(/[,;\n]|\s(?:und|and|sowie)\s/i)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -176,7 +177,7 @@ export function createAi({ store, hub, config, log }) {
 
   function listLists(ctx) {
     return {
-      id: formatSpaceId(ctx.space.public_id),
+      // never the ID itself: whoever knows it is a full member – a key only reaches what assistants may do
       name: ctx.space.name,
       assistantsMayChange: ctx.write,
       lists: lists(ctx.uid).map((l) => {

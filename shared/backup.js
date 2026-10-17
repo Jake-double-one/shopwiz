@@ -106,7 +106,8 @@ export function parseMarkdown(text) {
   };
   let inComment = false;
   for (const rawLine of String(text ?? '').replace(/^﻿/, '').split(/\r?\n/)) {
-    let line = rawLine.trim();
+    // a backup line is short – a huge one is cut instead of keeping the parser busy
+    let line = rawLine.slice(0, 2000).trim();
     if (inComment) {
       if (line.includes('-->')) inComment = false;
       continue;

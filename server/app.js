@@ -44,6 +44,8 @@ export async function buildApp(config) {
   for (const p of translator.problems) app.log.warn(`translation service "${p.provider}" is off: ${p.problem}`);
   // names sent to the translation provider per ID and hour – remembered ones are free
   const trUsage = new Map();
+  const trIpUsage = new Map(); // the same budget per address, so many new IDs don't multiply it
+  const wsPerIp = new Map(); // open sync connections per address
   app.decorate('store', store);
   app.decorate('hub', hub);
 
@@ -222,8 +224,15 @@ export async function buildApp(config) {
     const now = Date.now();
     let use = trUsage.get(uid);
     if (!use || use.reset <= now) trUsage.set(uid, (use = { count: 0, reset: now + 3_600_000 }));
-    if (use.count + todo.length > config.translateLimit) return reply.code(429).send({ error: 'translate_limit', translations: out });
+    const ip = clientKey(req);
+    let ipUse = trIpUsage.get(ip);
+    if (!ipUse || ipUse.reset <= now) trIpUsage.set(ip, (ipUse = { count: 0, reset: now + 3_600_000 }));
+    if (use.count + todo.length > config.translateLimit || ipUse.count + todo.length > config.translateLimit * 2) {
+      return reply.code(429).send({ error: 'translate_limit', translations: out });
+    }
     use.count += todo.length;
+    ipUse.count += todo.length;
+    if (trIpUsage.size > 10_000) for (const [k, u] of trIpUsage) if (u.reset <= now) trIpUsage.delete(k);
 
     let res;
     try {
@@ -404,6 +413,17 @@ export async function buildApp(config) {
 
   app.get('/ws', { websocket: true }, (ws, req) => {
     const key = clientKey(req);
+    // a few devices behind one address are normal – hundreds of open connections are not
+    const open = (wsPerIp.get(key) ?? 0) + 1;
+    if (open > 50) return ws.close(1013, 'too many connections');
+    wsPerIp.set(key, open);
+    ws.on('close', () => {
+      const n = (wsPerIp.get(key) ?? 1) - 1;
+      if (n > 0) wsPerIp.set(key, n);
+      else wsPerIp.delete(key);
+    });
+    // ops per connection: a bucket that refills – room for a long offline queue, not for a flood
+    const bucket = { tokens: 600, at: Date.now() };
     const conn = {
       uid: null,
       devId: null,
@@ -457,7 +477,13 @@ export async function buildApp(config) {
         hub.remove(conn);
         hub.presence(conn.uid);
       }
-      const dev = store.joinDevice(res.space.uid, tokenHash, msg.name);
+      let dev;
+      try {
+        dev = store.joinDevice(res.space.uid, tokenHash, msg.name);
+      } catch (e) {
+        if (e instanceof OpError) return reply({ t: 'error', error: 'too_many_devices' });
+        throw e;
+      }
       store.touch(res.space.uid, tokenHash);
       conn.uid = res.space.uid;
       conn.devId = dev.dev_id;
@@ -508,6 +534,15 @@ export async function buildApp(config) {
 
     function onOp(msg) {
       if (conn.uid === null) return reply({ t: 'ack', id: msg.id, ok: false, error: 'no_hello' });
+      const t = Date.now();
+      bucket.tokens = Math.min(600, bucket.tokens + ((t - bucket.at) / 1000) * 10);
+      bucket.at = t;
+      if (bucket.tokens < 1) {
+        // no ack: the device keeps the op and sends it again after reconnecting (with back-off)
+        reply({ t: 'error', error: 'busy' });
+        return conn.close();
+      }
+      bucket.tokens -= 1;
       const space = store.spaceByUid(conn.uid);
       if (!space || space.deleted_at) return reply({ t: 'deleted', by: space?.deleted_by, at: space?.deleted_at });
       const dev = store.device(conn.uid, conn.tokenHash);
@@ -611,9 +646,10 @@ export async function buildApp(config) {
       `<meta name="twitter:card" content="summary_large_image">`,
       `<meta name="description" content="${escapeHtml(description)}">`,
     ].join('\n    ');
+    // functions, not strings: "$&" or "$`" in a list name must not be read as replacement patterns
     return template
-      .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(title)}</title>`)
-      .replace('<!--og-->', meta)
+      .replace(/<title>[^<]*<\/title>/, () => `<title>${escapeHtml(title)}</title>`)
+      .replace('<!--og-->', () => meta)
       .replace('<!--skins-->', skinsHtml);
   }
 
