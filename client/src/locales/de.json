@@ -549,7 +549,6 @@
   "link.addHere": "Der nächste Artikel kommt nur in {name}. Antippen: in alle verbundenen Listen.",
   "link.sharedItem": "In allen verbundenen Listen",
   "link.boughtAt": "bei {name} gekauft",
-  "link.appliesTo": "Gilt für",
   "link.withNames": "Im Listenverbund mit {names}",
   "link.defaultSetting": "Neue Artikel im Listenverbund",
   "link.defaultAll": "in alle verbundenen Listen (Standard)",
@@ -559,7 +558,7 @@
   "history.list.link": "hat Listen verbunden: {name}",
   "history.list.unlink": "hat aus dem Listenverbund gelöst: {name}",
   "help.link.title": "Listenverbund",
-  "help.link.body": "Mehrere Läden mit ähnlichem Sortiment? Im Listenmenü unter „Listenverbund“ die anderen Listen anhaken. Verbundene Listen teilen sich ihre Artikel: Was auf einer steht, steht auf allen.\nEin gemeinsamer Artikel wird einmal abgehakt – egal wo. In den anderen Läden ist er dann ebenfalls abgehakt, mit grünem Etikett „bei Lidl gekauft“. Gruppen und Reihenfolge bleiben pro Laden.\nDer grüne Knopf „Verbund“ beim Hinzufügen schickt den nächsten Artikel an alle verbundenen Listen; antippen = nur diese Liste. Die Grundeinstellung wählst du pro Gerät in den Einstellungen. In den Artikeldetails lässt sich „Gilt für“ umstellen.\nVerlässt eine Liste den Verbund, behält sie eine eigene Kopie der gemeinsamen Artikel.",
+  "help.link.body": "Mehrere Läden mit ähnlichem Sortiment? Im Listenmenü unter „Listenverbund“ die anderen Listen anhaken. Verbundene Listen teilen sich ihre Artikel: Was auf einer steht, steht auf allen.\nEin gemeinsamer Artikel wird einmal abgehakt – egal wo. In den anderen Läden ist er dann ebenfalls abgehakt, mit grünem Etikett „bei Lidl gekauft“. Gruppen und Reihenfolge bleiben pro Laden.\nDer grüne Knopf „Verbund“ beim Hinzufügen schickt den nächsten Artikel an alle verbundenen Listen; antippen = nur diese Liste. Die Grundeinstellung wählst du pro Gerät in den Einstellungen. In den Artikeldetails schaltet „Auch bei …“ bzw. „Im ganzen Verbund“ das später um.\nVerlässt eine Liste den Verbund, behält sie eine eigene Kopie der gemeinsamen Artikel.",
   "textSize.label": "Schriftgröße",
   "textSize.small": "Klein",
   "textSize.normal": "Normal",
@@ -576,6 +575,7 @@
   "shortcut.add": "Artikel hinzufügen",
   "shortcut.addShort": "Hinzufügen",
   "add.holding": "Halten für Details …",
-  "link.onlyHereShort": "Nur hier",
-  "add.suggestions": "Vorschläge"
+  "add.suggestions": "Vorschläge",
+  "link.alsoAt": "Auch bei {name}",
+  "link.wholeGroup": "Im ganzen Verbund"
 }

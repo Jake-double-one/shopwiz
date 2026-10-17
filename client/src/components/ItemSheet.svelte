@@ -218,15 +218,14 @@
       </div>
     </div>
     {#if partners.length}
-      <div class="field prio-field">
-        <span class="prio-label" id="link-label"><Icon name="link" size={12} /> {t('link.appliesTo')}</span>
-        <div class="prio-seg link-seg" role="radiogroup" aria-labelledby="link-label">
-          <!-- short, one line each – the lists are in the title -->
-          <button type="button" role="radio" aria-checked={shared} class="all" onclick={() => (shared = true)} title={[list.name, ...partners.map((l) => l.name)].join(' · ')}>
-            <Icon name="link" size={14} />{t('link.group')}
-          </button>
-          <button type="button" role="radio" aria-checked={!shared} onclick={() => (shared = false)} title={list.name}>{t('link.onlyHereShort')}</button>
-        </div>
+      <!-- one switch: on = on the other lists of the list group as well, off = only here -->
+      <div class="field link-field">
+        <label class="link-switch" class:on={shared} title={partners.map((l) => l.name).join(' · ')}>
+          <input type="checkbox" role="switch" bind:checked={shared} aria-describedby="link-names" />
+          <Icon name="link" size={16} />
+          <span>{partners.length === 1 ? t('link.alsoAt', { name: partners[0].name }) : t('link.wholeGroup')}</span>
+        </label>
+        <span class="sr-only" id="link-names">{partners.map((l) => l.name).join(', ')}</span>
         {#if bought}<p class="micro bought">{t('link.boughtAt', { name: bought })}</p>{/if}
       </div>
     {/if}
@@ -382,18 +381,67 @@
     background: color-mix(in srgb, var(--sun-soft) 60%, var(--surface));
     box-shadow: inset 0 -2px 0 var(--sun);
   }
-  .link-seg {
-    grid-template-columns: 1fr 1fr;
+  .link-field {
+    margin-bottom: 14px;
   }
-  .link-seg button {
-    padding: 6px 8px;
-    line-height: 1.25;
+  .link-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
   }
-  .link-seg button.all[aria-checked='true'] {
+  .link-switch span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* on: strong green, like the chain in the add bar */
+  .link-switch.on {
     background: var(--ok);
+    border-color: var(--ok);
     color: var(--surface);
     font-weight: 700;
-    box-shadow: none;
+  }
+  .link-switch input {
+    order: 3;
+    width: 2.6em;
+    height: 1.5em;
+    margin: 0;
+    appearance: none;
+    border-radius: 999px;
+    background: var(--line);
+    position: relative;
+    flex: none;
+    cursor: pointer;
+  }
+  .link-switch input::after {
+    content: '';
+    position: absolute;
+    top: 0.2em;
+    left: 0.2em;
+    width: 1.1em;
+    height: 1.1em;
+    border-radius: 50%;
+    background: var(--surface);
+    transition: transform 0.15s ease;
+  }
+  .link-switch input:checked {
+    background: color-mix(in srgb, var(--surface) 35%, var(--ok));
+  }
+  .link-switch input:checked::after {
+    transform: translateX(1.1em);
+  }
+  .link-switch input:focus-visible {
+    outline: 2px solid var(--surface);
+    outline-offset: 2px;
   }
   .bought {
     margin: 6px 0 0;

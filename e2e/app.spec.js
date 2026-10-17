@@ -1061,8 +1061,10 @@ test('list group: one need in two shops, bought once, green chain, only here, le
 
   // details: "only here" takes an item out of the other shops
   await page.getByRole('button', { name: 'Edit Eggs' }).click();
-  await expect(page.getByRole('radio', { name: 'Group' })).toHaveAttribute('aria-checked', 'true');
-  await page.getByRole('radio', { name: 'Only here' }).click();
+  // one switch: with one other shop it is named right there
+  const also = page.getByRole('switch', { name: 'Also at Lidl' });
+  await expect(also).toBeChecked();
+  await also.uncheck();
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(item(b.page, 'Eggs')).toHaveCount(0);
   await expect(item(page, 'Eggs')).toHaveCount(1);

@@ -160,7 +160,7 @@ Für mehrere Lebensmittelläden in einer ID: Ein Artikel soll in *einem* davon g
 - **Bestehende Artikel:** Beim Verbinden fragt ShopWiz einmal „Bestehende Artikel im Verbund teilen?“. Ja: gleiche Artikel werden zu einem zusammengeführt (größere Menge, Notizen zusammen, offen schlägt abgehakt, wichtig schlägt normal) – mit Rückgängig. Nein: Nur neue Artikel werden geteilt.
 - **Hinzufügen:** Neben dem Prioritäts-Knopf zeigt ein grüner Knopf „Verbund“, dass der nächste Artikel in alle verbundenen Listen kommt. Antippen: „Nur Conad“. Die Grundeinstellung ist pro Gerät wählbar (Einstellungen → „Neue Artikel im Listenverbund“).
 - **Im Laden:** Ein gemeinsamer Artikel hat einen Status. In Lidl abgehakt → in Conad ebenfalls abgehakt, mit grünem Etikett „bei Lidl gekauft“. Nach „Inaktiv“ kommt er wie gewohnt über „Einkauf abschließen“ – dann für alle. Gruppen und Reihenfolge lernt jeder Laden für sich; kennt ein Laden den Artikel noch nicht, steht er dort ohne Gruppe.
-- **Artikeldetails:** „Gilt für“ – alle verbundenen Listen oder „Nur hier“.
+- **Artikeldetails:** ein Schalter „Auch bei CONAD Cagliari“ (bei mehreren Partnern „Im ganzen Verbund“) – aus = nur in dieser Liste.
 - **Lösen:** Verlässt eine Liste den Verbund, behält sie eine eigene Kopie aller gemeinsamen Artikel, die anderen behalten die gemeinsamen. Bleibt nur eine Liste übrig, endet der Verbund.
 - Verbinden und Lösen geht nur online. KI-Assistenten sehen den Verbund (`listGroup`) und fügen in den ganzen Verbund hinzu, mit `onlyThisList` nur in eine Liste.
 

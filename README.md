@@ -161,7 +161,7 @@ For several grocery shops in one ID: an item should be bought in *one* of them �
 - **Existing items:** when linking, ShopWiz asks once “Share the existing items in the group?”. Yes: items with the same name become one (the larger amount, notes joined, open beats checked, important beats normal) – with undo. No: only new items are shared.
 - **Adding:** next to the priority button, a green “Group” button shows that the next item goes to every linked list. Tap it: “Only Conad”. The default can be set per device (Settings → “New items in a list group”).
 - **In the shop:** a shared item has one status. Checked off at Lidl → checked at Conad, too, with a green “bought at Lidl” label. It goes to “Inactive” as usual with “Finish shopping” – then for everybody. Each shop learns groups and order on its own; a shop that doesn't know the item yet shows it without a group.
-- **Item details:** “Applies to” – every linked list, or “Only here”.
+- **Item details:** one switch “Also at CONAD Cagliari” (with several partners “In the whole group”) – off = only on this list.
 - **Leaving:** a list that leaves the group keeps its own copy of all shared items; the others keep the shared ones. With one list left, the group ends.
 - Linking and leaving only work online. AI assistants see the group (`listGroup`) and add to the whole group, or with `onlyThisList` to one list.
 

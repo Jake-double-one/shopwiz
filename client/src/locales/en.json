@@ -549,7 +549,6 @@
   "link.addHere": "The next item only goes to {name}. Tap: every linked list.",
   "link.sharedItem": "On every linked list",
   "link.boughtAt": "bought at {name}",
-  "link.appliesTo": "Applies to",
   "link.withNames": "In a list group with {names}",
   "link.defaultSetting": "New items in a list group",
   "link.defaultAll": "go to every linked list (default)",
@@ -559,7 +558,7 @@
   "history.list.link": "linked lists: {name}",
   "history.list.unlink": "took out of the list group: {name}",
   "help.link.title": "List groups",
-  "help.link.body": "Several shops that sell similar things? In the list menu under “List group”, tick the other lists. Linked lists share their items: what is on one is on all of them.\nA shared item is checked off once – wherever. In the other shops it is checked, too, with a green “bought at Lidl” label. Groups and order stay per shop.\nThe green “Group” button when adding sends the next item to every linked list; tap it = only this list. The default is set per device in the settings. “Applies to” in the item details changes it later.\nA list that leaves the group keeps its own copy of the shared items.",
+  "help.link.body": "Several shops that sell similar things? In the list menu under “List group”, tick the other lists. Linked lists share their items: what is on one is on all of them.\nA shared item is checked off once – wherever. In the other shops it is checked, too, with a green “bought at Lidl” label. Groups and order stay per shop.\nThe green “Group” button when adding sends the next item to every linked list; tap it = only this list. The default is set per device in the settings. “Also at …” / “In the whole group” in the item details changes it later.\nA list that leaves the group keeps its own copy of the shared items.",
   "textSize.label": "Text size",
   "textSize.small": "Small",
   "textSize.normal": "Normal",
@@ -576,6 +575,7 @@
   "shortcut.add": "Add item",
   "shortcut.addShort": "Add",
   "add.holding": "Hold for details …",
-  "link.onlyHereShort": "Only here",
-  "add.suggestions": "Suggestions"
+  "add.suggestions": "Suggestions",
+  "link.alsoAt": "Also at {name}",
+  "link.wholeGroup": "In the whole group"
 }
