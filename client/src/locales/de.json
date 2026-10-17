@@ -550,7 +550,6 @@
   "link.sharedItem": "In allen verbundenen Listen",
   "link.boughtAt": "bei {name} gekauft",
   "link.appliesTo": "Gilt für",
-  "link.onlyHere": "Nur hier ({name})",
   "link.withNames": "Im Listenverbund mit {names}",
   "link.defaultSetting": "Neue Artikel im Listenverbund",
   "link.defaultAll": "in alle verbundenen Listen (Standard)",
@@ -575,5 +574,7 @@
   "add.another": "Weiterer",
   "add.longPress": "Hinzufügen – lange drücken: mit Menge, Notiz und mehr",
   "shortcut.add": "Artikel hinzufügen",
-  "shortcut.addShort": "Hinzufügen"
+  "shortcut.addShort": "Hinzufügen",
+  "add.holding": "Halten für Details …",
+  "link.onlyHereShort": "Nur hier"
 }

@@ -73,7 +73,9 @@
   // ----- long press on +: add with details (amount, note, priority, group, list) -----
   let pressTimer;
   let longPressed = false;
-  let pressing = $state(false); // the button fills up while held
+  // while held, a line fills up across the whole bar – the thumb covers the button itself
+  let pressing = $state(false);
+  const HOLD_MS = 800;
   function pressStart(e) {
     if (e.button > 0 || !ondetails) return;
     longPressed = false;
@@ -89,7 +91,7 @@
       shareFlip = false;
       showSugg = false;
       ondetails(raw);
-    }, 500);
+    }, HOLD_MS);
   }
   const pressEnd = () => {
     clearTimeout(pressTimer);
@@ -212,6 +214,7 @@
   {/if}
 
   <form class="bar" onsubmit={(e) => (e.preventDefault(), submit())}>
+    {#if pressing}<span class="hold-line" aria-hidden="true" style:--hold={`${HOLD_MS}ms`}></span>{/if}
     <div class="target">
       <label class="sr-only" for="add-target">{t('add.target')}</label>
       <select id="add-target" class="target-select" class:set={!!target} value={target ?? ''} onchange={(e) => (target = e.target.value || null)}>
@@ -257,7 +260,8 @@
         onblur={() => setTimeout(() => (showSugg = false), 150)}
         {onkeydown}
         {onpaste}
-        placeholder={t('add.placeholder')}
+        placeholder={pressing ? t('add.holding') : t('add.placeholder')}
+        class:holding={pressing}
         aria-label={t('add.placeholder')}
         aria-autocomplete="list"
         aria-controls="add-suggestions"
@@ -302,6 +306,7 @@
     margin: 0 auto;
   }
   .bar {
+    position: relative;
     background: color-mix(in srgb, var(--bg) 88%, transparent);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
@@ -406,36 +411,32 @@
   .add.idle {
     opacity: 0.55;
   }
-  /* long press: the button fills up from the bottom until the dialog opens (500 ms) */
-  .add {
-    position: relative;
-    overflow: hidden;
-  }
-  .add :global(svg) {
-    position: relative;
-    z-index: 1;
-  }
-  .add::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: var(--on-sun);
-    opacity: 0.28;
-    transform: scaleY(0);
-    transform-origin: bottom;
-    pointer-events: none;
-  }
   .add.pressing {
     opacity: 1;
   }
-  .add.pressing::after {
-    /* a short tap shows nothing: the fill starts after a moment */
-    animation: fill-up 380ms linear 120ms forwards;
+  /* long press: a line fills up along the top of the bar until the dialog opens.
+     A short tap shows nothing – the line starts after a moment. */
+  .hold-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -2px;
+    height: 4px;
+    background: var(--sun);
+    transform: scaleX(0);
+    transform-origin: left;
+    pointer-events: none;
+    animation: hold-fill calc(var(--hold) - 150ms) linear 150ms forwards;
   }
-  @keyframes fill-up {
+  @keyframes hold-fill {
     to {
-      transform: scaleY(1);
+      transform: scaleX(1);
     }
+  }
+  .input.holding {
+    border-color: var(--sun);
+    outline: 2px solid var(--sun);
+    outline-offset: 0;
   }
   .input {
     font-size: max(16px, 1rem);

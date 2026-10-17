@@ -1061,7 +1061,8 @@ test('list group: one need in two shops, bought once, green chain, only here, le
 
   // details: "only here" takes an item out of the other shops
   await page.getByRole('button', { name: 'Edit Eggs' }).click();
-  await page.getByRole('radio', { name: 'Only here (Conad)' }).click();
+  await expect(page.getByRole('radio', { name: 'Group' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: 'Only here' }).click();
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(item(b.page, 'Eggs')).toHaveCount(0);
   await expect(item(page, 'Eggs')).toHaveCount(1);
@@ -1158,9 +1159,14 @@ test('new item with details: long press on +, the app shortcut, another one, dup
     const box = await plus.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    // while held, the button visibly fills up
+    // while held, a line fills up across the bar (the thumb covers the button) and the field says what happens
     await expect(plus).toHaveClass(/pressing/);
-    await page.waitForTimeout(700);
+    await expect(page.locator('.bar .hold-line')).toHaveCount(1);
+    await expect(page.getByPlaceholder('Hold for details …')).toHaveCount(1);
+    // not yet after half a second – it takes 0.8 s
+    await page.waitForTimeout(500);
+    await expect(page.getByRole('dialog', { name: 'New item' })).toHaveCount(0);
+    await page.waitForTimeout(500);
     await page.mouse.up();
   };
   // a short tap without text adds nothing

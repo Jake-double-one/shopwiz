@@ -210,10 +210,11 @@
       <div class="field prio-field">
         <span class="prio-label" id="link-label"><Icon name="link" size={12} /> {t('link.appliesTo')}</span>
         <div class="prio-seg link-seg" role="radiogroup" aria-labelledby="link-label">
-          <button type="button" role="radio" aria-checked={shared} class="all" onclick={() => (shared = true)}>
-            <Icon name="link" size={14} />{[list.name, ...partners.map((l) => l.name)].join(' · ')}
+          <!-- short, one line each – the lists are in the title -->
+          <button type="button" role="radio" aria-checked={shared} class="all" onclick={() => (shared = true)} title={[list.name, ...partners.map((l) => l.name)].join(' · ')}>
+            <Icon name="link" size={14} />{t('link.group')}
           </button>
-          <button type="button" role="radio" aria-checked={!shared} onclick={() => (shared = false)}>{t('link.onlyHere', { name: list.name })}</button>
+          <button type="button" role="radio" aria-checked={!shared} onclick={() => (shared = false)} title={list.name}>{t('link.onlyHereShort')}</button>
         </div>
         {#if bought}<p class="micro bought">{t('link.boughtAt', { name: bought })}</p>{/if}
       </div>

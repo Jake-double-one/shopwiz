@@ -550,7 +550,6 @@
   "link.sharedItem": "On every linked list",
   "link.boughtAt": "bought at {name}",
   "link.appliesTo": "Applies to",
-  "link.onlyHere": "Only here ({name})",
   "link.withNames": "In a list group with {names}",
   "link.defaultSetting": "New items in a list group",
   "link.defaultAll": "go to every linked list (default)",
@@ -575,5 +574,7 @@
   "add.another": "Another",
   "add.longPress": "Add – long press: with amount, note and more",
   "shortcut.add": "Add item",
-  "shortcut.addShort": "Add"
+  "shortcut.addShort": "Add",
+  "add.holding": "Hold for details …",
+  "link.onlyHereShort": "Only here"
 }
