@@ -1228,3 +1228,39 @@ test('new item with details: long press on +, the app shortcut, another one, dup
   await de.close();
   expect(id).toBeTruthy();
 });
+
+test('typed text is only ever text: script, HTML and SQL in names and notes do nothing', async ({ page, browser }) => {
+  const attacks = [
+    `<img src=x onerror="window.__pwned=1">`,
+    `<script>window.__pwned=1</script>`,
+    `'); DROP TABLE items; --`,
+    `" onmouseover="window.__pwned=1`,
+    `{{7*7}} \${7*7} $& $\``,
+  ];
+  let dialogs = 0;
+  page.on('dialog', (d) => (dialogs++, d.dismiss()));
+  const id = await createList(page, `<b>List</b><script>window.__pwned=1</script>`);
+  for (const a of attacks) await add(page, a);
+  // a note and a group with the same
+  await page.getByRole('button', { name: `Edit ${attacks[0]}` }).click();
+  await page.getByLabel('Note').fill(`<svg onload="window.__pwned=1">`);
+  await page.getByRole('button', { name: 'Done' }).click();
+  for (const a of attacks) await expect(page.getByRole('checkbox', { name: a, exact: true })).toHaveCount(1);
+  await expect(page.locator('.item', { hasText: '<svg onload' })).toHaveCount(1);
+  // the same for someone else who joins, and after reloading
+  const b = await join(browser, id, `<i>Sam</i>"'`);
+  for (const a of attacks) await expect(b.page.getByRole('checkbox', { name: a, exact: true })).toHaveCount(1);
+  await page.reload();
+  await expect(page.locator('.list-title .name')).toHaveText(`<b>List</b><script>window.__pwned=1</script>`);
+  for (const a of attacks) await expect(page.getByRole('checkbox', { name: a, exact: true })).toHaveCount(1);
+  // nothing was run anywhere, and the database still has every table
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await b.page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(dialogs).toBe(0);
+  expect(await page.locator('img[src="x"], svg[onload]').count()).toBe(0);
+  // the server-made page (link preview) escapes the list name
+  const html = await (await page.request.get(`/${id}`)).text();
+  expect(html).not.toContain('<b>List</b>');
+  expect(html).toContain('&lt;b&gt;List&lt;/b&gt;');
+  await b.ctx.close();
+});
