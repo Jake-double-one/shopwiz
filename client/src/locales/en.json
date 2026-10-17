@@ -576,5 +576,6 @@
   "shortcut.add": "Add item",
   "shortcut.addShort": "Add",
   "add.holding": "Hold for details …",
-  "link.onlyHereShort": "Only here"
+  "link.onlyHereShort": "Only here",
+  "add.suggestions": "Suggestions"
 }

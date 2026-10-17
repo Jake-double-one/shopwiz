@@ -1192,6 +1192,11 @@ test('new item with details: long press on +, the app shortcut, another one, dup
   await expect(item(page, 'Milk')).toHaveClass(/prio-up/);
   await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('');
   await expect(dialog.getByLabel('Name', { exact: true })).toBeFocused();
+  // suggestions in the app's own look while typing – not the browser's list
+  await dialog.getByLabel('Name', { exact: true }).fill('mi');
+  await expect(dialog.locator('.sugg .pick')).toContainText(['Milk']);
+  await expect(dialog.locator('.sugg')).toContainText('on the list');
+  await expect(dialog.locator('datalist')).toHaveCount(0);
   // the same name again: increase the amount instead of a second one
   await dialog.getByLabel('Name', { exact: true }).fill('milk');
   await dialog.getByLabel('Amount').fill('1');

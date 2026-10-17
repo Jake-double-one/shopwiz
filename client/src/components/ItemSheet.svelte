@@ -6,7 +6,7 @@
   import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
   import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, addEntry, increaseAmount } from '../lib/actions.js';
-  import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement } from '../lib/model.js';
+  import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement, suggestionsFor } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
   import { prefs } from '../lib/prefs.svelte.js';
@@ -41,8 +41,9 @@
   let nameInput = $state();
   let groupSel = $state(''); // '' = automatic: the group the list has learned for the name
   const learned = $derived(create && name.trim() ? learnedPlacement(v, list, name.trim()) : null);
-  // names used before, for the browser's own suggestions under the name field
-  const known = $derived(create ? Object.values(v.suggestions).sort((a, b) => b.uses - a.uses).slice(0, 300) : []);
+  // names used before – the same suggestions as in the add bar, only while typing
+  let nameFocus = $state(false);
+  const sugg = $derived(create && nameFocus && name.trim() ? suggestionsFor(v, list, name.trim(), 5) : []);
   let dup = $state(null); // { existing, parsed, another } – the name is on the list already
   $effect(() => {
     // another list: its groups
@@ -160,11 +161,21 @@
     <label class="field">
       <span>{t('item.name')}</span>
       <!-- svelte-ignore a11y_autofocus -->
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:this={nameInput} bind:value={name} maxlength="120" required list={create ? 'known-names' : undefined} autofocus={create} />
-      {#if create}
-        <datalist id="known-names">{#each known as s (s.norm)}<option value={s.name}></option>{/each}</datalist>
-      {/if}
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:this={nameInput} bind:value={name} maxlength="120" required autofocus={create} onfocus={() => (nameFocus = true)} onblur={() => setTimeout(() => (nameFocus = false), 150)} />
     </label>
+    {#if sugg.length}
+      <ul class="sugg card" aria-label={t('add.suggestions')}>
+        {#each sugg as s (s.norm)}
+          <li>
+            <button type="button" class="pick" onmousedown={(e) => e.preventDefault()} onclick={() => ((name = s.name), (nameFocus = false))}>
+              <span class="s-name">{s.name}</span>
+              {#if s.placement}<span class="micro">{s.placement.group}</span>{/if}
+              {#if s.onList}<span class="micro on">{t('add.onList')}</span>{:else if s.inactive}<span class="micro">{t('add.inactive')}</span>{/if}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
     {#if travel}
       <div class="field tr-field">
         <label for="tr-input"><Flag country={travel.country} size={13} /> {t('travel.field', { lang: langName(travel.lang, i18n.lang) })}</label>
@@ -275,6 +286,37 @@
 </Sheet>
 
 <style>
+  .sugg {
+    list-style: none;
+    margin: -8px 0 14px;
+    padding: 4px;
+  }
+  .sugg .pick {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: var(--ink);
+    text-align: left;
+  }
+  .sugg .pick:hover {
+    background: var(--surface-2);
+  }
+  .s-name {
+    flex: 1;
+    min-width: 0;
+  }
+  .sugg .micro {
+    margin: 0;
+  }
+  .sugg .on {
+    color: var(--dusk);
+  }
   .amount {
     display: grid;
     grid-template-columns: 1.4fr 1fr;
