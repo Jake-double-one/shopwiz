@@ -179,8 +179,12 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'deleted') return reply.code(409).send({ error: 'not_deleted' });
-    const id = store.continueSpace(r.space.uid, r.tokenHash, req.body?.deviceName);
-    return { id };
+    try {
+      return { id: store.continueSpace(r.space.uid, r.tokenHash, req.body?.deviceName) };
+    } catch (e) {
+      if (e instanceof OpError) return reply.code(400).send({ error: e.code, message: e.message });
+      throw e;
+    }
   });
 
   // Import a backup (parsed client side, see shared/backup.js) into an existing space
@@ -424,6 +428,16 @@ export async function buildApp(config) {
     });
     // ops per connection: a bucket that refills – room for a long offline queue, not for a flood
     const bucket = { tokens: 600, at: Date.now() };
+    // a phone that vanished (no network, app killed) leaves a half-open socket: ping, and drop it
+    // when no answer came – it would count against the per-address limit otherwise
+    let alive = true;
+    ws.on('pong', () => (alive = true));
+    const heartbeat = setInterval(() => {
+      if (!alive) return ws.terminate();
+      alive = false;
+      ws.ping();
+    }, 45_000).unref?.();
+    ws.on('close', () => clearInterval(heartbeat));
     const conn = {
       uid: null,
       devId: null,
@@ -481,7 +495,10 @@ export async function buildApp(config) {
       try {
         dev = store.joinDevice(res.space.uid, tokenHash, msg.name);
       } catch (e) {
-        if (e instanceof OpError) return reply({ t: 'error', error: 'too_many_devices' });
+        if (e instanceof OpError) {
+          reply({ t: 'error', error: 'too_many_devices' });
+          return conn.close();
+        }
         throw e;
       }
       store.touch(res.space.uid, tokenHash);

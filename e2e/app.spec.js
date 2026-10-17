@@ -650,6 +650,16 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await dialog.locator('.tr-input').fill('Olive');
   await dialog.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(item(page, 'Olives')).toContainText('Olive');
+  // a known name shows its translation; another name does not keep it (and nothing wrong is saved)
+  await page.goto('/add');
+  await dialog.getByLabel('Name', { exact: true }).fill('Olives');
+  await expect(dialog.locator('.tr-input')).toHaveValue('Olive');
+  await dialog.getByLabel('Name', { exact: true }).fill('Capers');
+  await expect(dialog.locator('.tr-input')).toHaveValue('');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(item(page, 'Capers')).toHaveCount(1);
+  await expect(item(page, 'Capers').locator('.tr')).toHaveCount(0);
+  await expect(item(page, 'Olives').locator('.tr')).toHaveText('Olive');
 });
 
 test('important / not important: shortcut, add-bar button, details, display style', async ({ page }) => {
@@ -1212,12 +1222,14 @@ test('new item with details: long press on +, the app shortcut, another one, dup
   await dialog.getByLabel('Name', { exact: true }).fill('milk');
   await dialog.getByLabel('Amount').fill('1');
   await dialog.getByLabel('Unit').fill('l');
+  await dialog.getByLabel('Note').fill('organic');
   await dialog.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(dialog.getByText('is already on the list')).toBeVisible();
   await dialog.getByRole('button', { name: 'Increase amount' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(item(page, 'Milk')).toHaveCount(1);
   await expect(item(page, 'Milk')).toContainText('3 l');
+  await expect(item(page, 'Milk')).toContainText('organic'); // the note typed there is kept, too
   // closing a new item adds nothing
   await longPress();
   await dialog.getByLabel('Name', { exact: true }).fill('Nothing');

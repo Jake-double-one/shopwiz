@@ -313,7 +313,7 @@ All settings are environment variables. The defaults are fine for most setups.
 | `SPACE_TTL_DAYS` | `181` | Default for new IDs: delete after this many days without any active device (1–367) |
 | `DEVICE_TTL_DAYS` | `30` | Remove devices after this many days without activity |
 | `ACTIVITY_TTL_DAYS` | `14` | Keep history, deleted items and conflicts this long |
-| `TRUST_PROXY` | `false` | `true` behind a reverse proxy |
+| `TRUST_PROXY` | `false` | `true` behind a reverse proxy – **important**: the limits per address (ID guessing, sync connections, translations) otherwise count everybody as the proxy's one address. Leave it `false` when ShopWiz faces the internet directly. |
 | `LOOKUP_LIMIT` | `30` | Unknown IDs a client address may try … |
 | `LOOKUP_WINDOW_MIN` | `15` | … per this many minutes (protection against guessing IDs) |
 | `CREATE_LIMIT` | `30` | New IDs per client address and hour |

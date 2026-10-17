@@ -55,7 +55,7 @@ export function addEntry(listId, raw, opts = {}) {
   const typed = prioFromText(list, raw);
   const prio = typed.prio || opts.prio || 0;
   // opts.exact: name and amount from separate fields (the "new item" dialog) – nothing to read out of the text
-  const parsed = opts.exact ? { name: typed.text.trim(), qty: opts.exact.qty ?? '', unit: opts.exact.qty ? (opts.exact.unit ?? '') : '', prio } : { ...parseEntry(typed.text), prio };
+  const parsed = opts.exact ? { name: typed.text.trim(), qty: opts.exact.qty ?? '', unit: opts.exact.unit ?? '', prio } : { ...parseEntry(typed.text), prio };
   const note = (opts.note ?? '').trim();
   if (!parsed.name) return { status: 'empty' };
   const norm = normalizeName(parsed.name);
@@ -71,13 +71,10 @@ export function addEntry(listId, raw, opts = {}) {
     // checked or inactive → simply bring it back
     const done = same.find((i) => i.checked) ?? same.find((i) => i.parked);
     if (done) {
-      const fields = done.parked ? { parked: false } : { checked: false };
-      if (parsed.qty) fields.amount = { qty: parsed.qty, unit: parsed.unit };
-      if (prio && prio !== (done.prio ?? 0)) fields.prio = prio;
-      if (note && note !== done.note) fields.note = note;
+      const fields = { ...(done.parked ? { parked: false } : { checked: false }), ...detailFields(done, parsed, opts, note) };
       editItem(done, fields, { silent: true });
-      const back = done.parked ? { parked: true } : { checked: true };
-      if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, { ...back, ...(fields.amount && { amount: { qty: done.qty, unit: done.unit } }) }, { silent: true }));
+      const back = { ...(done.parked ? { parked: true } : { checked: true }), ...previous(done, fields) };
+      if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, back, { silent: true }));
       return { status: 'reactivated', item: done };
     }
   }
@@ -98,11 +95,40 @@ export function addEntry(listId, raw, opts = {}) {
   return { status: 'added', id, groupId };
 }
 
-export function increaseAmount(item, parsed) {
+/**
+ * What else an entry changes on an item that is there already: amount, importance, note –
+ * and from the "new item" dialog (opts.exact) also its group, list group and a chosen "normal".
+ */
+function detailFields(item, parsed, opts, note) {
+  const f = {};
+  if (parsed.qty || (opts.exact && parsed.unit)) f.amount = { qty: parsed.qty, unit: parsed.unit };
+  const prio = parsed.prio ?? 0;
+  if ((prio || opts.exact) && prio !== (item.prio ?? 0)) f.prio = prio;
+  if (note && note !== item.note) f.note = note;
+  if (opts.groupId !== undefined && opts.groupId !== (item.groupId ?? null)) f.groupId = opts.groupId;
+  if (opts.shared !== undefined && v().lists[item.listId]?.linkId && !!opts.shared !== !!item.shared) f.shared = !!opts.shared;
+  return f;
+}
+
+/** The values fields had on the item before – for undo. */
+function previous(item, fields) {
+  const out = {};
+  for (const k of Object.keys(fields)) {
+    if (k === 'amount') out.amount = { qty: item.qty, unit: item.unit };
+    else if (k === 'groupId') out.groupId = item.groupId ?? null;
+    else if (k !== 'parked' && k !== 'checked') out[k] = k === 'prio' ? (item.prio ?? 0) : k === 'shared' ? !!item.shared : item[k];
+  }
+  return out;
+}
+
+/** extra: more changes from the "new item" dialog (opts like addEntry's: note, prio, groupId, shared) */
+export function increaseAmount(item, parsed, extra = null) {
   const sum = addAmounts({ qty: item.qty, unit: item.unit }, { qty: parsed.qty, unit: parsed.unit }) ?? { qty: item.qty, unit: item.unit };
-  const before = { qty: item.qty, unit: item.unit };
-  editItem(item, { amount: sum, ...(parsed.prio && parsed.prio !== (item.prio ?? 0) && { prio: parsed.prio }) }, { silent: true });
-  undoToast(t('toast.amountIncreased', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, { amount: before }, { silent: true }));
+  const more = extra ? detailFields(item, { ...parsed, qty: '', unit: '' }, { ...extra, exact: true }, (extra.note ?? '').trim()) : parsed.prio && parsed.prio !== (item.prio ?? 0) ? { prio: parsed.prio } : {};
+  const fields = { amount: sum, ...more };
+  const before = previous(item, fields);
+  editItem(item, fields, { silent: true });
+  undoToast(t('toast.amountIncreased', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, before, { silent: true }));
 }
 
 /** item.view: the list it is shown in – for a shared item of a list group that shop's place and "bought at". */

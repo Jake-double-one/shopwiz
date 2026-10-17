@@ -106,6 +106,8 @@
   }
 
   const itemSort = $derived({ group: 'items', draggable: '.item', handle: '.handle', onmove: onItemMove });
+  // inactive items sort themselves (most bought first): items can be dropped in, not reordered there
+  const shadowSort = $derived({ ...itemSort, sort: false });
   const groupSort = $derived({ group: 'groups', draggable: '.group.top', handle: '.g-top', onmove: onGroupMove });
 </script>
 
@@ -179,7 +181,7 @@
       <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={shadowText} placeholder={t('inactive.addPh')} aria-label={t('inactive.add')} maxlength="160" />
       <button class="btn" type="submit" disabled={!shadowText.trim()} aria-label={t('inactive.add')}><Icon name="plus" /></button>
     </form>
-    <ul class="items shadow-items" data-parked="1" data-group="" data-empty={shadowEmpty ? t('inactive.empty') : ''} use:sortable={itemSort}>
+    <ul class="items shadow-items" data-parked="1" data-group="" data-empty={shadowEmpty ? t('inactive.empty') : ''} use:sortable={shadowSort}>
       {#each tree.shadow.ungrouped as item (item.id)}
         <ItemRow {item} inactive conflict={conflictIds.has(item.id)} linked={linkOn && item.shared} {onedit} />
       {/each}
@@ -192,7 +194,7 @@
             <Icon name="more" size={18} />
           </button>
         </header>
-        <ul class="items shadow-items" data-parked="1" data-group={node.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={itemSort}>
+        <ul class="items shadow-items" data-parked="1" data-group={node.group.id} data-empty={t('inactive.emptyGroup')} use:sortable={shadowSort}>
           {#each node.items as item (item.id)}
             <ItemRow {item} inactive conflict={conflictIds.has(item.id)} linked={linkOn && item.shared} {onedit} />
           {/each}

@@ -300,6 +300,7 @@
         title={t('add.longPress')}
         onclick={addClick}
         onpointerdown={pressStart}
+        onkeydown={() => (longPressed = false)}
         oncontextmenu={(e) => e.preventDefault()}><Icon name="plus" /></button>
     </div>
   </form>

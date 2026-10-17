@@ -383,7 +383,7 @@ class Sync {
       clearInterval(this.pingTimer);
       this.ws = null;
       this.online = [];
-      if (['notfound', 'deleted', 'kicked', 'limited', 'idle'].includes(this.status)) return;
+      if (['notfound', 'deleted', 'kicked', 'limited', 'full', 'idle'].includes(this.status)) return;
       this.status = 'offline';
       this.scheduleReconnect();
     };
@@ -515,6 +515,7 @@ class Sync {
         break;
       case 'error':
         if (msg.error === 'rate_limited') this.stop('limited');
+        if (msg.error === 'too_many_devices') this.stop('full');
         break;
       default:
         break;

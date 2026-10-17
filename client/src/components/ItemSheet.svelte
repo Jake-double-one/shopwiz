@@ -6,7 +6,7 @@
   import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
   import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, addEntry, increaseAmount } from '../lib/actions.js';
-  import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement, suggestionsFor } from '../lib/model.js';
+  import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement, suggestionsFor, viewItem } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
   import { prefs } from '../lib/prefs.svelte.js';
@@ -74,7 +74,9 @@
     added(r.item?.name ?? n, another, r.status === 'added');
   }
   function added(n, another, announce = true) {
-    if (travel && tr.trim()) setTranslation(n, travel.lang, tr.trim().slice(0, 120), !!fresh && tr.trim() === fresh, fresh ? freshBy : null);
+    // only what was typed or fetched here – a known translation stays as it is (machine or not)
+    const text = tr.trim().slice(0, 120);
+    if (travel && text && text !== translationOf(sync.data, n, travel.lang)) setTranslation(n, travel.lang, text, !!fresh && text === fresh, fresh ? freshBy : null);
     dup = null;
     if (!another) return onclose();
     if (announce) toast(t('add.added', { name: n }));
@@ -88,6 +90,20 @@
   // travel mode: translation of this name (shared by every item with the same name)
   const travel = $derived(list.travel);
   let tr = $state(untrack(() => (list.travel ? translationOf(v, initial.name, list.travel.lang) : '')));
+  // new item: the translation belongs to the name (and language) it was typed or fetched for –
+  // another name or list shows what is known for that one instead of keeping the old text
+  let trFor = $state(null);
+  const trKey = () => `${normalizeName(name.trim())}|${travel?.lang ?? ''}`;
+  $effect(() => {
+    if (!create) return;
+    const key = trKey();
+    untrack(() => {
+      if (trFor === key) return;
+      trFor = null;
+      fresh = '';
+      tr = travel && name.trim() ? translationOf(v, name.trim(), travel.lang) : '';
+    });
+  });
   const stored = $derived(travel ? v.translations?.[`${normalizeName(name.trim() || (item?.name ?? ''))}|${travel.lang}`] : null);
   let translating = $state(false);
   let fresh = $state(''); // what the service answered just now – saved as a machine translation if kept as is
@@ -111,6 +127,7 @@
     const text = Object.values(r.translations)[0];
     if (text) {
       tr = fresh = text;
+      trFor = trKey();
       freshBy = Object.values(r.by)[0] ?? null;
     }
     else trError = t({ quota: 'travel.errQuota', translate_limit: 'travel.errLimit', not_configured: 'travel.errOff', offline: 'travel.errOffline' }[r.error] ?? 'travel.errFailed');
@@ -172,7 +189,7 @@
       <div class="field tr-field">
         <label for="tr-input"><Flag country={travel.country} size={13} /> {t('travel.field', { lang: langName(travel.lang, i18n.lang) })}</label>
         <div class="row">
-          <input id="tr-input" lang={travel.lang} data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input tr-input" bind:value={tr} maxlength="120" placeholder={t('travel.fieldPh')} />
+          <input id="tr-input" lang={travel.lang} data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input tr-input" bind:value={tr} oninput={() => (trFor = trKey())} maxlength="120" placeholder={t('travel.fieldPh')} />
           {#if sync.features.translate}
             <button type="button" class="btn" onclick={autoTranslate} disabled={translating || sync.status !== 'online'} title={t('travel.auto')}>
               <Icon name="swap" size={18} /><span class="auto-label">{translating ? '…' : t('travel.auto')}</span>
@@ -251,7 +268,7 @@
           <span class="grow"><b>{dup.existing.name}</b> {t('dup.text', { amount: formatAmount(dup.existing.qty, dup.existing.unit) || '1×' })}</span>
         </div>
         <div class="row wrap-row">
-          <button type="button" class="btn main" onclick={() => (increaseAmount(sync.data.items[dup.existing.id] ?? dup.existing, dup.parsed), added(dup.existing.name, dup.another, false))}>{t('dup.increase')}</button>
+          <button type="button" class="btn main" onclick={() => (increaseAmount(viewItem(sync.data, list, sync.data.items[dup.existing.id] ?? dup.existing), dup.parsed, { note, ...(groupSel && { groupId: groupSel }), ...(partners.length && { shared }) }), added(dup.existing.name, dup.another, false))}>{t('dup.increase')}</button>
           <button type="button" class="btn" onclick={() => addNew(dup.another, { force: true })}>{t('dup.addAnyway')}</button>
           <button type="button" class="btn" onclick={() => (dup = null)}>{t('cancel')}</button>
         </div>

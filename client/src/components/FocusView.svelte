@@ -21,13 +21,22 @@
   // text size of the focus mode only – in the shop other things count (arm's length, a trolley)
   const sizeIdx = $derived(FOCUS_SIZES.indexOf(prefs.focusSize));
   const resize = (d) => setFocusSize(FOCUS_SIZES[sizeIdx + d]);
-  // "Aa" opens a strip below the banner; a tap anywhere else closes it (and does nothing else)
+  // "Aa" opens a strip below the banner. A tap on the list closes it and does nothing else
+  // (no check-off, no swipe); the banner's buttons keep working (Leave closes the focus mode).
   let sizing = $state(false);
-  function closeOutside(e) {
-    if (!sizing || e.target.closest?.('.sizer, .aa')) return;
-    e.preventDefault();
+  let swallow = false;
+  function closeOnList(e) {
+    if (!sizing || e.target.closest?.('.top')) return;
     e.stopPropagation();
     sizing = false;
+    swallow = true;
+    setTimeout(() => (swallow = false), 600);
+  }
+  function swallowClick(e) {
+    if (!swallow || e.target.closest?.('.top')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    swallow = false;
   }
 
   let root = $state();
@@ -44,7 +53,7 @@
   });
 </script>
 
-<div class="focus" style:--f-scale={prefs.focusSize} role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onclickcapture={closeOutside} onkeydown={(e) => e.key === 'Escape' && (sizing ? (sizing = false) : onclose())}>
+<div class="focus" style:--f-scale={prefs.focusSize} role="dialog" aria-modal="true" aria-label={t('focus.title', { list: list.name })} tabindex="-1" bind:this={root} onpointerdowncapture={closeOnList} onclickcapture={swallowClick} onkeydown={(e) => e.key === 'Escape' && (sizing ? (sizing = false) : onclose())}>
   <div class="top">
   <div class="banner">
     <button class="exit" onclick={onclose}><Icon name="x" size={18} />{t('focus.exit')}</button>

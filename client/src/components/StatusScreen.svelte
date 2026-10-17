@@ -58,6 +58,10 @@
         <button class="btn main" onclick={() => sync.open(spaceId)}>{t('status.rejoin')}</button>
         <button class="btn" onclick={forget}>{t('back')}</button>
       </div>
+    {:else if status === 'full'}
+      <h2>{t('status.fullTitle')}</h2>
+      <p class="note">{t('status.full')}</p>
+      <button class="btn" onclick={onleave}>{t('back')}</button>
     {:else}
       <h2>{t('status.limitedTitle')}</h2>
       <p class="note">{t('status.limited')}</p>

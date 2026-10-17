@@ -109,3 +109,60 @@ describe('security over HTTP', () => {
     expect((await app.inject({ method: 'GET', url: '/manifest.webmanifest' })).json().shortcuts[0].name).toBe('Add item');
   });
 });
+
+describe('sync connection limits', () => {
+  let srv;
+  let base;
+  afterAll(() => srv?.close());
+  const start = async () => {
+    srv = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    await srv.listen({ port: 0, host: '127.0.0.1' });
+    base = `127.0.0.1:${srv.server.address().port}`;
+  };
+  const post = (path, body) => fetch(`http://${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  function client() {
+    const ws = new WebSocket(`ws://${base}/ws`);
+    const inbox = [];
+    const open = new Promise((r) => ws.addEventListener('open', r));
+    ws.addEventListener('message', (ev) => inbox.push(JSON.parse(ev.data)));
+    const wait = async (pred) => {
+      for (let i = 0; i < 100; i++) {
+        const m = inbox.find(pred);
+        if (m) return m;
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      throw new Error(`timeout – got ${JSON.stringify(inbox.slice(-3))}`);
+    };
+    return { ws, inbox, wait, send: async (m) => (await open, ws.send(JSON.stringify(m))) };
+  }
+  const closed = (ws) => new Promise((r) => (ws.readyState === 3 ? r() : ws.addEventListener('close', () => r())));
+
+  it('a full ID tells a new device so and closes – no endless loading', async () => {
+    await start();
+    const token = 'token-fullfullfullfullfull';
+    const { id } = await (await post('/api/spaces', { name: 'Full', token, deviceName: 'A' })).json();
+    const { uid } = srv.store.resolve(id, null).space;
+    for (let i = 1; i < 100; i++) srv.store.joinDevice(uid, `hash-${i}`, `D${i}`);
+    const c = client();
+    await c.send({ t: 'hello', space: id, token: 'token-newnewnewnewnewnewnew', name: 'New' });
+    await c.wait((m) => m.t === 'error' && m.error === 'too_many_devices');
+    await closed(c.ws);
+    // a device that is in already still gets in
+    const a = client();
+    await a.send({ t: 'hello', space: id, token, name: 'A' });
+    await a.wait((m) => m.t === 'welcome');
+    a.ws.close();
+  });
+
+  it('a flood of ops is cut off (the device sends them again after reconnecting)', async () => {
+    const token = 'token-floodfloodfloodflood';
+    const { id } = await (await post('/api/spaces', { name: 'Flood', token, deviceName: 'A' })).json();
+    const c = client();
+    await c.send({ t: 'hello', space: id, token, name: 'A' });
+    await c.wait((m) => m.t === 'welcome');
+    for (let i = 0; i < 700; i++) c.ws.send(JSON.stringify({ t: 'op', id: `f${i}`, op: { k: 'space.update', name: `Flood ${i}` }, at: Date.now() }));
+    await c.wait((m) => m.t === 'error' && m.error === 'busy');
+    await closed(c.ws);
+    expect(c.inbox.filter((m) => m.t === 'ack').length).toBeLessThanOrEqual(601);
+  });
+});

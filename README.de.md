@@ -312,7 +312,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `SPACE_TTL_DAYS` | `181` | Standard für neue IDs: Löschen nach so vielen Tagen ohne aktives Gerät (1–367) |
 | `DEVICE_TTL_DAYS` | `30` | Geräte nach so vielen Tagen ohne Aktivität entfernen |
 | `ACTIVITY_TTL_DAYS` | `14` | So lange bleiben Verlauf, gelöschte Artikel und Konflikte erhalten |
-| `TRUST_PROXY` | `false` | `true` hinter einem Reverse Proxy |
+| `TRUST_PROXY` | `false` | `true` hinter einem Reverse Proxy – **wichtig**: Die Grenzen pro Adresse (ID-Raten, Sync-Verbindungen, Übersetzungen) zählen sonst alle als die eine Adresse des Proxys. Steht ShopWiz direkt im Internet, `false` lassen. |
 | `LOOKUP_LIMIT` | `30` | So viele unbekannte IDs darf eine Adresse probieren … |
 | `LOOKUP_WINDOW_MIN` | `15` | … pro so vielen Minuten (Schutz gegen das Erraten von IDs) |
 | `CREATE_LIMIT` | `30` | Neue IDs pro Adresse und Stunde |
