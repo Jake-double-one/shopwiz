@@ -5,27 +5,84 @@
   import Flag from './Flag.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
-  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName } from '../lib/actions.js';
-  import { groupOptions, translationOf, linkedLists, boughtAt } from '../lib/model.js';
+  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, addEntry, increaseAmount } from '../lib/actions.js';
+  import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
+  import { toast } from '../lib/toast.svelte.js';
+  import { prefs } from '../lib/prefs.svelte.js';
   import { langName } from '../../../shared/countries.js';
-  import { normalizeName } from '../../../shared/parse.js';
+  import { normalizeName, parseEntry, formatAmount } from '../../../shared/parse.js';
 
-  let { v, list, item, onclose, ontransfer } = $props();
+  /**
+   * item: the item to edit – or null: a new item (from the app shortcut or a long press on +),
+   * then prefill is what was typed already, and the list can be chosen
+   */
+  let { v, list: startList, item = null, prefill = '', onclose, ontransfer } = $props();
+  const create = untrack(() => !item);
 
-  // editable draft, saved on close
-  const initial = untrack(() => ({ ...item }));
+  // editable draft, saved on close (a new item: added with the button, closing discards it)
+  const initial = untrack(() => (item ? { ...item } : { ...parseEntry(prefill), note: '', prio: 0, shared: prefs.linkDefault !== 'here' }));
   let name = $state(initial.name);
   let qty = $state(initial.qty);
   let unit = $state(initial.unit);
   let note = $state(initial.note);
   let prio = $state(initial.prio ?? 0);
+  let listId = $state(untrack(() => startList.id));
+  const list = $derived(create ? (v.lists[listId] ?? startList) : startList);
+  const lists = $derived(sortedLists(v));
   const options = $derived(groupOptions(v, list));
 
   // list group: on every list of it, or only on this one
   const partners = $derived(linkedLists(v, list));
   let shared = $state(!!initial.shared);
-  const bought = $derived(boughtAt(v, list, item));
+  const bought = $derived(item ? boughtAt(v, list, item) : '');
+
+  // ----- new item -----
+  let nameInput = $state();
+  let groupSel = $state(''); // '' = automatic: the group the list has learned for the name
+  const learned = $derived(create && name.trim() ? learnedPlacement(v, list, name.trim()) : null);
+  // names used before, for the browser's own suggestions under the name field
+  const known = $derived(create ? Object.values(v.suggestions).sort((a, b) => b.uses - a.uses).slice(0, 300) : []);
+  let dup = $state(null); // { existing, parsed, another } – the name is on the list already
+  $effect(() => {
+    // another list: its groups
+    listId;
+    untrack(() => (groupSel = ''));
+  });
+  const cleanQty = () => {
+    const q = String(qty ?? '').replace(',', '.').trim();
+    return q === '' || /^\d+(\.\d+)?$/.test(q) ? q : '';
+  };
+  function addNew(another = false, opts = {}) {
+    const n = name.trim();
+    if (!n) return nameInput?.focus();
+    const q = cleanQty();
+    const r = addEntry(list.id, n, {
+      exact: { qty: q, unit: unit.trim().slice(0, 16) },
+      prio,
+      note,
+      ...(groupSel && { groupId: groupSel }),
+      ...(partners.length && { shared }),
+      ...opts,
+    });
+    if (r.status === 'duplicate') {
+      dup = { existing: r.existing, parsed: r.parsed, another };
+      return;
+    }
+    if (r.status === 'empty') return nameInput?.focus();
+    added(r.item?.name ?? n, another, r.status === 'added');
+  }
+  function added(n, another, announce = true) {
+    if (travel && tr.trim()) setTranslation(n, travel.lang, tr.trim().slice(0, 120), !!fresh && tr.trim() === fresh, fresh ? freshBy : null);
+    dup = null;
+    if (!another) return onclose();
+    if (announce) toast(t('add.added', { name: n }));
+    name = qty = unit = note = tr = fresh = '';
+    prio = 0;
+    groupSel = '';
+    shared = prefs.linkDefault !== 'here';
+    nameInput?.focus();
+  }
 
   // travel mode: translation of this name (shared by every item with the same name)
   const travel = $derived(list.travel);
@@ -75,7 +132,7 @@
   }
 
   function close() {
-    save();
+    if (!create) save();
     onclose();
   }
 
@@ -86,11 +143,23 @@
   }
 </script>
 
-<Sheet title={item.name} eyebrow={t('item.editTitle')} onclose={close}>
-  <form onsubmit={(e) => (e.preventDefault(), close())}>
+<Sheet title={create ? t('add.newTitle') : item.name} eyebrow={create ? list.name : t('item.editTitle')} onclose={close}>
+  <form onsubmit={(e) => (e.preventDefault(), create ? addNew(false) : close())}>
+    {#if create && lists.length > 1}
+      <label class="field">
+        <span>{t('add.toList')}</span>
+        <select class="select input" bind:value={listId}>
+          {#each lists as l (l.id)}<option value={l.id}>{l.name}</option>{/each}
+        </select>
+      </label>
+    {/if}
     <label class="field">
       <span>{t('item.name')}</span>
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:value={name} maxlength="120" required />
+      <!-- svelte-ignore a11y_autofocus -->
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:this={nameInput} bind:value={name} maxlength="120" required list={create ? 'known-names' : undefined} autofocus={create} />
+      {#if create}
+        <datalist id="known-names">{#each known as s (s.norm)}<option value={s.name}></option>{/each}</datalist>
+      {/if}
     </label>
     {#if travel}
       <div class="field tr-field">
@@ -113,9 +182,9 @@
       <label class="field qty">
         <span>{t('item.qty')}</span>
         <div class="row">
-          <button type="button" class="btn" onclick={() => step(-1)} aria-label="−1">−</button>
-          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input mono" bind:value={qty} inputmode="decimal" maxlength="12" />
-          <button type="button" class="btn" onclick={() => step(1)} aria-label="+1">+</button>
+          <button type="button" class="btn" onclick={() => step(-1)} aria-label={t('item.lessShort')}>−</button>
+          <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input mono" bind:value={qty} inputmode="decimal" maxlength="12" aria-label={t('item.qty')} />
+          <button type="button" class="btn" onclick={() => step(1)} aria-label={t('item.moreShort')}>+</button>
         </div>
       </label>
       <label class="field unit">
@@ -151,13 +220,39 @@
     </label>
     <label class="field">
       <span>{t('item.group')}</span>
-      <select class="select input" value={item.groupId ?? ''} onchange={(e) => editItem(item, { groupId: e.target.value || null })}>
-        <option value="">{t('item.noGroup')}</option>
-        {#each options as o (o.id)}
-          <option value={o.id}>{o.depth ? `${o.parent} › ${o.label}` : o.label}</option>
-        {/each}
-      </select>
+      {#if create}
+        <select class="select input" bind:value={groupSel}>
+          <option value="">{learned ? `→ ${learned.group}${learned.subgroup ? ` › ${learned.subgroup}` : ''}` : t('add.auto')}</option>
+          {#each options as o (o.id)}
+            <option value={o.id}>{o.depth ? `${o.parent} › ${o.label}` : o.label}</option>
+          {/each}
+        </select>
+      {:else}
+        <select class="select input" value={item.groupId ?? ''} onchange={(e) => editItem(item, { groupId: e.target.value || null })}>
+          <option value="">{t('item.noGroup')}</option>
+          {#each options as o (o.id)}
+            <option value={o.id}>{o.depth ? `${o.parent} › ${o.label}` : o.label}</option>
+          {/each}
+        </select>
+      {/if}
     </label>
+    {#if create}
+      {#if dup}
+        <div class="hint" role="alert">
+          <span class="grow"><b>{dup.existing.name}</b> {t('dup.text', { amount: formatAmount(dup.existing.qty, dup.existing.unit) || '1×' })}</span>
+        </div>
+        <div class="row wrap-row">
+          <button type="button" class="btn main" onclick={() => (increaseAmount(sync.data.items[dup.existing.id] ?? dup.existing, dup.parsed), added(dup.existing.name, dup.another, false))}>{t('dup.increase')}</button>
+          <button type="button" class="btn" onclick={() => addNew(dup.another, { force: true })}>{t('dup.addAnyway')}</button>
+          <button type="button" class="btn" onclick={() => (dup = null)}>{t('cancel')}</button>
+        </div>
+      {:else}
+        <div class="row wrap-row">
+          <button type="submit" class="btn main"><Icon name="plus" size={18} />{t('add.button')}</button>
+          <button type="button" class="btn" onclick={() => addNew(true)}><Icon name="plus" size={18} />{t('add.another')}</button>
+        </div>
+      {/if}
+    {:else}
     <p class="micro meta">
       {#if item.addedBy}{t('item.addedBy', { name: item.addedBy, date: clock(item.createdAt) })}{/if}
       {#if item.checked && item.checkedBy} · {t('item.checkedBy', { name: item.checkedBy })}{/if}
@@ -170,6 +265,7 @@
       <button type="button" class="btn" onclick={() => (save(), ontransfer(item))}><Icon name="send" size={18} />{t('transfer.short')}</button>
       <button type="button" class="btn danger" onclick={() => (deleteItems([item]), onclose())}><Icon name="trash" size={18} />{t('delete')}</button>
     </div>
+    {/if}
   </form>
 </Sheet>
 

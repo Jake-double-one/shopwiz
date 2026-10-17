@@ -556,11 +556,26 @@ export async function buildApp(config) {
   const indexFile = join(staticDir, 'index.html');
   const template = existsSync(indexFile) ? readFileSync(indexFile, 'utf8') : null;
 
+  // the manifest comes from the route below: the app shortcut speaks the phone's language
+  const manifestFile = join(staticDir, 'manifest.webmanifest');
+  const manifest = existsSync(manifestFile) ? JSON.parse(readFileSync(manifestFile, 'utf8')) : null;
+  const SHORTCUT_NAMES = { de: ['Artikel hinzufügen', 'Hinzufügen'], en: ['Add item', 'Add'] };
+  if (manifest) {
+    app.get('/manifest.webmanifest', async (req, reply) => {
+      const lang = /^\s*de\b/i.test(String(req.headers['accept-language'] ?? '')) ? 'de' : 'en';
+      const [name, short] = SHORTCUT_NAMES[lang];
+      const body = { ...manifest, lang, shortcuts: (manifest.shortcuts ?? []).map((s) => (s.url === '/add' ? { ...s, name, short_name: short } : s)) };
+      reply.header('Cache-Control', 'no-cache').header('Vary', 'Accept-Language').type('application/manifest+json; charset=utf-8');
+      return JSON.stringify(body);
+    });
+  }
+
   if (existsSync(staticDir)) {
     await app.register(fastifyStatic, {
       root: staticDir,
       wildcard: false,
       index: false,
+      globIgnore: manifest ? ['manifest.webmanifest'] : [],
       cacheControl: false,
       setHeaders(reply, path) {
         const immutable = path.startsWith(join(staticDir, 'assets'));

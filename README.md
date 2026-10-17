@@ -40,6 +40,9 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Amount buttons** | On tablets and computers, − and + sit right next to the amount (g/ml in steps of 100). On phones the amount is changed in the item's edit dialog. |
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
+| **New item with details** | A long press on the yellow + opens a dialog: name, amount, priority, note, group and list at once; “Another” keeps it open. With the installed app: long press the app icon → “Add item”. |
+| **Share to ShopWiz** | Select text on a web page or in a note → Share → ShopWiz: every line becomes an item (installed app on Android). |
+| **Text size** | Small, normal or large per device; the focus mode has its own size (“Aa”). |
 | **Important / not important** | Mark items ↑ important (“don't come home without it”) or ↓ not important. Important items move to the top of their group, unimportant ones to the bottom. Set in the item details or with the button next to the group picker; optionally per list with the shortcuts `!Diapers` / `? Basil` when typing. How the mark looks is chosen per device. |
 | **Checked items stay** | They move to the end of their group and can be unchecked again. The eye button hides them while you shop (per device). |
 | **Swipe** | On phones, swipe an item one way to check it off and the other way to make it inactive (with undo). Which way does what – or whether swiping is off – is set per device. |

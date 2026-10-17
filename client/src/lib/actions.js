@@ -54,7 +54,9 @@ export function addEntry(listId, raw, opts = {}) {
   if (!list) return { status: 'empty' };
   const typed = prioFromText(list, raw);
   const prio = typed.prio || opts.prio || 0;
-  const parsed = { ...parseEntry(typed.text), prio };
+  // opts.exact: name and amount from separate fields (the "new item" dialog) – nothing to read out of the text
+  const parsed = opts.exact ? { name: typed.text.trim(), qty: opts.exact.qty ?? '', unit: opts.exact.qty ? (opts.exact.unit ?? '') : '', prio } : { ...parseEntry(typed.text), prio };
+  const note = (opts.note ?? '').trim();
   if (!parsed.name) return { status: 'empty' };
   const norm = normalizeName(parsed.name);
   const same = listItems(v(), listId).filter((i) => normalizeName(i.name) === norm);
@@ -72,6 +74,7 @@ export function addEntry(listId, raw, opts = {}) {
       const fields = done.parked ? { parked: false } : { checked: false };
       if (parsed.qty) fields.amount = { qty: parsed.qty, unit: parsed.unit };
       if (prio && prio !== (done.prio ?? 0)) fields.prio = prio;
+      if (note && note !== done.note) fields.note = note;
       editItem(done, fields, { silent: true });
       const back = done.parked ? { parked: true } : { checked: true };
       if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, { ...back, ...(fields.amount && { amount: { qty: done.qty, unit: done.unit } }) }, { silent: true }));
@@ -91,7 +94,7 @@ export function addEntry(listId, raw, opts = {}) {
   const id = newId();
   // in a list group: for every list of it, unless the add bar says "only here"
   const shared = !!list.linkId && opts.shared !== false;
-  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }), ...(prio && { prio }), ...(shared && { shared }) });
+  sync.send({ k: 'item.add', id, listId, groupId, name: parsed.name, qty: parsed.qty, unit: parsed.unit, pos: endPos(siblings), force: !!opts.force, learn, ...(opts.parked && { parked: true }), ...(prio && { prio }), ...(shared && { shared }), ...(note && { note }) });
   return { status: 'added', id, groupId };
 }
 

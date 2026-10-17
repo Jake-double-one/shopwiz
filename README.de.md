@@ -39,6 +39,9 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Mengen-Knöpfe** | Auf Tablet und Computer stehen − und + direkt neben der Menge (g/ml in 100er-Schritten). Auf dem Handy ändert man die Menge im Bearbeiten-Dialog des Artikels. |
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
+| **Neuer Artikel mit Details** | Lange auf das gelbe + drücken öffnet einen Dialog: Name, Menge, Priorität, Notiz, Gruppe und Liste auf einmal; „Weiterer“ lässt ihn offen. Mit der installierten App: App-Symbol lange drücken → „Artikel hinzufügen“. |
+| **An ShopWiz teilen** | Text auf einer Webseite oder in einer Notiz markieren → Teilen → ShopWiz: Jede Zeile wird ein Artikel (installierte App unter Android). |
+| **Schriftgröße** | Klein, normal oder groß pro Gerät; der Fokus-Modus hat eine eigene Größe („Aa“). |
 | **Wichtig / unwichtig** | Artikel als ↑ wichtig („nicht ohne nach Hause kommen“) oder ↓ unwichtig markieren. Wichtige Artikel stehen oben in ihrer Gruppe, unwichtige unten. Einstellbar in den Artikeldetails oder mit dem Knopf neben der Gruppenauswahl; pro Liste optional mit den Kürzeln `!Windeln` / `? Basilikum` beim Eintippen. Wie die Markierung aussieht, wählt jedes Gerät selbst. |
 | **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. Das Auge blendet es beim Einkaufen aus (pro Gerät). |
 | **Wischen** | Auf dem Handy einen Artikel in die eine Richtung wischen hakt ab, in die andere schiebt ihn zu „Inaktiv“ (mit Rückgängig). Welche Richtung was macht – oder ob Wischen aus ist – stellt jedes Gerät selbst ein. |

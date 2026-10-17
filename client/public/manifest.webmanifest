@@ -37,5 +37,19 @@
       "text": "text",
       "url": "url"
     }
-  }
+  },
+  "shortcuts": [
+    {
+      "name": "Add item",
+      "short_name": "Add",
+      "url": "/add",
+      "icons": [
+        {
+          "src": "/shortcut-add-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
 }

@@ -2,7 +2,14 @@
 // The add bar picks it up and offers to add one item per line.
 import { splitLines } from '../../../shared/parse.js';
 
-export const shared = $state({ lines: null });
+export const shared = $state({ lines: null, addDialog: false });
+
+/** Called on start: /add (app shortcut "Add item") → open the "new item" dialog → true if it was that */
+export function takeAddShortcut() {
+  if (location.pathname !== '/add') return false;
+  shared.addDialog = true;
+  return true;
+}
 
 /** Called on start: /share?title=…&text=…&url=… (see share_target in the manifest) → true if it was a share */
 export function takeShare() {

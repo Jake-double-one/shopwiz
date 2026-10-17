@@ -10,7 +10,8 @@
   import { sync } from '../lib/sync.svelte.js';
   import { shared } from '../lib/share.svelte.js';
 
-  let { v, list, target = $bindable(null) } = $props();
+  /** ondetails(text): long press on + – the "new item" dialog, with what was typed so far */
+  let { v, list, target = $bindable(null), ondetails } = $props();
 
   let text = $state('');
   let input;
@@ -67,6 +68,38 @@
     active = -1;
     showSugg = false;
     input?.focus();
+  }
+
+  // ----- long press on +: add with details (amount, note, priority, group, list) -----
+  let pressTimer;
+  let longPressed = false;
+  function pressStart(e) {
+    if (e.button > 0 || !ondetails) return;
+    longPressed = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      navigator.vibrate?.(15);
+      const raw = text.trim();
+      text = '';
+      manualPrio = 0;
+      shareFlip = false;
+      showSugg = false;
+      ondetails(raw);
+    }, 500);
+  }
+  const pressEnd = () => clearTimeout(pressTimer);
+  function addClick(e) {
+    // the click that ends a long press must not add anything as well
+    if (longPressed) {
+      e.preventDefault();
+      longPressed = false;
+      return;
+    }
+    if (!parsed.name) {
+      e.preventDefault();
+      input?.focus();
+    }
   }
 
   function pick(s) {
@@ -225,7 +258,18 @@
         autocomplete="off"
         enterkeyhint="done"
         maxlength="160" />
-      <button class="btn main add" type="submit" disabled={!parsed.name} aria-label={t('add.button')}><Icon name="plus" /></button>
+      <button
+        class="btn main add"
+        class:idle={!parsed.name}
+        type="submit"
+        aria-label={t('add.button')}
+        title={t('add.longPress')}
+        onclick={addClick}
+        onpointerdown={pressStart}
+        onpointerup={pressEnd}
+        onpointerleave={pressEnd}
+        onpointercancel={pressEnd}
+        oncontextmenu={(e) => e.preventDefault()}><Icon name="plus" /></button>
     </div>
   </form>
 </div>
@@ -348,6 +392,12 @@
     width: 48px;
     padding: 0;
     flex: 0 0 auto;
+    /* long press: no text selection or system menu on phones */
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+  .add.idle {
+    opacity: 0.55;
   }
   .input {
     font-size: max(16px, 1rem);

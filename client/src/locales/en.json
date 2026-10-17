@@ -360,7 +360,7 @@
   "help.start.title": "Getting started",
   "help.start.body": "A list lives behind a 10-character ID like K7QM-2XPA-9F. Whoever knows it can see and edit the lists – no account needed.\nShare the ID with ⤴: QR code, share menu or link. Opening the link is all it takes to join.\nYour device remembers the ID. Settings ⚙ → “Forget ID on this device” removes it from this device only.\nYour device name is what others see. Change it any time in Settings ⚙ → “This device”.\nPick the look under Settings ⚙ → “Appearance”: Dark, AMOLED (true black, easy on OLED screens), Light or Mango (bright and fruity). Until you pick one, ShopWiz follows your browser's light/dark setting.\nThe text size (small, normal, large) is set per device under Settings ⚙ → “This device”.",
   "help.add.title": "Adding items",
-  "help.add.body": "Type into the field at the bottom and press Enter or ＋.\nAmounts are recognised: “2 milk”, “500g minced meat”, “milk x2”.\nWhile typing, things you added before are suggested – tap one to add it.\nPaste several lines at once (e.g. from a chat) to add several items.\nIf an item is already on the list, ShopWiz asks whether to increase the amount instead.",
+  "help.add.body": "Type into the field at the bottom and press Enter or ＋.\nAmounts are recognised: “2 milk”, “500g minced meat”, “milk x2”.\nWhile typing, things you added before are suggested – tap one to add it.\nPaste several lines at once (e.g. from a chat) to add several items.\nIf an item is already on the list, ShopWiz asks whether to increase the amount instead.\nA long press on the yellow + button opens “New item”: amount, priority, note, group and list at once – “Another” keeps the dialog open for the next one. With the installed app this also works right from the app icon: long press → “Add item”.",
   "help.check.title": "Checking off & inactive items",
   "help.check.body": "Tap an item to check it off; tap again to undo. Checked items move to the end of their group.\nOn a phone you can swipe, too: one way checks off, the other moves the item to “Inactive”. Which way does what (or whether swiping is off) is set under Settings ⚙ → “Swipe”.\nThe eye 👁 next to “I'm shopping” hides checked items – handy in the shop. It only applies to this device.\nFocus mode (the four corners next to the eye) shows nothing but the list: categories and items to check off, large and black on white or white on black depending on the skin. Check off by tapping or – if turned on – by swiping. The bar at the very top, “Leave focus mode”, takes you back; to its right the eye hides checked items and the phone symbol keeps the screen on.\nWhen everything is checked, “Finish shopping” appears: checked items move to “Inactive”, you are checked out and the screen may turn off again.\n“Move checked to inactive” clears the list at any time – the items wait under “Inactive items” at the bottom.\nTap an inactive item to put it back on the list, with its group, amount and note.\nThe ⋯ next to an item opens its details: name, amount, note, group, who added it, delete.\nAlmost everything can be undone right away with “Undo”.",
   "help.groups.title": "Groups",
@@ -568,5 +568,12 @@
   "focus.smaller": "Smaller text",
   "focus.larger": "Larger text",
   "focus.textSize": "Text size in focus mode",
-  "focus.sizeStep": "Step {n} of {of}"
+  "focus.sizeStep": "Step {n} of {of}",
+  "add.newTitle": "New item",
+  "add.toList": "To the list",
+  "add.added": "{name} added",
+  "add.another": "Another",
+  "add.longPress": "Add – long press: with amount, note and more",
+  "shortcut.add": "Add item",
+  "shortcut.addShort": "Add"
 }

@@ -7,7 +7,7 @@
   import { parseSpaceId } from '../../shared/ids.js';
   import { currentSpace, deviceName, clearCurrent } from './lib/device.js';
   import { sync } from './lib/sync.svelte.js';
-  import { takeShare } from './lib/share.svelte.js';
+  import { takeShare, takeAddShortcut } from './lib/share.svelte.js';
 
   function fromPath() {
     const seg = location.pathname.replace(/^\/+|\/+$/g, '');
@@ -38,7 +38,7 @@
 
   onMount(() => {
     // shared from another app: it goes to the list that was open last
-    const initial = takeShare() ? currentSpace() : (fromPath() ?? currentSpace());
+    const initial = takeShare() || takeAddShortcut() ? currentSpace() : (fromPath() ?? currentSpace());
     show(initial, { replace: true });
     const onPop = () => {
       const id = fromPath();

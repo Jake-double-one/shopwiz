@@ -5,6 +5,7 @@
   import ShowCard from './ShowCard.svelte';
   import FocusView from './FocusView.svelte';
   import AddBar from './AddBar.svelte';
+  import { shared } from '../lib/share.svelte.js';
   import StatusScreen from './StatusScreen.svelte';
   import ListPicker from './ListPicker.svelte';
   import ListMenu from './ListMenu.svelte';
@@ -190,6 +191,14 @@
     sheet = { kind, ...extra };
   };
   const closeSheet = () => (sheet = null);
+  // app shortcut "Add item": the "new item" dialog right away, on the list opened last
+  $effect(() => {
+    if (shared.addDialog && list) {
+      shared.addDialog = false;
+      // the focus mode would cover the dialog
+      untrack(() => (setFocus(false), open('add')));
+    }
+  });
 
   // one-time "new here?" hint, per device
   let helpHint = $state(!load('helpSeen', false));
@@ -478,7 +487,7 @@
       onaddgroup={() => open('group', { create: true })} />
   </main>
 
-  <div class="addbar-wrap" inert={prefs.focus}><AddBar bind:this={addBar} {v} {list} bind:target={addTarget} /></div>
+  <div class="addbar-wrap" inert={prefs.focus}><AddBar bind:this={addBar} {v} {list} bind:target={addTarget} ondetails={(text) => open('add', { text })} /></div>
 
   {#if prefs.focus && list}
     <FocusView {v} {list} onclose={() => setFocus(false)} {screenOn} ontogglescreen={canWake ? toggleScreen : null}>
@@ -498,6 +507,8 @@
     <ListPicker {v} current={list} onpick={(lid) => ((listId = lid), closeSheet())} onclose={closeSheet} />
   {:else if sheet?.kind === 'listMenu'}
     <ListMenu {v} {list} {lists} onclose={closeSheet} onopen={open} onswitch={(lid) => (listId = lid)} />
+  {:else if sheet?.kind === 'add'}
+    <ItemSheet {v} {list} prefill={sheet.text ?? ''} onclose={closeSheet} />
   {:else if sheet?.kind === 'item' && v.items[sheet.itemId]}
     <ItemSheet {v} {list} item={viewItem(v, list, v.items[sheet.itemId])} onclose={closeSheet} ontransfer={(item) => open('transfer', { itemIds: [item.id], label: item.name })} />
   {:else if sheet?.kind === 'group'}

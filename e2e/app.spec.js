@@ -1141,3 +1141,78 @@ test('text size per device: three sizes, nothing breaks out of a narrow phone', 
   expect(gap).toBeLessThan(2);
   await ctx.close();
 });
+
+test('new item with details: long press on +, the app shortcut, another one, duplicates, other list', async ({ page, browser }) => {
+  const id = await createList(page, 'Weekly');
+  const plus = page.getByRole('button', { name: 'Add', exact: true });
+  const longPress = async () => {
+    const box = await plus.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.up();
+  };
+  // a short tap without text adds nothing
+  await plus.click();
+  await expect(page.locator('.item')).toHaveCount(0);
+
+  // long press: the dialog takes over what was typed
+  await page.getByPlaceholder('Add item, e.g. 2 milk').fill('2 l Milk');
+  await longPress();
+  const dialog = page.getByRole('dialog', { name: 'New item' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Milk');
+  await expect(dialog.getByLabel('Amount')).toHaveValue('2');
+  await expect(dialog.getByLabel('Unit')).toHaveValue('l');
+  await expect(page.getByPlaceholder('Add item, e.g. 2 milk')).toHaveValue('');
+  await dialog.getByRole('radio', { name: 'Important', exact: true }).click();
+  await dialog.getByLabel('Note').fill('lactose free');
+  // "Another": added, the dialog stays for the next one
+  await dialog.getByRole('button', { name: 'Another' }).click();
+  await expect(item(page, 'Milk')).toContainText('2 l');
+  await expect(item(page, 'Milk')).toContainText('lactose free');
+  await expect(item(page, 'Milk')).toHaveClass(/prio-up/);
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('');
+  await expect(dialog.getByLabel('Name', { exact: true })).toBeFocused();
+  // the same name again: increase the amount instead of a second one
+  await dialog.getByLabel('Name', { exact: true }).fill('milk');
+  await dialog.getByLabel('Amount').fill('1');
+  await dialog.getByLabel('Unit').fill('l');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(dialog.getByText('is already on the list')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Increase amount' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(item(page, 'Milk')).toHaveCount(1);
+  await expect(item(page, 'Milk')).toContainText('3 l');
+  // closing a new item adds nothing
+  await longPress();
+  await dialog.getByLabel('Name', { exact: true }).fill('Nothing');
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(item(page, 'Nothing')).toHaveCount(0);
+
+  // the app shortcut (long press on the app icon) opens the same dialog; the list can be chosen
+  await page.locator('.list-title').click();
+  await page.getByLabel('New list').fill('DIY');
+  await page.getByRole('button', { name: 'Create list' }).click();
+  await expect(page.locator('.list-title')).toContainText('DIY');
+  await page.goto('/add');
+  await expect(page).toHaveURL(ID_URL);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('To the list')).toHaveValue(await dialog.getByLabel('To the list').locator('option', { hasText: 'DIY' }).getAttribute('value'));
+  await dialog.getByLabel('To the list').selectOption({ label: 'Weekly' });
+  await dialog.getByLabel('Name', { exact: true }).fill('Bread');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(item(page, 'Bread')).toHaveCount(0); // on Weekly, not on DIY
+  await page.locator('.list-title').click();
+  await page.locator('.lists .pick', { hasText: 'Weekly' }).click();
+  await expect(item(page, 'Bread')).toHaveCount(1);
+
+  // the shortcut is named in the phone's language
+  const de = await browser.newContext({ locale: 'de-DE' });
+  const m = await (await de.request.get(`${new URL(page.url()).origin}/manifest.webmanifest`, { headers: { 'accept-language': 'de-DE,de;q=0.9' } })).json();
+  expect(m.shortcuts[0]).toMatchObject({ name: 'Artikel hinzufügen', url: '/add' });
+  const en = await (await page.request.get('/manifest.webmanifest', { headers: { 'accept-language': 'en-US' } })).json();
+  expect(en.shortcuts[0].name).toBe('Add item');
+  await de.close();
+  expect(id).toBeTruthy();
+});
