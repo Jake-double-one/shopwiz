@@ -1189,6 +1189,12 @@ test('new item with details: long press on +, the app shortcut, another one, dup
   // note (and the list) sit below the buttons – needed less often
   const y = async (l) => (await l.boundingBox()).y;
   expect(await y(dialog.getByLabel('Note'))).toBeGreaterThan(await y(dialog.getByRole('button', { name: 'Another' })));
+  // "Add" and "Another" side by side over the full width
+  const addBox = await dialog.getByRole('button', { name: 'Add', exact: true }).boundingBox();
+  const anotherBox = await dialog.getByRole('button', { name: 'Another' }).boundingBox();
+  const noteBox = await dialog.getByLabel('Note').boundingBox();
+  expect(Math.abs(addBox.width - anotherBox.width)).toBeLessThan(2);
+  expect(anotherBox.x + anotherBox.width).toBeCloseTo(noteBox.x + noteBox.width, 0);
   await dialog.getByLabel('Note').fill('lactose free');
   // "Another": added, the dialog stays for the next one
   await dialog.getByRole('button', { name: 'Another' }).click();

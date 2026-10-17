@@ -153,7 +153,7 @@
     <label class="field">
       <span>{t('item.name')}</span>
       <!-- svelte-ignore a11y_autofocus -->
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:this={nameInput} bind:value={name} maxlength="120" required autofocus={create} onfocus={() => (nameFocus = true)} onblur={() => setTimeout(() => (nameFocus = false), 150)} />
+      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" autocomplete="off" class="input" bind:this={nameInput} bind:value={name} maxlength="120" required autofocus={create} onfocus={() => (nameFocus = true)} oninput={() => (nameFocus = true)} onblur={() => setTimeout(() => (nameFocus = document.activeElement === nameInput), 150)} />
     </label>
     {#if sugg.length}
       <ul class="sugg card" aria-label={t('add.suggestions')}>
@@ -256,7 +256,7 @@
           <button type="button" class="btn" onclick={() => (dup = null)}>{t('cancel')}</button>
         </div>
       {:else}
-        <div class="row wrap-row">
+        <div class="add-actions">
           <button type="submit" class="btn main"><Icon name="plus" size={18} />{t('add.button')}</button>
           <button type="button" class="btn" onclick={() => addNew(true)}><Icon name="plus" size={18} />{t('add.another')}</button>
         </div>
@@ -294,6 +294,16 @@
 <style>
   .after {
     margin-top: 20px;
+  }
+  /* the two buttons of a new item share the full width */
+  .add-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .add-actions .btn {
+    justify-content: center;
+    min-width: 0;
   }
   .sugg {
     list-style: none;
