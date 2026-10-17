@@ -87,7 +87,7 @@
   // travel mode: translation of this name (shared by every item with the same name)
   const travel = $derived(list.travel);
   let tr = $state(untrack(() => (list.travel ? translationOf(v, initial.name, list.travel.lang) : '')));
-  const stored = $derived(travel ? v.translations?.[`${normalizeName(name.trim() || item.name)}|${travel.lang}`] : null);
+  const stored = $derived(travel ? v.translations?.[`${normalizeName(name.trim() || (item?.name ?? ''))}|${travel.lang}`] : null);
   let translating = $state(false);
   let fresh = $state(''); // what the service answered just now – saved as a machine translation if kept as is
   let freshBy = $state(null); // …and which service it was
@@ -99,7 +99,11 @@
   async function autoTranslate() {
     translating = true;
     trError = '';
-    const n = name.trim() || item.name;
+    const n = name.trim() || (item?.name ?? '');
+    if (!n) {
+      translating = false;
+      return nameInput?.focus();
+    }
     // always ask again – the remembered one may be the reason to tap
     const r = await translateNames([n], travel.lang, { force: true });
     translating = false;

@@ -641,6 +641,15 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   for (const name of ['flag-icons', 'svelte', 'qrcode', 'jsqr', 'sortablejs', '@fontsource/instrument-sans', '@fontsource/ibm-plex-mono']) expect(licenses).toContain(`- ${name} `);
   expect(licenses).toContain('SIL Open Font License');
   expect(licenses).toContain('Apache License');
+
+  // a new item with details on a list in travel mode: with its translation right away
+  await page.goto('/add');
+  const dialog = page.getByRole('dialog', { name: 'New item' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel('Name', { exact: true }).fill('Olives');
+  await dialog.locator('.tr-input').fill('Olive');
+  await dialog.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(item(page, 'Olives')).toContainText('Olive');
 });
 
 test('important / not important: shortcut, add-bar button, details, display style', async ({ page }) => {
