@@ -1,6 +1,7 @@
 import { createHash, webcrypto } from 'node:crypto';
 import { randomSpaceId, randomEntityId, ENTITY_ID_RE } from '../shared/ids.js';
 import { normalizeName, addAmounts } from '../shared/parse.js';
+import { linkName } from '../shared/backup.js';
 import { MAX_SPACE_TTL_DAYS } from './config.js';
 import { COUNTRY_LANGS, LANG_RE } from '../shared/countries.js';
 import { PROVIDERS } from './translate.js';
@@ -1770,7 +1771,8 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
     // list groups from the file: link the lists named there (existing items are not merged)
     for (const [id, names] of links) {
       for (const n of names) {
-        const other = live().find((x) => x.name.toLowerCase() === n.toLowerCase() || x.name.replace(/,/g, ' ').toLowerCase() === n.toLowerCase());
+        const want = linkName(n).toLowerCase();
+        const other = live().find((x) => x.name.toLowerCase() === n.toLowerCase() || linkName(x.name).toLowerCase() === want);
         if (other && other.id !== id) OPS['list.link'].call(this, ctx, { id, other: other.id, share: false });
       }
     }

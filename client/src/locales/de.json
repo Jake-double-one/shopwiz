@@ -579,5 +579,6 @@
   "link.alsoAt": "Auch bei {name}",
   "link.wholeGroup": "Im ganzen Verbund",
   "status.fullTitle": "Zu viele Geräte",
-  "status.full": "Diese ID hat schon 100 Geräte. Jemand, der schon dabei ist, kann alte Geräte unter Einstellungen → Teilnehmer entfernen – dann geht es weiter."
+  "status.full": "Diese ID hat schon 100 Geräte. Jemand, der schon dabei ist, kann alte Geräte unter Einstellungen → Teilnehmer entfernen – dann geht es weiter.",
+  "travel.useCountry": "{country} übernehmen"
 }

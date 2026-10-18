@@ -28,6 +28,8 @@ const TRAVEL_RE = /^>\s*✈\uFE0F?\s*([A-Za-z]{2})[\s·,/]+([A-Za-z]{2,3}(?:-[A-
 const ARROW = ' → ';
 
 const LINK_RE = /^>\s*🔗\s*(.+)$/u;
+/** A list name in the "> 🔗" line: commas separate names there, so they become spaces (also when matching on import) */
+export const linkName = (name) => String(name).replace(/\s*,\s*/g, ' ').replace(/\s+/g, ' ').trim();
 const LOCAL = '↯ ';
 
 function itemLine(it, tr = '', linked = false) {
@@ -65,7 +67,7 @@ export function toMarkdown(v, { listIds = null, date = new Date() } = {}) {
     const lang = list.travel?.lang;
     if (lang) out.push(`> ✈️ ${list.travel.country} ${lang}`);
     const partners = list.linkId ? Object.values(v.lists).filter((l) => l.linkId === list.linkId && l.id !== list.id).sort(byPos) : [];
-    if (partners.length) out.push(`> 🔗 ${partners.map((l) => l.name.replace(/,/g, ' ')).join(', ')}`);
+    if (partners.length) out.push(`> 🔗 ${partners.map((l) => linkName(l.name)).join(', ')}`);
     const line = (it) => itemLine(it, (lang && v.translations?.[`${normalizeName(it.name)}|${lang}`]?.text) || '', partners.length > 0);
     const owner = list.groupMode === 'shared' ? null : list.id;
     const groups = Object.values(v.groups).filter((g) => g.listId === owner);
@@ -167,11 +169,13 @@ export function parseMarkdown(text) {
     const quoted = rest.match(/^(.*?)"(.+?)"(?=$| → | \/\/ )(.*)$/s);
     if (quoted) {
       const pre = quoted[1].trim();
-      const amount = pre ? parseEntry(`${pre} x`) : null;
-      if (!pre || (amount.name === 'x' && amount.qty)) {
-        entry = { name: quoted[2], qty: amount?.qty ?? '', unit: amount?.unit ?? '' };
-        rest = quoted[3];
-      }
+      // the amount as written: a number with any unit ("2 Liter"), or a known unit alone ("kg")
+      const num = pre.match(/^(\d+(?:[.,]\d+)?)\s*(\D.{0,15})?$/u);
+      const unitOnly = !num && pre && !/\s/.test(pre) && parseEntry(`1 ${pre} x`);
+      if (!pre) entry = { name: quoted[2], qty: '', unit: '' };
+      else if (num) entry = { name: quoted[2], qty: num[1].replace(',', '.'), unit: (num[2] ?? '').trim() };
+      else if (unitOnly && unitOnly.name === 'x' && unitOnly.unit) entry = { name: quoted[2], qty: '', unit: pre };
+      if (entry) rest = quoted[3];
     }
     let note = '';
     const cut = rest.indexOf(' // ');

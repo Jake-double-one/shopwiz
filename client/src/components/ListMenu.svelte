@@ -9,7 +9,7 @@
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { COUNTRIES, COUNTRY_LANGS, LANGS, detectCountry, countryName, langName } from '../../../shared/countries.js';
+  import { COUNTRIES, COUNTRY_LANGS, LANGS, detectCountryMatch, countryName, langName } from '../../../shared/countries.js';
 
   let { v, list, lists, onclose, onopen, onswitch } = $props();
   let name = $state(untrack(() => list.name));
@@ -68,9 +68,13 @@
       picking = false;
       return setTravel(list, null);
     }
-    const country = detectCountry(address);
-    if (country) setTravel(list, { country, lang: COUNTRY_LANGS[country][0] });
-    else picking = true;
+    const found = detectCountryMatch(address);
+    if (found?.byName) setTravel(list, { country: found.code, lang: COUNTRY_LANGS[found.code][0] });
+    else {
+      // only a code like "FI" (Florence? Finland?) or nothing: ask, with the guess chosen already
+      pickCountry = found?.code ?? '';
+      picking = true;
+    }
   }
   function chooseCountry(country) {
     if (!country) return;
@@ -168,6 +172,9 @@
           {#each countries as c (c.code)}<option value={c.code}>{c.name}</option>{/each}
         </select>
       </label>
+      {#if pickCountry}
+        <button class="btn main block" onclick={() => chooseCountry(pickCountry)}>{t('travel.useCountry', { country: countryName(pickCountry, i18n.lang) })}</button>
+      {/if}
     {:else if travel}
       <div class="travel-now">
         <Flag country={travel.country} size={20} />

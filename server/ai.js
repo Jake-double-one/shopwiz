@@ -33,9 +33,19 @@ export function splitSpoken(text) {
   // capped, and a pattern without nested whitespace runs: long blank text must not stall the server
   return String(text ?? '')
     .slice(0, 4000)
-    .split(/[,;\n]|\s(?:und|and|sowie)\s/i)
+    // a comma between digits is a decimal comma ("1,5 l Milch"), not a separator
+    .split(/(?<!\d),|,(?!\d)|[;\n]|\s(?:und|and|sowie)\s/i)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** quantity as given (2, "1,5", "500 g", "½") + unit → { qty, unit }; qty '' if it is no number */
+function amountOf(quantity, unit) {
+  const q = String(quantity ?? '').trim();
+  if (!q) return { qty: '', unit: String(unit ?? '').slice(0, 16) };
+  const p = parseEntry(`${q} x`); // reads "500 g", "1,5", "½" like the add bar
+  const qty = p.name === 'x' ? p.qty : /^\d+([.,]\d+)?$/.test(q) ? q.replace(',', '.') : '';
+  return { qty, unit: String(unit || (p.name === 'x' ? p.unit : '') || '').slice(0, 16) };
 }
 
 /** One entry from a string ("!2 l Milch") or an object → op item */
@@ -47,11 +57,11 @@ function entryOf(e) {
   }
   if (!e || typeof e !== 'object') return null;
   const p = e.quantity === undefined && e.qty === undefined ? parseEntry(String(e.name ?? '')) : { name: String(e.name ?? '').trim(), qty: '', unit: '' };
-  const qty = String(e.quantity ?? e.qty ?? p.qty ?? '').replace(',', '.').trim();
+  const a = e.quantity === undefined && e.qty === undefined ? { qty: p.qty, unit: e.unit ?? p.unit ?? '' } : amountOf(e.quantity ?? e.qty, e.unit);
   return {
     name: p.name,
-    qty: /^\d+(\.\d+)?$/.test(qty) ? qty : '',
-    unit: String(e.unit ?? p.unit ?? '').slice(0, 16),
+    qty: a.qty,
+    unit: String(a.unit ?? '').slice(0, 16),
     note: typeof e.note === 'string' ? e.note : undefined,
     prio: prioIn(e.priority ?? e.prio),
     group: typeof e.group === 'string' ? e.group : undefined,
@@ -279,13 +289,25 @@ export function createAi({ store, hub, config, log }) {
   function findItems(ctx, list, refs, prefer, { split = true } = {}) {
     const found = [];
     const missing = [];
-    for (const ref of (Array.isArray(refs) ? refs : [refs]).flatMap((r) => (typeof r !== 'string' ? [] : split ? splitSpoken(r) : [r.trim()])).slice(0, 100)) {
+    // a reference: an id, the exact name ("Mac and Cheese", "4711 Kölnisch Wasser"), or the name
+    // without amount ("2 Milch") – only if none of these fits is it spoken text with several items
+    const lookup = (ref) => {
       const byId = visible(ctx.uid, list, 'i.id = ?', [ref])[0];
-      const norm = normalizeName(parseEntry(ref).name || ref);
-      const byName = byId ? [byId] : visible(ctx.uid, list, 'i.norm = ?', [norm]);
-      const it = byName.find(prefer) ?? byName[0];
+      if (byId) return [byId];
+      const exact = visible(ctx.uid, list, 'i.norm = ?', [normalizeName(ref)]);
+      if (exact.length) return exact;
+      return visible(ctx.uid, list, 'i.norm = ?', [normalizeName(parseEntry(ref).name || ref)]);
+    };
+    const add = (ref, rows) => {
+      const it = rows.find(prefer) ?? rows[0];
       if (it) found.push(it);
       else missing.push(ref);
+    };
+    for (const r of (Array.isArray(refs) ? refs : [refs]).filter((x) => typeof x === 'string').slice(0, 100)) {
+      const whole = r.trim();
+      const rows = lookup(whole);
+      if (rows.length || !split) add(whole, rows);
+      else for (const part of splitSpoken(whole).slice(0, 100)) add(part, lookup(part));
     }
     return { found, missing };
   }
@@ -347,8 +369,9 @@ export function createAi({ store, hub, config, log }) {
     if (!it) throw new AiError('notfound', `no item "${itemRef}" on ${list.name}`, 404);
     const fields = {};
     if (changes.quantity !== undefined || changes.unit !== undefined) {
-      const qty = String(changes.quantity ?? it.qty ?? '').replace(',', '.').trim();
-      fields.amount = { qty: /^\d+(\.\d+)?$/.test(qty) ? qty : '', unit: String(changes.unit ?? it.unit ?? '').slice(0, 16) };
+      const a = amountOf(changes.quantity ?? it.qty, changes.unit ?? it.unit);
+      if (changes.quantity !== undefined && String(changes.quantity).trim() && !a.qty) throw new AiError('invalid', `quantity "${changes.quantity}" is not a number – e.g. 2, 1.5 or "500 g"`);
+      fields.amount = a;
     }
     if (typeof changes.note === 'string') fields.note = changes.note;
     if (changes.priority !== undefined) fields.prio = prioIn(changes.priority);

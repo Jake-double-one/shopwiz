@@ -579,5 +579,6 @@
   "link.alsoAt": "Also at {name}",
   "link.wholeGroup": "In the whole group",
   "status.fullTitle": "Too many devices",
-  "status.full": "This ID already has 100 devices. Someone who is in already can remove old ones under Settings → Participants – then it works."
+  "status.full": "This ID already has 100 devices. Someone who is in already can remove old ones under Settings → Participants – then it works.",
+  "travel.useCountry": "Use {country}"
 }

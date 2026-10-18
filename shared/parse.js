@@ -18,6 +18,9 @@ function cleanNum(n) {
   if (n === '½') return '0.5';
   if (n === '¼') return '0.25';
   if (n === '¾') return '0.75';
+  // "1/2 Zitrone" → 0.5 (the server only stores plain numbers)
+  const f = n.match(/^(\d+)\/(\d+)$/);
+  if (f) return Number(f[2]) ? String(Math.round((Number(f[1]) / Number(f[2])) * 1000) / 1000) : '';
   return n.replace(',', '.');
 }
 
@@ -71,7 +74,8 @@ export function addAmounts(a, b) {
 export function splitLines(text) {
   return String(text ?? '')
     .split(/\r?\n/)
-    .map((l) => l.replace(/^\s*(?:[-*•·◦▪–]|\[\s?[xX ]?\]|\d+[.)])\s+/, '').trim())
+    // "- Eggs", "1. Eggs", "[ ] Eggs" and Markdown checklists "- [x] Eggs"
+    .map((l) => l.replace(/^\s*(?:(?:[-*•·◦▪–]|\d+[.)])\s+)?(?:\[\s?[xX ]?\]\s*)?/, '').trim())
     .filter(Boolean);
 }
 

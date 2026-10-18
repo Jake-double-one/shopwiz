@@ -15,6 +15,29 @@ export function openApi(publicUrl) {
   };
   const groupParam = { name: 'group', in: 'path', required: true, description: 'Group name or id', schema: { type: 'string' } };
   const names = { type: 'array', items: { type: 'string' } };
+  // adding also takes objects – with group, amount, note, importance and translation
+  const newItems = {
+    type: 'array',
+    description: 'Items to add: a text like "2 l milk" / "!diapers", or an object',
+    items: {
+      oneOf: [
+        { type: 'string' },
+        {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: { type: 'string' },
+            quantity: { oneOf: [{ type: 'number' }, { type: 'string' }], description: 'e.g. 2, "1,5" or "500 g"' },
+            unit: { type: 'string' },
+            note: { type: 'string' },
+            priority: { type: 'string', enum: ['important', 'normal', 'not important'] },
+            group: { type: 'string', description: 'Group/aisle – created if the list does not have it' },
+            translation: { type: 'string', description: 'Translation for a list in travel mode' },
+          },
+        },
+      ],
+    },
+  };
   const ok = { 200: { description: 'OK', content: { 'application/json': { schema: { type: 'object' } } } } };
   return {
     openapi: '3.1.0',
@@ -51,7 +74,7 @@ export function openApi(publicUrl) {
                 schema: {
                   type: 'object',
                   properties: {
-                    items,
+                    items: newItems,
                     text: { type: 'string', description: 'Alternative: spoken text like "milk, bread and 200g minced meat"' },
                     forLater: { type: 'boolean', description: 'true = new items go straight to "Inactive" (remembered, not needed now)' },
                     onlyThisList: { type: 'boolean', description: 'Lists in a list group share new items with every linked list (listGroup). true = only this list' },

@@ -65,15 +65,25 @@ function countryNames() {
  * Looks at the parts from the end (the country is usually last), then anywhere in the text.
  */
 export function detectCountry(address) {
+  return detectCountryMatch(address)?.code ?? null;
+}
+
+/**
+ * Like detectCountry, but says how sure it is: byName = a country name was found ("Italia").
+ * A bare two-letter code at the end ("… Firenze FI") may just as well be a province or a state
+ * (FI = Florence, not Finland; CO = Colorado, not Colombia) – that is worth a question.
+ */
+export function detectCountryMatch(address) {
   const text = norm(address);
   if (!text) return null;
   const map = countryNames();
   const parts = text.split(/[,\n;]+/).map((p) => p.trim()).filter(Boolean).reverse();
+  let byCode = null;
   for (const p of parts) {
-    if (map.has(p)) return map.get(p);
+    if (map.has(p)) return { code: map.get(p), byName: true };
     // "39100 Bozen IT" / "IT-39100 Bozen" / "I-39100"
     const code = p.match(/(?:^|\s)([a-z]{2})(?:-\d|\s*$)/);
-    if (code && COUNTRY_LANGS[code[1].toUpperCase()] && parts.indexOf(p) === 0) return code[1].toUpperCase();
+    if (!byCode && code && COUNTRY_LANGS[code[1].toUpperCase()] && parts.indexOf(p) === 0) byCode = code[1].toUpperCase();
   }
   let best = null;
   for (const [name, code] of map) {
@@ -83,7 +93,8 @@ export function detectCountry(address) {
     const after = i + name.length === text.length || /[\s,).]/.test(text[i + name.length]);
     if (before && after && (!best || i > best.i || (i === best.i && name.length > best.len))) best = { i, len: name.length, code };
   }
-  return best?.code ?? null;
+  if (best) return { code: best.code, byName: true };
+  return byCode ? { code: byCode, byName: false } : null;
 }
 
 /** Display name of a country / language in the UI language. */

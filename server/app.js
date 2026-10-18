@@ -644,7 +644,12 @@ export async function buildApp(config) {
       const space = db.q('SELECT name, uid FROM spaces WHERE public_id = ? AND deleted_at IS NULL').get(publicId);
       if (!space) limiter.fail(clientKey(req));
       if (space) {
-        const count = db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND deleted_at IS NULL AND checked = 0').get(space.uid).c;
+        const count = db
+          .q(
+            `SELECT COUNT(*) AS c FROM items i JOIN lists l ON l.space_uid = i.space_uid AND l.id = i.list_id
+             WHERE i.space_uid = ? AND i.deleted_at IS NULL AND i.checked = 0 AND i.parked = 0 AND l.deleted_at IS NULL`,
+          )
+          .get(space.uid).c;
         title = `${space.name} · ShopWiz`;
         description = `Shared shopping list · ${count} open item${count === 1 ? '' : 's'} · ${formatSpaceId(publicId)}`;
       }

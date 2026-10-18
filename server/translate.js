@@ -126,6 +126,8 @@ export function createTranslator(config, fetchImpl = globalThis.fetch, onError =
         const text = data?.responseData?.translatedText ?? '';
         // the quota warning sometimes arrives as the "translation" itself
         if (status === 429 || /MYMEMORY WARNING|USED ALL AVAILABLE FREE TRANSLATIONS/i.test(`${data?.responseDetails ?? ''} ${text}`)) {
+          // what was translated before the quota ran out is kept – the rest goes to the next service
+          if (out.some(Boolean)) return [...out, ...texts.slice(out.length).map(() => '')];
           throw new TranslateError('quota');
         }
         out.push(status === 200 ? decode(pickMyMemory(data, text)) : '');
