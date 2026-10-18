@@ -1569,3 +1569,30 @@ test('administration: set up in the browser with the code from the server log', 
     server.kill();
   }
 });
+
+test('administration: the main admin sets up a passkey, logs in with it and switches the password off', async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const a = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(a);
+  await cdp.send('WebAuthn.enable');
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+  await adminLogin(a);
+  await a.getByRole('button', { name: /^Admins/ }).click();
+  await a.getByRole('button', { name: 'Set up a passkey for the main admin' }).click();
+  await expect(a.locator('.toast', { hasText: 'Passkey set up.' })).toBeVisible();
+  await expect(a.locator('.rowcard').first()).toContainText('Passkey (this device only)');
+  await a.getByRole('button', { name: 'Switch password login off' }).click();
+  await expect(a.getByText('Logging in with the password is off')).toBeVisible();
+  // log in again: only the passkey
+  await a.reload();
+  await expect(a.getByRole('button', { name: 'Log in with password' })).toHaveCount(0);
+  await a.getByRole('button', { name: 'Log in with passkey' }).click();
+  await expect(a.getByText('Logged in as main admin')).toBeVisible();
+  // back to normal for the other tests
+  await a.getByRole('button', { name: /^Admins/ }).click();
+  await a.getByRole('button', { name: 'Switch password login on' }).click();
+  await expect(a.getByText('Logging in with the password is on')).toBeVisible();
+  await ctx.close();
+});
