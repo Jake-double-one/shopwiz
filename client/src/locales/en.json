@@ -728,5 +728,6 @@
   "admin.promoCodeTitle": "Promotion code",
   "admin.promoCodeHint": "Give this code to the person, e.g. by chat or in person. Their device needs it to set up its passkey within 24 hours – so a copied device key alone is not enough. Until then the code is also shown under \"Admins\".",
   "admin.error.own_key": "This device has its passkey already – log in with it.",
-  "admin.method.promotion": "promotion code"
+  "admin.method.promotion": "promotion code",
+  "admin.error.https": "Logging in only works over HTTPS."
 }

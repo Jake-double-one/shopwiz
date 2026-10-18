@@ -546,3 +546,31 @@ describe('audit fixes', () => {
     await a.close();
   });
 });
+
+describe('hardening (analysis after v0.5.2)', () => {
+  it('password login and setup only over HTTPS (or from this machine)', async () => {
+    const a = await start();
+    const plain = await a.inject({ method: 'POST', url: '/api/admin/login', headers: { host: 'shop.example.com' }, payload: { user: 'boss', password: PASSWORD } });
+    expect(plain.json()).toEqual({ error: 'https' });
+    const viaProxy = await a.inject({ method: 'POST', url: '/api/admin/login', headers: { host: 'shop.example.com', 'x-forwarded-proto': 'https' }, payload: { user: 'boss', password: PASSWORD } });
+    expect(viaProxy.statusCode).toBe(200);
+    const local = await a.inject({ method: 'POST', url: '/api/admin/login', headers: { host: 'localhost:8080' }, payload: { user: 'boss', password: PASSWORD } });
+    expect(local.statusCode).toBe(200);
+    await a.close();
+  });
+
+  it('a registration ticket carries no key hash of the device', async () => {
+    const session = await login();
+    const did = didOfHash(hashToken(T2));
+    const { code } = (await req('POST', '/api/admin/promote', { session, body: { did } })).body;
+    const opt = await req('POST', '/api/admin/passkey/options', { token: T2, body: { purpose: 'register', code } });
+    expect(opt.status).toBe(200);
+    const body = Buffer.from(opt.body.ticket.split('.')[0], 'base64url').toString();
+    expect(body).not.toContain(hashToken(T2));
+    expect(JSON.parse(body).bind).toMatch(/^[A-Za-z0-9_-]{40,}$/);
+    // and it still only works for that device
+    const other = await req('POST', '/api/admin/passkey/verify', { token: T3, body: { ticket: opt.body.ticket, response: authenticator().create(opt.body.options, origin()) } });
+    expect(other.body.error).toBe('not_admin');
+    await req('POST', '/api/admin/revoke', { session, body: { did } });
+  });
+});

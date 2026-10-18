@@ -295,7 +295,8 @@ export function createAdmin({ store, hub, config, log }) {
         loginFailed('promotion');
         throw new AdminError(401, 'wrong_code');
       }
-      target = { role: 'device', did, tokenHash: tokenHashOf(req) };
+      // the ticket binds the registration to this device – without carrying its key hash around
+      target = { role: 'device', did, bind: mac(`bind:${tokenHashOf(req)}`) };
     }
     const exclude = db.q('SELECT id, transports FROM admin_keys WHERE did IS ?').all(target.did);
     const options = await generateRegistrationOptions({
@@ -314,7 +315,8 @@ export function createAdmin({ store, hub, config, log }) {
   async function register(req, c) {
     const s = sessionOf(req);
     if (c.role === 'main' && s?.role !== 'main') throw new AdminError(401, 'login');
-    if (c.role === 'device' && tokenHashOf(req) !== c.tokenHash) throw new AdminError(403, 'not_admin');
+    const tokenHash = tokenHashOf(req);
+    if (c.role === 'device' && (!tokenHash || c.bind !== mac(`bind:${tokenHash}`))) throw new AdminError(403, 'not_admin');
     let v;
     try {
       v = await verifyRegistrationResponse({
@@ -337,7 +339,7 @@ export function createAdmin({ store, hub, config, log }) {
         // … and from now on only for this device's full key, not just anything with the same D-ID
         const ok = db
           .q("UPDATE admins SET state = 'active', expires_at = NULL, token_hash = ?, code = NULL WHERE did = ? AND state = 'pending' AND expires_at > ?")
-          .run(c.tokenHash, c.did, now()).changes;
+          .run(tokenHash, c.did, now()).changes;
         if (!ok) {
           const row = db.q('SELECT state FROM admins WHERE did = ?').get(c.did);
           throw new AdminError(row?.state === 'active' ? 409 : 410, row?.state === 'active' ? 'already' : 'expired');
@@ -481,7 +483,7 @@ export function createAdmin({ store, hub, config, log }) {
 
   // ----- routes -----
 
-  function routes(app, clientKey) {
+  function routes(app, clientKey, secure = () => true) {
     const handle = (fn, guard = null) => async (req, reply) => {
       try {
         let s = null;
@@ -513,6 +515,7 @@ export function createAdmin({ store, hub, config, log }) {
       '/api/admin/setup',
       handle(async (req) => {
         const ip = clientKey(req);
+        if (!secure(req)) throw new AdminError(403, 'https');
         if (!setupCode) throw new AdminError(409, 'set_up');
         if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
         const { code, user, password } = req.body ?? {};
@@ -549,6 +552,7 @@ export function createAdmin({ store, hub, config, log }) {
       '/api/admin/login',
       handle(async (req) => {
         const ip = clientKey(req);
+        if (!secure(req)) throw new AdminError(403, 'https');
         if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
         if (!passwordAllowed()) throw new AdminError(403, 'password_off');
         const c = creds();

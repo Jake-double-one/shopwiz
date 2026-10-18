@@ -79,9 +79,18 @@ export async function buildApp(config) {
     reply.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), interest-cohort=()');
     reply.header(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' ws: wss:; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self' blob:; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     );
     return payload;
+  });
+
+  // a proxy in front, but TRUST_PROXY not set: every limit would count everybody as one address
+  let proxyWarned = false;
+  app.addHook('onRequest', async (req) => {
+    if (!proxyWarned && !config.trustProxy && req.headers['x-forwarded-for']) {
+      proxyWarned = true;
+      app.log.warn('requests arrive through a proxy (X-Forwarded-For), but TRUST_PROXY is not set – limits per address count everybody as the proxy; see the README');
+    }
   });
 
   // ---------- helpers ----------
@@ -92,6 +101,10 @@ export async function buildApp(config) {
     const full = ip.includes('::') ? ip.replace('::', `:${'0:'.repeat(9 - ip.split(':').length)}`).replace(/^:|:$/g, '') : ip;
     return `${full.split(':').slice(0, 4).join(':')}::/64`;
   };
+
+  /** Came in over HTTPS (or from this machine)? A password must not travel unencrypted. */
+  const secure = (req) =>
+    req.protocol === 'https' || /^https\b/i.test(String(req.headers['x-forwarded-proto'] ?? '')) || /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(String(req.headers.host ?? ''));
 
   /**
    * Resolve :id for REST. Applies the lookup limiter. An admin inside an ID (session header)
@@ -136,7 +149,8 @@ export async function buildApp(config) {
   // ---------- REST ----------
   // which version runs here (filled in by the Docker build; "dev" when started from the sources)
   const version = { version: process.env.APP_VERSION || 'dev', commit: process.env.GIT_SHA || null, built: process.env.BUILD_TIME || null };
-  app.get('/healthz', async () => ({ ok: true, ...version }));
+  // yourAddress: what the limits count you as – to check TRUST_PROXY behind a proxy
+  app.get('/healthz', async (req) => ({ ok: true, ...version, yourAddress: req.ip }));
   app.get('/api/version', async () => version);
 
   app.post('/api/spaces', async (req, reply) => {
@@ -225,10 +239,18 @@ export async function buildApp(config) {
   });
 
   // Import a backup (parsed client side, see shared/backup.js) into an existing space
+  // – a few per ID and hour are plenty; parsing 2 MB again and again is not
+  const importUsage = new Map();
   app.post('/api/spaces/:id/import', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    const t = Date.now();
+    let use = importUsage.get(r.space.uid);
+    if (!use || use.reset <= t) importUsage.set(r.space.uid, (use = { count: 0, reset: t + 3_600_000 }));
+    if (use.count >= 20) return reply.code(429).send({ error: 'rate_limited' });
+    use.count++;
+    if (importUsage.size > 10_000) for (const [k, u] of importUsage) if (u.reset <= t) importUsage.delete(k);
     const dev = devOf(r);
     try {
       const res = store.importDoc(r.space.uid, dev, req.body?.doc, { defaultListId: typeof req.body?.listId === 'string' ? req.body.listId : null });
@@ -452,7 +474,7 @@ export async function buildApp(config) {
   }
 
   // ---------- administration (optional) ----------
-  admin.routes(app, clientKey);
+  admin.routes(app, clientKey, secure);
 
   // ---------- WebSocket sync ----------
   // what this server offers – sent with every welcome
@@ -470,8 +492,18 @@ export async function buildApp(config) {
       if (n > 0) wsPerIp.set(key, n);
       else wsPerIp.delete(key);
     });
-    // ops per connection: a bucket that refills – room for a long offline queue, not for a flood
+    // ops per connection: a bucket that refills – room for a long offline queue, not for a flood.
+    // What costs more takes more: a hello (whole snapshot) 25, batches one per ten rows
     const bucket = { tokens: 600, at: Date.now() };
+    const pay = (cost) => {
+      const t = Date.now();
+      bucket.tokens = Math.min(600, bucket.tokens + ((t - bucket.at) / 1000) * 10);
+      bucket.at = t;
+      if (bucket.tokens < cost) return false;
+      bucket.tokens -= cost;
+      return true;
+    };
+    const costOf = (op) => 1 + Math.floor(((Array.isArray(op?.items) ? op.items.length : 0) + (Array.isArray(op?.ids) ? op.ids.length : 0)) / 10);
     // a phone that vanished (no network, app killed) leaves a half-open socket: ping, and drop it
     // when no answer came – it would count against the per-address limit otherwise
     let alive = true;
@@ -520,6 +552,11 @@ export async function buildApp(config) {
 
     function onHello(msg) {
       if (limiter.blocked(key)) return reply({ t: 'error', error: 'rate_limited' });
+      if (!pay(25)) {
+        // the device reconnects with back-off, like after a busy op
+        reply({ t: 'error', error: 'busy' });
+        return conn.close();
+      }
       if (typeof msg.token !== 'string' || !TOKEN_RE.test(msg.token)) return reply({ t: 'error', error: 'bad_token' });
       const id = parseSpaceId(msg.space ?? '');
       const tokenHash = hashToken(msg.token);
@@ -625,15 +662,11 @@ export async function buildApp(config) {
 
     function onOp(msg) {
       if (conn.uid === null) return reply({ t: 'ack', id: msg.id, ok: false, error: 'no_hello' });
-      const t = Date.now();
-      bucket.tokens = Math.min(600, bucket.tokens + ((t - bucket.at) / 1000) * 10);
-      bucket.at = t;
-      if (bucket.tokens < 1) {
+      if (!pay(costOf(msg.op))) {
         // no ack: the device keeps the op and sends it again after reconnecting (with back-off)
         reply({ t: 'error', error: 'busy' });
         return conn.close();
       }
-      bucket.tokens -= 1;
       const space = store.spaceByUid(conn.uid);
       if (!space || space.deleted_at) return reply({ t: 'deleted', by: space?.deleted_by, at: space?.deleted_at });
       let dev;
@@ -763,7 +796,12 @@ export async function buildApp(config) {
     if (req.method !== 'GET' || req.url.startsWith('/api/') || req.url.startsWith('/ws') || !template) {
       return reply.code(404).send({ error: 'notfound' });
     }
-    const path = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+|\/+$/g, '');
+    let path;
+    try {
+      path = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+|\/+$/g, '');
+    } catch {
+      return reply.code(404).send({ error: 'notfound' });
+    }
     // Asset-like paths that do not exist are real 404s
     if (/\.[a-z0-9]{2,5}$/i.test(path)) return reply.code(404).send({ error: 'notfound' });
     const publicId = path && !path.includes('/') ? parseSpaceId(path) : null;

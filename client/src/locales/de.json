@@ -728,5 +728,6 @@
   "admin.promoCodeTitle": "Ernennungscode",
   "admin.promoCodeHint": "Gib diesen Code der Person, z. B. per Chat oder persönlich. Ihr Gerät braucht ihn, um innerhalb von 24 Stunden seinen Passkey einzurichten – ein kopierter Geräte-Schlüssel allein reicht so nicht. Der Code steht bis dahin auch unter „Admins“.",
   "admin.error.own_key": "Dieses Gerät hat schon seinen Passkey – melde dich damit an.",
-  "admin.method.promotion": "Ernennungscode"
+  "admin.method.promotion": "Ernennungscode",
+  "admin.error.https": "Die Anmeldung geht nur über HTTPS."
 }

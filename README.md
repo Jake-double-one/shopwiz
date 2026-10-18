@@ -303,6 +303,8 @@ location / {
 
 **Traefik:** WebSockets work out of the box.
 
+Let the proxy send `Strict-Transport-Security` (HSTS) so browsers never fall back to plain HTTP – Caddy does that by itself; nginx: `add_header Strict-Transport-Security "max-age=31536000" always;`.
+
 ## Configuration
 
 All settings are environment variables. The defaults are fine for most setups.

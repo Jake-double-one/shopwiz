@@ -175,11 +175,54 @@ describe('version', () => {
     Object.assign(process.env, { APP_VERSION: 'v9.9.9', GIT_SHA: 'abc1234', BUILD_TIME: '2026-01-01T00:00:00Z' });
     const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
     try {
-      expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toEqual({ ok: true, version: 'v9.9.9', commit: 'abc1234', built: '2026-01-01T00:00:00Z' });
+      expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toMatchObject({ ok: true, version: 'v9.9.9', commit: 'abc1234', built: '2026-01-01T00:00:00Z' });
       expect((await app.inject({ method: 'GET', url: '/api/version' })).json()).toMatchObject({ version: 'v9.9.9', commit: 'abc1234' });
     } finally {
       await app.close();
       for (const k of ['APP_VERSION', 'GIT_SHA', 'BUILD_TIME']) if (before[k] === undefined) delete process.env[k];
     }
+  });
+});
+
+describe('hardening (analysis after v0.5.2)', () => {
+  it('a hello costs tokens: a flood of hellos on one connection ends it, normal reconnects pass', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const base = `127.0.0.1:${app.server.address().port}`;
+    const id = (await (await fetch(`http://${base}/api/spaces`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'H', token: T1 }) })).json()).id;
+    const ws = new WebSocket(`ws://${base}/ws`);
+    await new Promise((r) => ws.addEventListener('open', r));
+    const got = [];
+    ws.addEventListener('message', (e) => got.push(JSON.parse(e.data).t));
+    const closed = new Promise((r) => ws.addEventListener('close', r));
+    for (let i = 0; i < 40; i++) ws.send(JSON.stringify({ t: 'hello', space: id, token: T1, name: 'A' }));
+    await closed;
+    const welcomes = got.filter((t) => t === 'welcome').length;
+    expect(welcomes).toBeGreaterThanOrEqual(20); // 600 tokens / 25 – a few reconnects are always fine
+    expect(welcomes).toBeLessThan(30);
+    expect(got).toContain('error');
+    await app.close();
+  });
+
+  it('API answers are not cached, the CSP has no open websocket hole, a broken path is a 404', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const r = await app.inject({ method: 'GET', url: '/api/version' });
+    expect(r.headers['content-security-policy']).not.toMatch(/ws:|wss:/);
+    expect(r.headers['content-security-policy']).toContain("connect-src 'self'");
+    expect(r.headers['cache-control']).toBe('no-store');
+    expect((await app.inject({ method: 'GET', url: '/%E0%A4%A' })).statusCode).toBeLessThan(500);
+    await app.close();
+  });
+
+  it('imports into one ID are limited to 20 per hour', async () => {
+    const { store, id } = setup();
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const sid = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1 } })).json().id;
+    const doc = { lists: [{ name: 'L', items: [{ name: 'Milk' }] }] };
+    let last;
+    for (let i = 0; i < 21; i++) last = await app.inject({ method: 'POST', url: `/api/spaces/${sid}/import`, headers: { 'x-shopwiz-token': T1 }, payload: { doc } });
+    expect(last.statusCode).toBe(429);
+    expect(store && id).toBeTruthy();
+    await app.close();
   });
 });

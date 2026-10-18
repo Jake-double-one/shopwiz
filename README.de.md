@@ -302,6 +302,8 @@ location / {
 
 **Traefik:** WebSockets funktionieren ohne weitere Einstellung.
 
+Der Proxy sollte `Strict-Transport-Security` (HSTS) senden, damit Browser nie auf unverschlüsseltes HTTP zurückfallen – Caddy macht das von selbst; nginx: `add_header Strict-Transport-Security "max-age=31536000" always;`.
+
 ## Einstellungen
 
 Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die meisten Fälle.

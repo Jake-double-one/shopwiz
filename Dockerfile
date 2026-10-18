@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
+# the base image is pinned to a digest (Dependabot moves it along) – a tag alone could change under us
+
 # ---- build the client (platform independent, so always on the native build platform) ----
-FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -19,13 +21,13 @@ RUN npm run build
 
 # ---- production dependencies: pure JavaScript (no native modules), so they are installed once
 #      natively and copied into every platform's image – npm never runs under emulation ----
-FROM --platform=$BUILDPLATFORM node:22-alpine AS deps
+FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
 # ---- runtime: server + built client, production deps only ----
-FROM node:22-alpine
+FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 # the same build info for the server: GET /healthz and /api/version tell which version runs
 ARG APP_VERSION=dev
 ARG GIT_SHA=

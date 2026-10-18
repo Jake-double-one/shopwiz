@@ -8,6 +8,7 @@ services:
     container_name: shopwiz
     restart: unless-stopped
     ports:
+      # behind a reverse proxy on the same host, "127.0.0.1:8080:8080" keeps ShopWiz off the open internet
       - "8080:8080"
     environment:
       # Public address, used for link previews (Open Graph) – e.g. https://shop.example.com
@@ -46,6 +47,9 @@ services:
       # your own skins: a folder with CSS files (see skins/README.md), picked up while running
       # - ./my-skins:/data/skins:ro
     read_only: true
+    # a runaway can't take the whole machine with it
+    mem_limit: 512m
+    pids_limit: 256
     tmpfs:
       - /tmp
     cap_drop:
