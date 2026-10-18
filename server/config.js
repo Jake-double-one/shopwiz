@@ -46,6 +46,13 @@ export function loadConfig(env = process.env) {
     translateLimit: Math.max(int(env.TRANSLATE_LIMIT, 300), 1),
     // AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1)
     mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
+    // IDs a device may create itself (0 = no limit); joining doesn't count
+    spacesPerDevice: Math.max(int(env.SPACES_PER_DEVICE, 0), 0),
+    // optional administration (docs/ADMIN.md): on when both are set
+    adminUser: (env.ADMIN_USER || '').trim(),
+    adminPasswordHash: (env.ADMIN_PASSWORD_HASH || '').trim(),
+    // "off": no password login once the main admin has a passkey (the password stays the way back)
+    adminPasswordLogin: !/^(off|false|0|no)$/i.test((env.ADMIN_PASSWORD_LOGIN || '').trim()),
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
     // your own skins (CSS files, see skins/README.md) – read at runtime, no rebuild needed

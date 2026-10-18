@@ -527,7 +527,7 @@ test('settings show the ID masked, reveal and copy it', async ({ browser }) => {
   const id = await createList(page);
   const formatted = `${id.slice(0, 4)}-${id.slice(4, 8)}-${id.slice(8)}`;
   await page.getByRole('button', { name: 'Settings' }).click();
-  const chip = page.locator('.id-chip');
+  const chip = page.getByRole('button', { name: 'Copy ID', exact: true });
   await expect(chip).not.toContainText(formatted);
   await page.getByRole('button', { name: 'Show ID' }).click();
   await expect(chip).toContainText(formatted);
@@ -1412,4 +1412,121 @@ test('two devices: an open dialog never overwrites what the other device changed
   await expect(page.getByRole('dialog', { name: 'Oat milk' })).toHaveCount(0);
   await expect(page.locator('.toast', { hasText: 'deleted on another device' })).toBeVisible();
   await b.ctx.close();
+});
+
+// ---------- administration (optional, on in this test server) ----------
+async function adminLogin(page) {
+  await page.goto('/admin');
+  await page.getByLabel('User name').fill('boss');
+  await page.getByLabel('Password').fill('e2e admin password');
+  await page.getByRole('button', { name: 'Log in with password' }).click();
+  await expect(page.getByText('Logged in as main admin')).toBeVisible();
+}
+
+test('administration: the main admin opens an ID, shows as red "Admin", edits, and nothing stays on its device', async ({ page, browser }) => {
+  const id = await createList(page, 'Admin test', 'Alex');
+  await add(page, 'Bread');
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const a = await ctx.newPage();
+  await adminLogin(a);
+  const row = a.locator('.rowcard', { hasText: 'Admin test' });
+  await expect(row).toContainText('1 list · 1 item · 0 groups · 1 device');
+  await row.getByRole('button', { name: 'Open' }).click();
+  await expect(a.locator('.admin-bar')).toBeVisible();
+  await expect(a.locator('.list-title')).toContainText('Admin test');
+  await expect(a).toHaveURL(/\/admin$/);
+
+  // the member sees the admin in the participant list: red and first
+  await expect(page.locator('.person').first()).toHaveClass(/admin/);
+  await expect(page.locator('.person.admin')).toContainText('Admin');
+  // full access – but no check-in at the shop
+  await add(a, 'Butter');
+  await expect(item(page, 'Butter')).toBeVisible();
+  await expect(a.getByRole('button', { name: "I'm shopping" })).toHaveCount(0);
+  // nothing of the ID lands on the admin's device
+  const stored = await a.evaluate(() => JSON.stringify(localStorage));
+  expect(stored).not.toContain(id);
+  expect(stored).not.toContain('Butter');
+
+  // back to the administration: the admin is gone from the list
+  await a.locator('.admin-bar').getByRole('button', { name: 'Back to the administration' }).click();
+  await expect(a.getByText('Logged in as main admin')).toBeVisible();
+  await expect(page.locator('.person.admin')).toHaveCount(0);
+  // the history tells everybody
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByRole('button', { name: 'History' }).click();
+  await expect(page.locator('.log li', { hasText: 'opened the ID' }).locator('b.admin')).toHaveText('Admin');
+  await expect(page.locator('.log li', { hasText: 'added Butter' })).toContainText('Admin');
+  await page.keyboard.press('Escape');
+
+  // the login lives only in the tab: reloading means logging in again
+  await a.reload();
+  await expect(a.getByRole('button', { name: 'Log in with password' })).toBeVisible();
+  await ctx.close();
+});
+
+test('administration: a device promoted by its D-ID sets up a passkey and logs in with it', async ({ page, browser }) => {
+  await createList(page, 'Promo', 'Phone');
+  // a passkey device (like a fingerprint sensor) for this page
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('WebAuthn.enable');
+  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true },
+  });
+
+  // the D-ID is in the settings, next to the note that this server has an administration
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  const did = (await page.locator('.id-chip.did').innerText()).trim();
+  expect(did).toMatch(/^[0-9A-Z]{5}-[0-9A-Z]{5}$/);
+  await expect(page.getByText('This server has an administration')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Administration' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const a = await ctx.newPage();
+  await adminLogin(a);
+  await a.getByRole('button', { name: /^Devices/ }).click();
+  await a.getByPlaceholder('XXXXX-XXXXX').fill(did.toLowerCase());
+  await a.locator('form.promote').getByRole('button', { name: 'Promote' }).click();
+  await expect(a.locator('.rowcard', { hasText: did })).toContainText('waiting for passkey');
+
+  // the device is told right away
+  await expect(page.getByText('This device is an admin now.')).toBeVisible();
+  await page.getByRole('button', { name: 'Set up passkey' }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.getByRole('button', { name: 'Set up passkey' }).click();
+  await expect(page.getByText(`Logged in as admin · D-ID ${did}`)).toBeVisible();
+  // device admins don't promote
+  await page.getByRole('button', { name: /^Devices/ }).click();
+  await expect(page.locator('form.promote')).toHaveCount(0);
+
+  // the main admin sees it as active, and a notice about the new passkey
+  await a.getByRole('button', { name: 'Refresh' }).click();
+  await expect(a.locator('.alerts')).toContainText('set up a passkey');
+  await a.getByRole('button', { name: /^Admins/ }).click();
+  await expect(a.locator('.rowcard', { hasText: did })).toContainText('Passkey (this device only)');
+
+  // reload: logged out – one touch on the passkey logs in again
+  await page.reload();
+  await page.getByRole('button', { name: 'Log in with passkey' }).click();
+  await expect(page.getByText(`Logged in as admin · D-ID ${did}`)).toBeVisible();
+
+  // back in the app: the notice stays gone, the settings have the Administration button
+  await page.getByRole('button', { name: 'Leave the administration' }).click();
+  await expect(page.locator('.list-title')).toContainText('Promo');
+  await expect(page.getByText('This device is an admin now.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.getByRole('button', { name: 'Administration' }).click();
+  // still logged in: the session lives in this tab until it is reloaded, logged out or idle for 15 minutes
+  await expect(page.getByText(`Logged in as admin · D-ID ${did}`)).toBeVisible();
+
+  // taken back: the session ends and the passkey doesn't work any more
+  await a.locator('.rowcard', { hasText: did }).getByRole('button', { name: 'Take admin rights away' }).click();
+  await a.locator('.rowcard', { hasText: did }).getByRole('button', { name: 'Take admin rights away' }).click();
+  await expect(a.locator('.rowcard', { hasText: did })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Refresh' }).click();
+  await expect(page.getByText('The session ran out')).toBeVisible();
+  await page.getByRole('button', { name: 'Log in with passkey' }).click();
+  await expect(page.getByText('Login failed.')).toBeVisible();
+  await ctx.close();
 });

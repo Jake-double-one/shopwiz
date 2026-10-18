@@ -64,7 +64,7 @@
         onopen(r.id);
       }
     } catch (e) {
-      error = e.code === 'offline' ? t('start.offline') : e.code === 'limit' ? t('backup.limit') : e.code === 'rate_limited' ? t('status.limited') : t('backup.failed');
+      error = e.code === 'offline' ? t('start.offline') : e.code === 'space_limit' ? t('start.spaceLimit', { count: e.limit }) : e.code === 'limit' ? t('backup.limit') : e.code === 'rate_limited' ? t('status.limited') : t('backup.failed');
     } finally {
       busy = false;
     }
@@ -102,7 +102,7 @@
         </span>
       </div>
 
-      {#if spaceId}
+      {#if spaceId && onopen}
         <fieldset class="target">
           <label>
             <input type="radio" bind:group={target} value="here" />

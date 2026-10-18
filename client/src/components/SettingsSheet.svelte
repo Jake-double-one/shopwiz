@@ -13,10 +13,26 @@
   import { api } from '../lib/api.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
-  import { knownSpaces, forgetSpace } from '../lib/device.js';
+  import { knownSpaces, forgetSpace, deviceToken } from '../lib/device.js';
   import { formatSpaceId } from '../../../shared/ids.js';
+  import { didOfToken } from '../../../shared/did.js';
 
-  let { space, spaceId, onclose, onleave, onopen, onshare, onbackup } = $props();
+  // admin: opened from the administration (then this is not the admin's own device here)
+  let { space, spaceId, onclose, onleave, onopen, onshare, onbackup, admin = null, onadmin = null } = $props();
+  // the D-ID: what the main admin needs to make this device an admin
+  let did = $state('');
+  $effect(() => {
+    if (sync.features.admin && !admin && window.isSecureContext) didOfToken(deviceToken()).then((d) => (did = d));
+  });
+  const isAdminDevice = $derived(!admin && ['pending', 'active'].includes(sync.adminState?.role));
+  async function copyDid() {
+    try {
+      await navigator.clipboard.writeText(did);
+      toast(t('admin.didCopied'));
+    } catch {
+      window.prompt('D-ID', did);
+    }
+  }
 
   let name = $state(untrack(() => space.name));
   let ttl = $state(untrack(() => space.ttlDays));
@@ -104,10 +120,12 @@
 
   <section>
     <p class="eyebrow">{t('settings.device')}</p>
-    <label class="field">
-      <span>{t('people.yourName')}</span>
-      <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
-    </label>
+    {#if !admin}
+      <label class="field">
+        <span>{t('people.yourName')}</span>
+        <input data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" spellcheck="false" class="input" bind:value={myName} onblur={saveMyName} onkeydown={(e) => e.key === 'Enter' && saveMyName()} maxlength="40" autocomplete="nickname" />
+      </label>
+    {/if}
     <Prefs />
     <div class="prio-style">
       <span class="ps-label" id="text-size-label">{t('textSize.label')}</span>
@@ -178,6 +196,16 @@
         <label><input type="radio" name="link-default" checked={prefs.linkDefault === 'here'} onchange={() => setLinkDefault('here')} /><span>{t('link.defaultHere')}</span></label>
       </div>
     </div>
+    {#if did}
+      <div class="did-row">
+        <span class="ps-label">D-ID</span>
+        <button type="button" class="id-chip mono did" onclick={copyDid} title={t('admin.copyDid')} aria-label={t('admin.copyDid')}>
+          <span>{did}</span>
+          <Icon name="copy" />
+        </button>
+        <p class="micro did-note">{t('admin.didHint')}</p>
+      </div>
+    {/if}
   </section>
 
   <section>
@@ -191,13 +219,14 @@
         <Icon name={showId ? 'eyeOff' : 'eye'} />
       </button>
     </div>
+    {#if sync.features.admin}<p class="note admin-note">{t('admin.transparency')}</p>{/if}
   </section>
 
   {#if sync.features.ai}
     <section><AiSection v={sync.data} {spaceId} /></section>
   {/if}
 
-  <section>
+  <section hidden={!!admin}>
     <p class="eyebrow">{t('settings.spaces')}</p>
     <div class="list">
       <button class="btn block" onclick={onshare}><Icon name="share" />{t('share.title')}</button>
@@ -247,15 +276,44 @@
     {:else}
       <div class="list">
         <button class="btn block" onclick={() => (confirm = 'renew')} disabled={!online}><Icon name="key" />{t('settings.renew')}</button>
-        <button class="btn block" onclick={() => (confirm = 'forget')}><Icon name="logout" />{t('settings.forget')}</button>
-        <button class="btn danger block" onclick={() => (confirm = 'delete')} disabled={!online}><Icon name="trash" />{t('settings.delete')}</button>
+        {#if !admin}
+          <button class="btn block" onclick={() => (confirm = 'forget')}><Icon name="logout" />{t('settings.forget')}</button>
+          <button class="btn danger block" onclick={() => (confirm = 'delete')} disabled={!online}><Icon name="trash" />{t('settings.delete')}</button>
+        {/if}
       </div>
       {#if !online}<p class="micro">{t('settings.needsOnline')}</p>{/if}
     {/if}
   </section>
+
+  {#if admin || (isAdminDevice && onadmin)}
+    <section>
+      <p class="eyebrow">{t('admin.title')}</p>
+      <button class="btn dusk block admin-btn" onclick={() => (onclose(), admin ? onleave() : onadmin())}>
+        <Icon name="key" />{admin ? t('admin.back') : t('admin.title')}
+      </button>
+    </section>
+  {/if}
 </Sheet>
 
 <style>
+  .did-row {
+    margin: 14px 0 0;
+  }
+  .id-chip.did {
+    width: 100%;
+    font-size: 1.05rem;
+  }
+  .did-note {
+    margin: 6px 0 0;
+    text-transform: none;
+    letter-spacing: 0.02em;
+  }
+  .admin-note {
+    margin: 10px 0 0;
+  }
+  .admin-btn {
+    font-weight: 600;
+  }
   .link-default label {
     display: flex;
     gap: 10px;

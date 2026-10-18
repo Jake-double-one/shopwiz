@@ -4,7 +4,8 @@ import fastifyWebsocket from '@fastify/websocket';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { openDb } from './db.js';
-import { Store, OpError, hashToken, mapDevice, LIMITS, newEntityId } from './core.js';
+import { Store, OpError, hashToken, mapDevice, LIMITS, newEntityId, adminDevice } from './core.js';
+import { createAdmin, didOfHash } from './admin.js';
 import { Hub } from './hub.js';
 import { createSkins } from './skins.js';
 import { Limiter } from './limiter.js';
@@ -48,6 +49,8 @@ export async function buildApp(config) {
   const wsPerIp = new Map(); // open sync connections per address
   app.decorate('store', store);
   app.decorate('hub', hub);
+  // optional administration – off unless ADMIN_USER and ADMIN_PASSWORD_HASH are set
+  const admin = createAdmin({ store, hub, config, log: app.log });
 
   const cleanup = () => {
     try {
@@ -62,6 +65,7 @@ export async function buildApp(config) {
     clearInterval(cleanupTimer);
     limiter.stop();
     createLimiter.stop();
+    admin.stop();
     db.close();
   });
 
@@ -81,7 +85,10 @@ export async function buildApp(config) {
   // ---------- helpers ----------
   const clientKey = (req) => req.ip || 'unknown';
 
-  /** Resolve :id for REST. Applies the lookup limiter. */
+  /**
+   * Resolve :id for REST. Applies the lookup limiter. An admin inside an ID (session header)
+   * counts as a member and acts as "Admin" – see devOf.
+   */
   function lookup(req, reply, { requireMember = false } = {}) {
     const key = clientKey(req);
     if (limiter.blocked(key)) {
@@ -90,21 +97,24 @@ export async function buildApp(config) {
     }
     const id = parseSpaceId(req.params.id);
     const token = req.headers['x-shopwiz-token'];
-    const tokenHash = typeof token === 'string' && TOKEN_RE.test(token) ? hashToken(token) : null;
+    const adminSession = admin.enabled && req.headers['x-shopwiz-admin'] ? admin.sessionOf(req) : null;
+    const tokenHash = !adminSession && typeof token === 'string' && TOKEN_RE.test(token) ? hashToken(token) : null;
     const res = id ? store.resolve(id, tokenHash) : { status: 'notfound' };
     if (res.status === 'notfound') {
       limiter.fail(key);
       reply.code(404).send({ error: 'notfound' });
       return null;
     }
-    if (requireMember) {
+    if (requireMember && !adminSession) {
       if (!tokenHash || !store.isMember(res.space?.uid ?? -1, tokenHash)) {
         reply.code(403).send({ error: 'not_member' });
         return null;
       }
     }
-    return { ...res, tokenHash };
+    return { ...res, tokenHash, admin: !!adminSession };
   }
+  /** Who does it: the member's device, or "Admin" */
+  const devOf = (r) => (r.admin ? adminDevice() : store.device(r.space.uid, r.tokenHash));
 
   function sendError(reply, e) {
     if (e instanceof OpError) return reply.code(e.code === 'notfound' ? 404 : 400).send({ error: e.code, message: e.message });
@@ -121,6 +131,11 @@ export async function buildApp(config) {
     const { name, token, deviceName, listName, doc } = req.body ?? {};
     if (typeof token !== 'string' || !TOKEN_RE.test(token)) return reply.code(400).send({ error: 'invalid', message: 'token' });
     if (createLimiter.blocked(clientKey(req))) return reply.code(429).send({ error: 'rate_limited' });
+    // IDs per device (SPACES_PER_DEVICE): only the ones it created itself and that still exist; admins have none
+    const tokenHash = hashToken(token);
+    if (config.spacesPerDevice > 0 && !(admin.enabled && admin.isAdmin(tokenHash)) && store.spacesCreatedBy(tokenHash) >= config.spacesPerDevice) {
+      return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
+    }
     createLimiter.fail(clientKey(req));
     try {
       const id = store.createSpace({ name, token, deviceName, listName });
@@ -128,7 +143,7 @@ export async function buildApp(config) {
       if (doc) {
         const { space } = store.resolve(id, null);
         try {
-          const res = store.importDoc(space.uid, store.device(space.uid, hashToken(token)), doc);
+          const res = store.importDoc(space.uid, store.device(space.uid, tokenHash), doc);
           return { id, stats: res.stats };
         } catch (e) {
           store.db.q('DELETE FROM spaces WHERE uid = ?').run(space.uid); // don't leave a half-imported id behind
@@ -172,7 +187,7 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
-    const dev = store.device(r.space.uid, r.tokenHash);
+    const dev = devOf(r);
     store.deleteSpace(r.space.uid, dev.name);
     hub.broadcast(r.space.uid, { t: 'deleted', by: dev.name, at: Date.now() });
     return { ok: true };
@@ -181,6 +196,7 @@ export async function buildApp(config) {
   app.post('/api/spaces/:id/continue', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
+    if (r.admin) return reply.code(403).send({ error: 'admin' });
     if (r.status !== 'deleted') return reply.code(409).send({ error: 'not_deleted' });
     try {
       return { id: store.continueSpace(r.space.uid, r.tokenHash, req.body?.deviceName) };
@@ -195,7 +211,7 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
-    const dev = store.device(r.space.uid, r.tokenHash);
+    const dev = devOf(r);
     try {
       const res = store.importDoc(r.space.uid, dev, req.body?.doc, { defaultListId: typeof req.body?.listId === 'string' ? req.body.listId : null });
       if (res.changes.length) hub.broadcast(r.space.uid, { t: 'patch', rev: res.rev, changes: res.changes });
@@ -339,7 +355,7 @@ export async function buildApp(config) {
       limiter.fail(clientKey(req));
       return reply.code(404).send({ error: 'target_notfound' });
     }
-    const dev = store.device(r.space.uid, r.tokenHash);
+    const dev = devOf(r);
     try {
       const res = store.transfer(r.space.uid, dev, { targetUid: target.space.uid, targetListId: listId, itemIds, groupId, fromListId, mode });
       if (res.source.changes.length) hub.broadcast(r.space.uid, { t: 'patch', rev: res.source.rev, changes: res.source.changes });
@@ -415,7 +431,12 @@ export async function buildApp(config) {
     if (row) hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row }] });
   }
 
+  // ---------- administration (optional) ----------
+  admin.routes(app, clientKey);
+
   // ---------- WebSocket sync ----------
+  // what this server offers – sent with every welcome
+  const features = { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled, admin: admin.enabled };
   await app.register(fastifyWebsocket, { options: { maxPayload: 512 * 1024 } });
 
   app.get('/ws', { websocket: true }, (ws, req) => {
@@ -482,7 +503,10 @@ export async function buildApp(config) {
       if (typeof msg.token !== 'string' || !TOKEN_RE.test(msg.token)) return reply({ t: 'error', error: 'bad_token' });
       const id = parseSpaceId(msg.space ?? '');
       const tokenHash = hashToken(msg.token);
-      const res = id ? store.resolve(id, tokenHash) : { status: 'notfound' };
+      // an admin opens the ID with the session of the administration (never stored on the device)
+      const adminSession = msg.admin === undefined ? null : admin.enabled ? admin.sessionFor(msg.admin, tokenHash) : null;
+      if (msg.admin !== undefined && !adminSession) return reply({ t: 'error', error: 'admin_auth' });
+      const res = id ? store.resolve(id, adminSession ? null : tokenHash) : { status: 'notfound' };
       if (res.status === 'notfound') {
         limiter.fail(key);
         return reply({ t: 'notfound' });
@@ -494,6 +518,7 @@ export async function buildApp(config) {
         hub.remove(conn);
         hub.presence(conn.uid);
       }
+      if (adminSession) return adminHello(res.space, adminSession, msg.admin, tokenHash);
       let dev;
       try {
         dev = store.joinDevice(res.space.uid, tokenHash, msg.name);
@@ -508,19 +533,45 @@ export async function buildApp(config) {
       conn.uid = res.space.uid;
       conn.devId = dev.dev_id;
       conn.tokenHash = tokenHash;
+      conn.adminKey = null;
+      conn.did = admin.enabled ? didOfHash(tokenHash) : null;
       hub.add(conn);
       reply({
         t: 'welcome',
         serverTime: Date.now(),
         me: { devId: dev.dev_id, name: dev.name },
         online: hub.online(conn.uid),
-        features: { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled },
+        features,
+        // the administration: is this device an admin (or promoted and still without passkey)?
+        ...(admin.enabled && { admin: admin.stateOf(conn.did) }),
         snapshot: store.snapshot(conn.uid),
       });
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);
       hub.presence(conn.uid);
       keepShopping(conn);
       deliverInbox(conn);
+    }
+
+    /** An admin in an ID: shown as "Admin" while connected, no device row, nothing kept for later. */
+    function adminHello(space, session, adminToken, tokenHash) {
+      conn.uid = space.uid;
+      conn.devId = 'admin';
+      conn.tokenHash = null;
+      conn.adminKey = session.key;
+      conn.adminToken = adminToken;
+      conn.deviceHash = tokenHash;
+      conn.did = null;
+      hub.add(conn);
+      admin.opened(session, space);
+      reply({
+        t: 'welcome',
+        serverTime: Date.now(),
+        me: { devId: 'admin', name: 'Admin', admin: true },
+        online: hub.online(conn.uid),
+        features,
+        snapshot: store.snapshot(conn.uid),
+      });
+      hub.presence(conn.uid);
     }
 
     function onSignalAck(msg) {
@@ -534,7 +585,7 @@ export async function buildApp(config) {
     // ----- "find each other in the shop": short fixed signals, never stored -----
     const sent = [];
     function onSignal(msg) {
-      if (conn.uid === null) return;
+      if (conn.uid === null || conn.adminKey) return;
       const dev = store.device(conn.uid, conn.tokenHash);
       if (!dev) return;
       const now = Date.now();
@@ -565,18 +616,28 @@ export async function buildApp(config) {
       bucket.tokens -= 1;
       const space = store.spaceByUid(conn.uid);
       if (!space || space.deleted_at) return reply({ t: 'deleted', by: space?.deleted_by, at: space?.deleted_at });
-      const dev = store.device(conn.uid, conn.tokenHash);
-      if (!dev) {
-        reply({ t: 'kicked' });
-        return conn.close();
+      let dev;
+      if (conn.adminKey) {
+        // the admin session can end (logged out, timed out, revoked) while the ID is open
+        if (!admin.sessionFor(conn.adminToken, conn.deviceHash)) {
+          reply({ t: 'adminEnded' });
+          return conn.close();
+        }
+        dev = adminDevice();
+      } else {
+        dev = store.device(conn.uid, conn.tokenHash);
+        if (!dev) {
+          reply({ t: 'kicked' });
+          return conn.close();
+        }
+        store.touch(conn.uid, conn.tokenHash);
       }
-      store.touch(conn.uid, conn.tokenHash);
       try {
         const res = store.applyOp(conn.uid, dev, msg.id, msg.op, msg.at);
-        if (msg.op?.k !== 'device.shopping') keepShopping(conn);
+        if (msg.op?.k !== 'device.shopping' && !conn.adminKey) keepShopping(conn);
         if (res.changes.length) hub.broadcast(conn.uid, { t: 'patch', rev: res.rev, changes: res.changes });
         reply({ t: 'ack', id: msg.id, ok: true, result: res.result });
-        if (res.allDone) sendSignal(conn.uid, dev, { kind: 'allDone', place: res.allDone.listName }, null, conn.devId);
+        if (res.allDone && !conn.adminKey) sendSignal(conn.uid, dev, { kind: 'allDone', place: res.allDone.listName }, null, conn.devId);
         if (msg.op?.k === 'device.kick' && res.result?.kicked) {
           const kickedHash = res.kickedHash;
           if (kickedHash) hub.kick(conn.uid, kickedHash);

@@ -22,6 +22,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 - [Einstellungen](#einstellungen)
 - [Ohne Docker starten](#ohne-docker-starten)
 - [Backup und Update](#backup-und-update)
+- [Administration (optional)](#administration-optional)
 - [Datenschutz](#datenschutz)
 - [Entwicklung](#entwicklung)
 - [Sprache hinzufügen](#sprache-hinzufügen)
@@ -316,6 +317,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `LOOKUP_LIMIT` | `30` | So viele unbekannte IDs darf eine Adresse probieren … |
 | `LOOKUP_WINDOW_MIN` | `15` | … pro so vielen Minuten (Schutz gegen das Erraten von IDs) |
 | `CREATE_LIMIT` | `30` | Neue IDs pro Adresse und Stunde |
+| `SPACES_PER_DEVICE` | `0` | So viele IDs darf ein Gerät selbst anlegen (`0` = unbegrenzt). Es zählen nur selbst angelegte, noch bestehende IDs – Beitreten zählt nicht, Löschen gibt einen Platz frei. |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in im Laden endet nach so vielen Minuten ohne Aktivität |
 | `SIGNAL_TTL_MIN` | `30` | So lange wartet ein Ruf auf ein Gerät, das offline ist |
 | `TRANSLATE_PROVIDER` | `mymemory` | Übersetzung im Reisemodus: ein Dienst oder mehrere in Reihenfolge, z. B. `deepl,azure,mymemory` – `mymemory`, `deepl`, `azure`, `google`, `libretranslate` oder `none` |
@@ -328,11 +330,13 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `MYMEMORY_EMAIL` | – | Optional für MyMemory: hebt das kostenlose Kontingent auf ca. 50.000 Zeichen pro Tag |
 | `MCP_ENABLED` | `false` | `true` lässt KI-Assistenten (Claude, ChatGPT, Grok, Siri …) per MCP (`/mcp`) und REST (`/api/v1`) zu – siehe [KI-Assistenten](#ki-assistenten-claude-chatgpt-grok-siri) |
 | `TRANSLATE_LIMIT` | `300` | Artikelnamen pro ID und Stunde, die an Übersetzungsdienste gehen |
-
-Einstellungen aus v0.2.0/0.2.1 funktionieren weiter: `TRANSLATE_API_KEY` gilt für den ersten genannten Dienst ohne eigenen Schlüssel, `TRANSLATE_URL` und `TRANSLATE_EMAIL` zählen als `LIBRETRANSLATE_URL` und `MYMEMORY_EMAIL`.
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Ordner für eigene Skins (CSS-Dateien, siehe [Skin hinzufügen](#skin-hinzufügen)) – wird im Betrieb gelesen |
 | `DATA_DIR` | `/data` | Ort der Datenbank (in Docker: das Volume) |
+
+Einstellungen aus v0.2.0/0.2.1 funktionieren weiter: `TRANSLATE_API_KEY` gilt für den ersten genannten Dienst ohne eigenen Schlüssel, `TRANSLATE_URL` und `TRANSLATE_EMAIL` zählen als `LIBRETRANSLATE_URL` und `MYMEMORY_EMAIL`.
+
+Die optionale Administration hat eigene Einstellungen – siehe [Administration (optional)](#administration-optional).
 
 ## Ohne Docker starten
 
@@ -358,6 +362,26 @@ Update: In Portainer **Pull and redeploy** (Web editor) bzw. neu bauen (Reposito
 
 Welche Version läuft: `curl https://dein-host/api/version` → `{"version":"v0.4.1","commit":"…","built":"…"}` (auch in `/healthz` und in der App unter Hilfe). Images von `main` heißen nach dem letzten Release, z. B. `v0.4.1-2-g1a2b3c4` = zwei Commits nach v0.4.1. Wer ein bestimmtes Release will, nimmt den Image-Tag (`ghcr.io/jake-double-one/shopwiz:0.4.1`) statt `latest`.
 
+## Administration (optional)
+
+> Für den Betrieb nicht nötig – und **aus**, solange du sie nicht einschaltest. Wer ShopWiz nur zu Hause oder hinter Authentik & Co. nutzt, kann diesen Abschnitt überspringen.
+
+Wer einen Server für andere betreibt, kann damit sehen, welche IDs es gibt (Größe, letzte Nutzung), verwaiste löschen und helfen, wenn etwas klemmt – unter `https://dein-host/admin`. Der Haupt-Admin meldet sich mit Benutzername und Passwort an; weitere Admins sind Geräte, die per **D-ID** ernannt werden und sich immer mit einem **Passkey** (Fingerabdruck, Gesicht, PIN) absichern. Die Anmeldung lebt nur im Browser-Tab: nichts, was ein gestohlenes Browserprofil weiterverwenden könnte.
+
+Einschalten mit zwei Einstellungen (HTTPS nötig):
+
+```bash
+docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js   # gibt ADMIN_PASSWORD_HASH=… aus
+```
+
+| Variable | Bedeutung |
+|---|---|
+| `ADMIN_USER` | Benutzername des Haupt-Admins |
+| `ADMIN_PASSWORD_HASH` | Das Passwort als Hash (vom Befehl oben) – nie das Passwort selbst |
+| `ADMIN_PASSWORD_LOGIN` | `off`: kein Passwort-Login mehr, sobald der Haupt-Admin einen Passkey hat (zum Zurückkommen wieder entfernen) |
+
+Alles Weitere – was Admins sehen und dürfen, D-IDs, Passkeys, was Teilnehmer sehen: **[docs/ADMIN.de.md](docs/ADMIN.de.md)**.
+
 ## Datenschutz
 
 - Keine Konten, keine Cookies, keine Analyse, kein Fingerprinting.
@@ -367,6 +391,7 @@ Welche Version läuft: `curl https://dein-host/api/version` → `{"version":"v0.
 - Gespeichert werden: Listeninhalte, die eingegebenen Namen und Zeitstempel. Jedes Gerät hat ein zufälliges geheimes Token; auf dem Server liegt nur dessen Hash.
 - Abgelaufene IDs und inaktive Geräte werden endgültig gelöscht. Alte IDs werden nie neu vergeben.
 - Strenge Sicherheits-Header (Content Security Policy, `Referrer-Policy: no-referrer`, damit die ID nie über Links abfließt).
+- Ist die optionale [Administration](#administration-optional) eingeschaltet, können Admins IDs öffnen. Teilnehmer sehen das: Einstellungen und Hilfe sagen, dass der Server eine Administration hat, und ein Admin in einer ID steht rot als „Admin“ in der Teilnehmerliste und im Verlauf.
 
 ## Lizenzen von Drittanbietern
 
@@ -382,6 +407,7 @@ ShopWiz baut auf diesen Projekten auf – danke:
 | Schriften | [Instrument Sans](https://github.com/Instrument/instrument-sans), [IBM Plex Mono](https://github.com/IBM/plex) (über Fontsource) | SIL Open Font License 1.1 |
 | Server | [Fastify](https://fastify.dev) mit @fastify/static und @fastify/websocket | MIT |
 | KI-Assistenten | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), [zod](https://zod.dev) | MIT |
+| Passkeys (optionale Administration) | [SimpleWebAuthn](https://github.com/MasterKale/SimpleWebAuthn) (mit @peculiar/x509 und asn1-Paketen, asn1js, @hexagon/base64, tiny-cbor, reflect-metadata, tsyringe, tslib) | MIT; asn1js BSD-3-Clause, reflect-metadata Apache-2.0, tslib 0BSD |
 
 Die App liefert die vollständigen Lizenztexte von allem, was im Browser läuft, als `/licenses.txt` mit (Hilfe → „Lizenzen der verwendeten Software und Schriften“). Die Datei entsteht beim Build aus den Paketen im Bundle (`scripts/licenses.js`) und bleibt so vollständig, wenn sich Abhängigkeiten ändern. Die Server-Pakete behalten ihre Lizenzdateien im `node_modules` des Docker-Images.
 

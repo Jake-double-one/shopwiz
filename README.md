@@ -22,6 +22,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 - [Configuration](#configuration)
 - [Run without Docker](#run-without-docker)
 - [Backup and update](#backup-and-update)
+- [Administration (optional)](#administration-optional)
 - [Privacy](#privacy)
 - [Development](#development)
 - [Adding a language](#adding-a-language)
@@ -317,6 +318,7 @@ All settings are environment variables. The defaults are fine for most setups.
 | `LOOKUP_LIMIT` | `30` | Unknown IDs a client address may try … |
 | `LOOKUP_WINDOW_MIN` | `15` | … per this many minutes (protection against guessing IDs) |
 | `CREATE_LIMIT` | `30` | New IDs per client address and hour |
+| `SPACES_PER_DEVICE` | `0` | IDs a device may create itself (`0` = no limit). Only IDs it created and that still exist count – joining doesn't, deleting frees a place. |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in at the shop ends after this many minutes without activity |
 | `SIGNAL_TTL_MIN` | `30` | How long a call waits for a device that is offline |
 | `TRANSLATE_PROVIDER` | `mymemory` | Travel mode translation: one service or several in order, e.g. `deepl,azure,mymemory` – `mymemory`, `deepl`, `azure`, `google`, `libretranslate` or `none` |
@@ -329,11 +331,13 @@ All settings are environment variables. The defaults are fine for most setups.
 | `MYMEMORY_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
 | `MCP_ENABLED` | `false` | `true` lets AI assistants (Claude, ChatGPT, Grok, Siri …) connect via MCP (`/mcp`) and REST (`/api/v1`) – see [AI assistants](#ai-assistants-claude-chatgpt-grok-siri) |
 | `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to translation services |
-
-Settings of v0.2.0/0.2.1 keep working: `TRANSLATE_API_KEY` is used for the first listed service that has no own key, `TRANSLATE_URL` and `TRANSLATE_EMAIL` count as `LIBRETRANSLATE_URL` and `MYMEMORY_EMAIL`.
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Folder for your own skins (CSS files, see [Adding a skin](#adding-a-skin)) – read while running |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |
+
+Settings of v0.2.0/0.2.1 keep working: `TRANSLATE_API_KEY` is used for the first listed service that has no own key, `TRANSLATE_URL` and `TRANSLATE_EMAIL` count as `LIBRETRANSLATE_URL` and `MYMEMORY_EMAIL`.
+
+The optional administration has its own settings – see [Administration (optional)](#administration-optional).
 
 ## Run without Docker
 
@@ -359,6 +363,26 @@ Update: in Portainer use **Pull and redeploy** (web editor) or **Pull and redepl
 
 Which version runs: `curl https://your-host/api/version` → `{"version":"v0.4.1","commit":"…","built":"…"}` (also in `/healthz` and in the app under Help). Images from `main` are named after the last release, e.g. `v0.4.1-2-g1a2b3c4` = two commits after v0.4.1. To pin a release, use the image tag (`ghcr.io/jake-double-one/shopwiz:0.4.1`) instead of `latest`.
 
+## Administration (optional)
+
+> Not needed for running ShopWiz – and **off** unless you switch it on. If you use it only at home, or behind Authentik & co., you can skip this section.
+
+Who runs a server open to others can see which IDs exist (size, last use), delete abandoned ones and help when something is wrong – at `https://your-host/admin`. The main admin logs in with a user name and password; further admins are devices, made admin by their **D-ID** and always secured with a **passkey** (fingerprint, face, PIN). The login lives only in the browser tab: nothing a stolen browser profile could reuse.
+
+Switch it on with two settings (HTTPS required):
+
+```bash
+docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js   # prints ADMIN_PASSWORD_HASH=…
+```
+
+| Variable | Meaning |
+|---|---|
+| `ADMIN_USER` | User name of the main admin |
+| `ADMIN_PASSWORD_HASH` | The password as a hash (from the command above) – never the password itself |
+| `ADMIN_PASSWORD_LOGIN` | `off`: no password login once the main admin has a passkey (remove it again to get back in) |
+
+Everything else – what admins see and may do, D-IDs, passkeys, what members see: **[docs/ADMIN.md](docs/ADMIN.md)**.
+
 ## Privacy
 
 - No accounts, no cookies, no analytics, no fingerprinting.
@@ -368,6 +392,7 @@ Which version runs: `curl https://your-host/api/version` → `{"version":"v0.4.1
 - Stored: list contents, the names you enter, and timestamps. Each device has a random secret token; only its hash is stored on the server.
 - Expired IDs and inactive devices are deleted for good. Old IDs are never given out again.
 - Strict security headers (Content Security Policy, `Referrer-Policy: no-referrer` so the ID never leaks via links).
+- With the optional [administration](#administration-optional) switched on, admins can open IDs. Members see it: settings and help say the server has an administration, and an admin inside an ID is shown in red as "Admin" in the participant list and in the history.
 
 ## Development
 
@@ -415,6 +440,7 @@ ShopWiz is built on these projects – thank you:
 | Fonts | [Instrument Sans](https://github.com/Instrument/instrument-sans), [IBM Plex Mono](https://github.com/IBM/plex) (via Fontsource) | SIL Open Font License 1.1 |
 | Server | [Fastify](https://fastify.dev) with @fastify/static and @fastify/websocket | MIT |
 | AI assistants | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), [zod](https://zod.dev) | MIT |
+| Passkeys (optional administration) | [SimpleWebAuthn](https://github.com/MasterKale/SimpleWebAuthn) (with @peculiar/x509 and asn1 packages, asn1js, @hexagon/base64, tiny-cbor, reflect-metadata, tsyringe, tslib) | MIT; asn1js BSD-3-Clause, reflect-metadata Apache-2.0, tslib 0BSD |
 
 The app ships the full license texts of everything that runs in the browser as `/licenses.txt` (Help → “Licenses of the software and fonts used”). The file is generated at build time from the packages in the bundle (`scripts/licenses.js`), so it stays complete when dependencies change. The server packages keep their license files in `node_modules` of the Docker image.
 

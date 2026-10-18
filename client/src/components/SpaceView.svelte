@@ -23,7 +23,7 @@
   import SignalCard from './SignalCard.svelte';
   import { spotPlace } from '../lib/signals.js';
   import { sync } from '../lib/sync.svelte.js';
-  import { t, relTime } from '../lib/i18n.svelte.js';
+  import { t, relTime, clock } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
   import { sortedLists, progress, isShopping, listItems, listTree, translationOf, viewItem, linkedLists, showsItem } from '../lib/model.js';
   import { setShopping, restoreItems, addList, finishShopping, pendingLinks, undoLink } from '../lib/actions.js';
@@ -31,10 +31,11 @@
   import { navUrl } from '../lib/nav.js';
   import { toast, dismissNotices } from '../lib/toast.svelte.js';
 
-  let { id, onleave, onopen } = $props();
+  // admin: the administration's session – this ID is opened as "Admin" and nothing of it stays on the device
+  let { id, onleave, onopen, admin = null, onadmin = null } = $props();
 
   $effect(() => {
-    if (sync.spaceId !== id) sync.open(id);
+    if (sync.spaceId !== id || sync.admin !== admin) sync.open(id, { admin });
   });
 
   const v = $derived(sync.data);
@@ -46,7 +47,7 @@
     if (list && list.id !== listId) listId = list.id;
   });
   $effect(() => {
-    if (listId) save(`list.${sync.spaceId ?? id}`, listId);
+    if (listId && !admin) save(`list.${sync.spaceId ?? id}`, listId);
   });
 
   $effect(() => {
@@ -59,10 +60,12 @@
   const devices = $derived(Object.values(v.devices));
   const myDevId = $derived(sync.me?.devId);
 
-  // participants in one line: me first, then who is online; the rest as "+N"
-  const peopleOrder = $derived(
-    [...devices].sort((a, b) => (b.devId === myDevId) - (a.devId === myDevId) || sync.online.includes(b.devId) - sync.online.includes(a.devId)),
-  );
+  // participants in one line: an admin who is in the ID (red, always first), me, then who is online; the rest as "+N"
+  const adminHere = $derived(sync.online.includes('admin'));
+  const peopleOrder = $derived([
+    ...(adminHere ? [{ devId: 'admin', name: t('admin.chip'), admin: true }] : []),
+    ...[...devices].sort((a, b) => (b.devId === myDevId) - (a.devId === myDevId) || sync.online.includes(b.devId) - sync.online.includes(a.devId)),
+  ]);
   let peopleEl = $state();
   let measureEl = $state();
   let peopleFit = $state(99);
@@ -218,7 +221,15 @@
   });
 
   // one-time "new here?" hint, per device
-  let helpHint = $state(!load('helpSeen', false));
+  let helpHint = $state(!untrack(() => admin) && !load('helpSeen', false));
+
+  // the main admin made this device an admin: a one-time notice (it has 24 hours for its passkey)
+  let adminNoticeSeen = $state(load('adminNotice', 0));
+  const adminNotice = $derived(!admin && sync.adminState?.role === 'pending' && sync.adminState.since !== adminNoticeSeen ? sync.adminState : null);
+  function dismissAdminNotice() {
+    adminNoticeSeen = adminNotice?.since ?? 0;
+    save('adminNotice', adminNoticeSeen);
+  }
   function openHelp() {
     helpHint = false;
     save('helpSeen', true);
@@ -305,8 +316,8 @@
   );
 </script>
 
-{#if ['notfound', 'deleted', 'kicked', 'limited', 'full'].includes(sync.status)}
-  <StatusScreen status={sync.status} deleted={sync.deleted} spaceId={id} {onleave} {onopen} />
+{#if ['notfound', 'deleted', 'kicked', 'limited', 'full', 'adminEnded'].includes(sync.status)}
+  <StatusScreen status={sync.status} deleted={sync.deleted} spaceId={id} {onleave} {onopen} {admin} />
 {:else if sync.ready && !list}
   <main class="wrap">
     <div class="loading">
@@ -327,6 +338,13 @@
   </main>
 {:else}
   <main class="wrap" inert={prefs.focus}>
+    {#if admin}
+      <div class="admin-bar" role="status">
+        <Icon name="key" size={18} />
+        <span class="grow">{t('admin.viewing')}</span>
+        <button class="btn small" onclick={onleave}>{t('admin.back')}</button>
+      </div>
+    {/if}
     <header class="top">
       <button class="space" onclick={() => open('settings')} title={t('settings.title')}>
         <span class="brand">Shop<span>·</span>Wiz</span>
@@ -340,6 +358,19 @@
       <button class="icon-btn" onclick={() => open('share')} aria-label={t('share.title')} title={t('share.title')}><Icon name="share" /></button>
       <button class="icon-btn" onclick={() => open('settings')} aria-label={t('settings.title')} title={t('settings.title')}><Icon name="settings" /></button>
     </header>
+
+    {#if adminNotice}
+      <div class="signal-like admin-notice" role="alert">
+        <div class="an-text">
+          <Icon name="key" size={18} />
+          <span><b>{t('admin.promoted')}</b> {t('admin.promotedHint', { until: clock(adminNotice.until) })}</span>
+        </div>
+        <div class="row an-actions">
+          {#if onadmin}<button class="btn small main" onclick={() => (dismissAdminNotice(), onadmin())}>{t('admin.setUp')}</button>{/if}
+          <button class="btn small" onclick={dismissAdminNotice}>{t('signal.ok')}</button>
+        </div>
+      </div>
+    {/if}
 
     {#if helpHint}
       <div class="hint dusk help-hint">
@@ -386,7 +417,7 @@
         <button class="people" bind:this={peopleEl} onclick={() => open('people')} aria-label={t('people.title')}>
           <Icon name="users" size={18} />
           {#each peopleOrder.slice(0, peopleFit) as d (d.devId)}
-            <span class="person" class:me={d.devId === myDevId} title={d.name}>
+            <span class="person" class:me={d.devId === myDevId} class:admin={d.admin} title={d.name}>
               <span class="dot" class:on={sync.online.includes(d.devId)}></span><span class="pname">{d.name}</span>
             </span>
           {/each}
@@ -400,16 +431,18 @@
           </span>
         </button>
         <div class="toggles">
-          {#if myShopping && shoppers.length}
+          {#if !admin && myShopping && shoppers.length}
             <button class="chip call" onclick={() => open('call')} title={t('call.title')} aria-label={t('call.title')}>
               <Icon name="nav" size={16} />
               <span class="label">{t('call.button')}</span>
             </button>
           {/if}
-          <button class="chip main" aria-pressed={myShopping} onclick={toggleShopping} title={t('shopping.hint')}>
-            <Icon name="cart" size={16} />
-            <span class="label">{t('shopping.toggle')}</span>
-          </button>
+          {#if !admin}
+            <button class="chip main" aria-pressed={myShopping} onclick={toggleShopping} title={t('shopping.hint')}>
+              <Icon name="cart" size={16} />
+              <span class="label">{t('shopping.toggle')}</span>
+            </button>
+          {/if}
           <button class="icon-btn" onclick={() => setFocus(true)} aria-label={t('focus.button')} title={t('focus.button')}><Icon name="focus" /></button>
           <button class="icon-btn" aria-pressed={prefs.hideChecked} onclick={() => setHideChecked(!prefs.hideChecked)} aria-label={t('hideChecked.toggle')} title={t('hideChecked.toggle')}>
             <Icon name={prefs.hideChecked ? 'eyeOff' : 'eye'} />
@@ -544,9 +577,9 @@
   {:else if sheet?.kind === 'share'}
     <ShareSheet space={v.space} spaceId={sync.spaceId} {list} onclose={closeSheet} />
   {:else if sheet?.kind === 'settings'}
-    <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} onshare={() => open('share')} onbackup={() => open('backup')} />
+    <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} {admin} {onadmin} onshare={() => open('share')} onbackup={() => open('backup')} />
   {:else if sheet?.kind === 'people'}
-    <PeopleSheet {devices} online={sync.online} me={sync.me} onclose={closeSheet} {onleave} />
+    <PeopleSheet {devices} online={sync.online} me={sync.me} onclose={closeSheet} />
   {:else if sheet?.kind === 'conflicts'}
     <ConflictSheet {v} {conflicts} onclose={closeSheet} />
   {:else if sheet?.kind === 'history'}
@@ -776,6 +809,63 @@
   }
   .person.me {
     border-color: var(--dusk);
+  }
+  /* an admin in the ID: red, so nobody overlooks it */
+  .person.admin {
+    border-color: var(--alert);
+    background: var(--alert);
+    color: var(--on-alert);
+    font-weight: 600;
+  }
+  .people:hover .person.admin {
+    color: var(--on-alert);
+  }
+  .person.admin .dot {
+    background: var(--on-alert);
+  }
+  .admin-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 8px 8px 8px 12px;
+    border-radius: 12px;
+    background: var(--alert);
+    color: var(--on-alert);
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .admin-bar .grow {
+    flex: 1;
+    min-width: 0;
+  }
+  .admin-bar .btn {
+    flex: none;
+  }
+  .admin-notice {
+    background: var(--surface);
+    border: 2px solid var(--alert);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+  }
+  .an-text {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    color: var(--alert);
+  }
+  .an-text span {
+    color: var(--muted);
+  }
+  .an-text b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .an-actions {
+    margin-top: 10px;
+    justify-content: flex-end;
   }
   .people:hover .person {
     color: var(--ink);

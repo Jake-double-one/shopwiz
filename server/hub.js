@@ -17,6 +17,10 @@ export class Hub {
   conns(uid) {
     return [...(this.rooms.get(uid) ?? [])];
   }
+  /** Every open connection, in all spaces. */
+  all() {
+    return [...this.rooms.values()].flatMap((room) => [...room]);
+  }
   online(uid) {
     return [...new Set(this.conns(uid).map((c) => c.devId))];
   }

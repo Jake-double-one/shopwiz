@@ -92,6 +92,8 @@
         return t('history.import', { added: p.added ?? 0, skipped: p.skipped ?? 0, reactivated: p.reactivated ?? 0 });
       case 'device.kick':
         return t('history.kick', { name: p.name });
+      case 'admin.open':
+        return t('history.adminOpen');
       case 'space.update':
         return p.ttlDays ? t('history.ttl', { days: p.ttlDays }) : t('history.spaceRename', { name: p.name });
       default:
@@ -120,7 +122,7 @@
         {@const ids = restorable(e)}
         <li>
           <span class="when micro">{clock(e.at)}</span>
-          <span class="what"><b>{e.by}</b> {describe(e)}</span>
+          <span class="what"><b class:admin={e.action === 'admin.open'}>{e.by}</b> {describe(e)}</span>
           {#if ids?.length && !restored.has(e.id)}
             <button class="btn small" onclick={() => (restoreItems(ids), (restored = new Set([...restored, e.id])))}>{t('restore')}</button>
           {/if}
@@ -154,5 +156,9 @@
   }
   .what {
     overflow-wrap: anywhere;
+  }
+  /* an admin of the server opened the ID – the same red as in the participant list */
+  .what b.admin {
+    color: var(--alert);
   }
 </style>

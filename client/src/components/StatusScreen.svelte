@@ -6,7 +6,8 @@
   import { sync } from '../lib/sync.svelte.js';
   import { formatSpaceId } from '../../../shared/ids.js';
 
-  let { status, deleted, spaceId, onleave, onopen } = $props();
+  // admin: opened from the administration – nothing of this ID is on the device, so nothing to forget
+  let { status, deleted, spaceId, onleave, onopen, admin = null } = $props();
   let busy = $state(false);
   let error = $state('');
 
@@ -27,7 +28,7 @@
   }
 
   function forget() {
-    forgetSpace(spaceId);
+    if (!admin) forgetSpace(spaceId);
     onleave();
   }
 </script>
@@ -42,6 +43,16 @@
       <div class="row wrap-row">
         <button class="btn main" onclick={forget}>{t('status.forgetBack')}</button>
       </div>
+    {:else if status === 'adminEnded'}
+      <h2>{t('admin.endedTitle')}</h2>
+      <p class="note">{t('admin.ended')}</p>
+      <button class="btn main" onclick={onleave}>{t('admin.back')}</button>
+    {:else if status === 'deleted' && (deleted?.final || admin)}
+      <h2>{t('status.deletedTitle')}</h2>
+      <p class="note">
+        {deleted?.final ? t('status.deletedFinal', { date: deleted?.at ? clock(deleted.at) : '' }) : t('status.deleted', { name: deleted?.by ?? '?', date: deleted?.at ? clock(deleted.at) : '' })}
+      </p>
+      <button class="btn main" onclick={forget}>{admin ? t('admin.back') : t('status.forgetBack')}</button>
     {:else if status === 'deleted'}
       <h2>{t('status.deletedTitle')}</h2>
       <p class="note">{t('status.deleted', { name: deleted?.by ?? '?', date: deleted?.at ? clock(deleted.at) : '' })}</p>

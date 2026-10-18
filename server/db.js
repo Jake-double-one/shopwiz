@@ -21,6 +21,34 @@ CREATE TABLE IF NOT EXISTS retired_ids (
   reason     TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS admins (
+  did        TEXT PRIMARY KEY,      -- D-ID of a device the main admin made an admin
+  state      TEXT NOT NULL,         -- 'pending' (no passkey yet) | 'active'
+  expires_at INTEGER,               -- pending: the promotion runs out
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS admin_keys (
+  id           TEXT PRIMARY KEY,    -- passkey credential id
+  did          TEXT,                -- NULL = a passkey of the main admin
+  public_key   BLOB NOT NULL,
+  counter      INTEGER NOT NULL DEFAULT 0,
+  transports   TEXT NOT NULL DEFAULT '[]',
+  synced       INTEGER NOT NULL DEFAULT 0, -- synced passkey (iCloud, Google, password manager)
+  rp_id        TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  last_used_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS admin_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor      TEXT NOT NULL,         -- 'main', a D-ID or 'system' – never an address
+  action     TEXT NOT NULL,
+  detail     TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS admin_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS devices (
   space_uid      INTEGER NOT NULL REFERENCES spaces(uid) ON DELETE CASCADE,
   token_hash     TEXT NOT NULL,
@@ -202,6 +230,9 @@ function migrate(db) {
   db.exec('CREATE INDEX IF NOT EXISTS devices_token ON devices(token_hash)');
   const spaceCols = db.prepare('PRAGMA table_info(spaces)').all().map((c) => c.name);
   if (!spaceCols.includes('ai_write')) db.exec('ALTER TABLE spaces ADD COLUMN ai_write INTEGER NOT NULL DEFAULT 0');
+  // hash of the token of the device that created the space (IDs per device, SPACES_PER_DEVICE)
+  if (!spaceCols.includes('created_by')) db.exec('ALTER TABLE spaces ADD COLUMN created_by TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS spaces_creator ON spaces(created_by)');
   flattenSubgroups(db);
   if (!listCols.includes('address')) db.exec("ALTER TABLE lists ADD COLUMN address TEXT NOT NULL DEFAULT ''");
   if (!listCols.includes('travel_country')) db.exec('ALTER TABLE lists ADD COLUMN travel_country TEXT');

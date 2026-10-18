@@ -57,7 +57,7 @@
       const { id } = await api.createSpace(name, deviceName(), name);
       onopen(id);
     } catch (err) {
-      error = err.code === 'offline' ? t('start.offline') : t('start.createFailed');
+      error = err.code === 'offline' ? t('start.offline') : err.code === 'space_limit' ? t('start.spaceLimit', { count: err.limit }) : t('start.createFailed');
     } finally {
       busy = false;
     }

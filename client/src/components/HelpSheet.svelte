@@ -56,6 +56,7 @@
       {#if build.sha}<span class="mono muted">· {build.sha.slice(0, 7)}</span>{/if}
     </p>
     <p class="muted small">{[versionNote, builtAt && t('help.built', { date: builtAt })].filter(Boolean).join(' · ')}</p>
+    {#if sync.features.admin}<p class="muted small">{t('admin.transparency')}</p>{/if}
     {#if services?.length}
       <p class="muted small services">
         {t('help.translator')}:

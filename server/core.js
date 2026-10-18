@@ -32,6 +32,9 @@ const rnd = (b) => webcrypto.getRandomValues(b);
 export const newEntityId = () => randomEntityId(rnd);
 export const hashToken = (token) => createHash('sha256').update(String(token)).digest('base64url');
 
+/** Who an admin is inside an ID: no device row, the same name for every admin. */
+export const adminDevice = () => ({ dev_id: 'admin', name: 'Admin', kind: 'admin', token_hash: null });
+
 export class OpError extends Error {
   constructor(code, message) {
     super(message || code);
@@ -200,8 +203,8 @@ export class Store {
     return db.tx(() => {
       const publicId = this.generatePublicId();
       const { lastInsertRowid } = db
-        .q('INSERT INTO spaces (public_id, name, ttl_days, last_active_at, created_at) VALUES (?, ?, ?, ?, ?)')
-        .run(publicId, spaceName, this.config.spaceTtlDays, now, now);
+        .q('INSERT INTO spaces (public_id, name, ttl_days, created_by, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(publicId, spaceName, this.config.spaceTtlDays, token ? hashToken(token) : null, now, now);
       const uid = Number(lastInsertRowid);
       db.q('INSERT INTO lists (space_uid, id, name, pos, group_mode, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
         uid,
@@ -214,6 +217,11 @@ export class Store {
       if (token) this.joinDevice(uid, hashToken(token), deviceName);
       return publicId;
     });
+  }
+
+  /** IDs this device created that still exist (SPACES_PER_DEVICE). */
+  spacesCreatedBy(tokenHash) {
+    return this.db.q('SELECT COUNT(*) AS c FROM spaces WHERE created_by = ? AND deleted_at IS NULL').get(tokenHash).c;
   }
 
   spaceByUid(uid) {
@@ -381,6 +389,18 @@ export class Store {
     this.db.q('UPDATE spaces SET deleted_at = ?, deleted_by = ? WHERE uid = ? AND deleted_at IS NULL').run(Date.now(), byName, uid);
   }
 
+  /** Delete a space for good (administration): its id is never handed out again. */
+  purgeSpace(uid) {
+    const { db } = this;
+    db.tx(() => {
+      const space = this.spaceByUid(uid);
+      if (!space) return;
+      db.q('INSERT OR REPLACE INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, NULL, ?, ?)').run(space.public_id, 'admin', Date.now());
+      db.q('UPDATE retired_ids SET space_uid = NULL WHERE space_uid = ?').run(uid);
+      db.q('DELETE FROM spaces WHERE uid = ?').run(uid);
+    });
+  }
+
   /** Copy a deleted space into a fresh one. All members continuing end up in the same new space. */
   continueSpace(oldUid, tokenHash, deviceName) {
     const { db } = this;
@@ -397,8 +417,8 @@ export class Store {
       const now = Date.now();
       const publicId = this.generatePublicId();
       const { lastInsertRowid } = db
-        .q('INSERT INTO spaces (public_id, name, ttl_days, rev, ai_write, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, now, now);
+        .q('INSERT INTO spaces (public_id, name, ttl_days, rev, ai_write, created_by, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, old.created_by ?? null, now, now);
       const uid = Number(lastInsertRowid);
       // only what was still there: rows of deleted lists stay behind
       const live = {
@@ -1491,6 +1511,7 @@ const OPS = {
   },
 
   'device.rename'(ctx, op) {
+    if (ctx.dev.kind === 'admin') throw new OpError('forbidden', 'admins have no device here');
     const name = str(op.name, LIMITS.deviceName, { required: true, field: 'name' });
     this.db.q('UPDATE devices SET name = ? WHERE space_uid = ? AND dev_id = ?').run(name, ctx.uid, ctx.dev.dev_id);
     ctx.dev.name = name;
@@ -1508,6 +1529,7 @@ const OPS = {
   },
 
   'device.shopping'(ctx, op) {
+    if (ctx.dev.kind === 'admin') throw new OpError('forbidden', 'admins have no device here');
     const until = op.on ? ctx.now + this.shoppingMs : null;
     // a new shopping trip starts without a known spot
     this.db

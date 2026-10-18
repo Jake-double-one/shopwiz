@@ -33,6 +33,9 @@ export default defineConfig({
         TRANSLATE_PROVIDER: 'libretranslate',
         LIBRETRANSLATE_URL: 'http://127.0.0.1:8099',
         MCP_ENABLED: 'true',
+        // the administration (docs/ADMIN.md) – password "e2e admin password"
+        ADMIN_USER: 'boss',
+        ADMIN_PASSWORD_HASH: 'scrypt:16384:8:1:M4mCKk4h1LAwV-hIwR9RMg:EIVGKDjqHuYh6_nr_KOHQPVHhJ9i3MDa80FbommiDvI',
       },
     },
   ],

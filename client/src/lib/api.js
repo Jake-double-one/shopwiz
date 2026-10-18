@@ -1,18 +1,20 @@
 import { deviceToken } from './device.js';
+import { sync } from './sync.svelte.js';
 
 async function call(method, path, body) {
   let res;
   try {
     res = await fetch(path, {
       method,
-      headers: { 'content-type': 'application/json', 'x-shopwiz-token': deviceToken() },
+      // an ID opened from the administration: everything happens as "Admin"
+      headers: { 'content-type': 'application/json', 'x-shopwiz-token': deviceToken(), ...(sync.admin && { 'x-shopwiz-admin': sync.admin }) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
     throw Object.assign(new Error('offline'), { code: 'offline' });
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || 'error'), { code: data.error || 'error', status: res.status });
+  if (!res.ok) throw Object.assign(new Error(data.error || 'error'), { code: data.error || 'error', status: res.status, limit: data.limit });
   return data;
 }
 

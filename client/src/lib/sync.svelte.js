@@ -313,6 +313,10 @@ class Sync {
   ready = $state(false);
   pendingCount = $state(0);
   data = $state.raw(empty());
+  /** the administration's session when an admin opened this ID – then nothing is kept on the device */
+  admin = $state(null);
+  /** this device in the administration: { role: 'pending'|'active'|null, since, until } */
+  adminState = $state(null);
 
   base = empty();
   pending = [];
@@ -342,18 +346,19 @@ class Sync {
     return Date.now() + this.offset;
   }
 
-  open(id) {
+  open(id, { admin = null } = {}) {
     this.close();
     this.spaceId = id;
+    this.admin = admin;
     this.status = 'connecting';
     this.deleted = null;
-    const cached = load(`snap.${id}`);
+    const cached = admin ? null : load(`snap.${id}`);
     this.base = cached?.base ?? empty();
     this.me = cached?.me ?? null;
     this.features = cached?.features ?? {};
     this.offset = cached?.offset ?? 0;
-    this.pending = load(`pending.${id}`, []);
-    this.outbox = load(`signals.${id}`, []);
+    this.pending = admin ? [] : load(`pending.${id}`, []);
+    this.outbox = admin ? [] : load(`signals.${id}`, []);
     this.ready = !!cached?.base?.space;
     this.rebuild(true);
     this.connect();
@@ -375,6 +380,7 @@ class Sync {
     this.outbox = [];
     this.online = [];
     this.data = empty();
+    this.admin = null;
   }
 
   connect() {
@@ -391,7 +397,7 @@ class Sync {
     if (this.status !== 'connecting') this.status = this.ready ? 'offline' : 'connecting';
     ws.onopen = () => {
       if (this.ws !== ws) return;
-      ws.send(JSON.stringify({ t: 'hello', space: this.spaceId, token: deviceToken(), name: deviceName() }));
+      ws.send(JSON.stringify({ t: 'hello', space: this.spaceId, token: deviceToken(), name: deviceName(), ...(this.admin && { admin: this.admin }) }));
     };
     ws.onmessage = (ev) => {
       if (this.ws !== ws) return;
@@ -408,7 +414,7 @@ class Sync {
       clearInterval(this.pingTimer);
       this.ws = null;
       this.online = [];
-      if (['notfound', 'deleted', 'kicked', 'limited', 'full', 'idle'].includes(this.status)) return;
+      if (['notfound', 'deleted', 'kicked', 'limited', 'full', 'adminEnded', 'idle'].includes(this.status)) return;
       this.status = 'offline';
       this.scheduleReconnect();
     };
@@ -473,7 +479,10 @@ class Sync {
         this.status = 'online';
         this.ready = true;
         this.retry = 0;
-        rememberSpace(this.spaceId, this.base.space.name);
+        if (!this.admin) {
+          this.adminState = msg.admin ?? null;
+          rememberSpace(this.spaceId, this.base.space.name);
+        }
         this.rebuild(true);
         for (const p of this.pending) this.ws?.send(JSON.stringify({ t: 'op', ...p }));
         this.persist();
@@ -517,22 +526,29 @@ class Sync {
         this.lastPong = Date.now();
         if (typeof msg.c === 'number') this.offset = msg.serverTime - (msg.c + Date.now()) / 2;
         break;
+      case 'admin':
+        this.adminState = { role: msg.role, since: msg.since, until: msg.until };
+        break;
+      case 'adminEnded':
+        this.stop('adminEnded');
+        break;
       case 'moved':
       case 'renewed': {
         const old = this.spaceId;
-        replaceKnown(old, msg.id);
+        if (!this.admin) replaceKnown(old, msg.id);
         this.spaceId = msg.id;
         this.emit('moved', { from: old, to: msg.id, live: msg.t === 'renewed' });
-        if (msg.t === 'moved') this.ws?.send(JSON.stringify({ t: 'hello', space: msg.id, token: deviceToken(), name: deviceName() }));
+        if (msg.t === 'moved') this.ws?.send(JSON.stringify({ t: 'hello', space: msg.id, token: deviceToken(), name: deviceName(), ...(this.admin && { admin: this.admin }) }));
         break;
       }
       case 'deleted':
-        this.deleted = { by: msg.by, at: msg.at };
+        // final: deleted by the administration – there is nothing to continue
+        this.deleted = { by: msg.by, at: msg.at, final: !!msg.final };
         this.persist();
         this.stop('deleted');
         break;
       case 'kicked':
-        forgetSpace(this.spaceId);
+        if (!this.admin) forgetSpace(this.spaceId);
         this.stop('kicked');
         break;
       case 'notfound':
@@ -541,6 +557,7 @@ class Sync {
       case 'error':
         if (msg.error === 'rate_limited') this.stop('limited');
         if (msg.error === 'too_many_devices') this.stop('full');
+        if (msg.error === 'admin_auth') this.stop('adminEnded');
         break;
       default:
         break;
@@ -552,7 +569,7 @@ class Sync {
     for (const c of changes) {
       if (c.e === 'space') {
         this.base.space = c.row;
-        renameKnownSoon(this.spaceId, c.row.name);
+        if (!this.admin) renameKnownSoon(this.spaceId, c.row.name);
         continue;
       }
       const spec = COLLECTION[c.e];
@@ -600,7 +617,7 @@ class Sync {
     const p = { id: `${Date.now().toString(36)}-${(++this.opSeq).toString(36)}-${newId().slice(0, 6)}`, op, at: this.now() };
     this.pending.push(p);
     this.rebuild(true);
-    save(`pending.${this.spaceId}`, this.pending);
+    if (!this.admin) save(`pending.${this.spaceId}`, this.pending);
     if (this.status === 'online' && this.ws?.readyState === 1) this.ws.send(JSON.stringify({ t: 'op', ...p }));
     return p.id;
   }
@@ -635,7 +652,8 @@ class Sync {
 
   persist() {
     clearTimeout(this.persistTimer);
-    if (!this.spaceId || !this.base.space) return;
+    // an admin's view of an ID never lands on the device
+    if (!this.spaceId || !this.base.space || this.admin) return;
     // a forgotten (reset / kicked) id must not be written back to the device
     if (!knownSpaces().some((s) => s.id === this.spaceId)) return;
     save(`snap.${this.spaceId}`, { base: this.base, me: this.me, features: this.features, offset: this.offset });

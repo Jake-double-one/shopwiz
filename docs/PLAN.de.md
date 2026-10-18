@@ -328,3 +328,55 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 3. Hinzufügen-Leiste: Ketten-Knopf (Standard an), Artikeldetails „Gilt für“.
 4. Gruppen/Reihenfolge pro Laden.
 5. Backup, Teilen als Text, KI-Schnittstelle, Hilfe, README, E2E-Tests (zwei Geräte, zwei Läden).
+
+## 12. Administration (optional)
+
+**Ziel:** Wer einen Server betreibt, soll sehen, welche IDs es gibt, aufräumen und bei Problemen helfen können – ohne dass die Administration selbst zur Schwachstelle wird. Sicherheit und Datenschutz gehen vor Komfort, aber nichts davon soll im Alltag nerven.
+
+**Optional und standardmäßig aus.** Wer sie nicht braucht (z. B. nur zu Hause per IP-Adresse, oder hinter Authentik), merkt nichts davon. Aktiv nur, wenn `ADMIN_USER` und `ADMIN_PASSWORD_HASH` gesetzt sind – sonst antworten alle Admin-Adressen mit 404.
+
+### 12.1 Wer ist Admin?
+- **Haupt-Admin:** Benutzername + Passwort aus der Konfiguration. Das Passwort steht nur als scrypt-Hash in der ENV (`node server/admin-hash.js` erzeugt ihn). Der Haupt-Admin ist an kein Gerät gebunden und braucht keinen Passkey; er kann sich zusätzlich einen einrichten.
+- **Weitere Admins = Geräte:** Jedes Gerät hat eine **D-ID** (in allen Sprachen „D-ID“), abgeleitet aus dem Geräte-Schlüssel, aber ohne Rückschluss darauf. Sie steht in den Einstellungen, sobald der Server eine Administration hat.
+- Der Haupt-Admin **ernennt** eine D-ID zum Admin. Das Gerät bekommt einen einmaligen Hinweis zum Wegklicken (wie die Ruf-Karten) und muss **innerhalb von 24 Stunden** einen Passkey einrichten – sonst verfällt die Ernennung.
+- **Nie nur ein Faktor:** Ein Geräte-Admin braucht immer D-ID **und** Passkey (Fingerabdruck, Gesicht, PIN des Geräts). Ein kopierter Geräte-Schlüssel reicht nicht, ein Passkey allein auch nicht.
+- Pro Ernennung lässt sich genau ein Passkey einrichten. War jemand schneller (z. B. mit einem gestohlenen Geräte-Schlüssel), sieht das echte Gerät „Passkey wurde bereits eingerichtet – warst du das nicht?“, und der Haupt-Admin sieht es im Protokoll und kann die Ernennung zurücknehmen.
+- Nur der Haupt-Admin ernennt und entzieht Admins.
+
+### 12.2 Schutz gegen Diebstahl von Sitzungen (Infostealer)
+- **Admin-Sitzung nur im Arbeitsspeicher des Tabs** – kein Cookie, nichts im Gerätespeicher. Ein Stealer, der Browserdaten kopiert, findet nichts. Neu laden = neu anmelden (mit Passkey ein Fingerdruck). Auch der Server hält Sitzungen nur im Speicher.
+- Ablauf: 15 Minuten ohne Aktivität, höchstens 8 Stunden.
+- Geräte-Admin-Sitzungen gelten nur zusammen mit dem Geräte-Schlüssel dieses Geräts.
+- **Erneute Bestätigung** für Ernennen/Entziehen und ID löschen: Wer sich in den letzten 5 Minuten angemeldet hat, braucht nichts weiter, sonst Passkey bzw. Passwort. („Wenn es nervt, ändern wir es.“)
+- **Passwort als Notschlüssel:** `ADMIN_PASSWORD_LOGIN=off` schaltet den Passwort-Login ab, sobald der Haupt-Admin einen Passkey hat. Wiederherstellung: Variable wieder entfernen.
+- Login gegen Durchprobieren gesichert (Fehlversuche pro Adresse begrenzt, scrypt läuft nur einzeln).
+- Passkeys brauchen HTTPS (oder `localhost`) und gelten nur für die Domain. Synchronisierte Passkeys (iCloud, Google, Passwortmanager) sind erlaubt.
+
+### 12.3 Was der Admin sieht und darf
+- **IDs:** Name, ID, erstellt, zuletzt benutzt, Anzahl Listen/Artikel/Gruppen/Geräte, geschätzte Größe in KB. Öffnen (Vollzugriff), endgültig löschen.
+- **Geräte:** D-IDs mit ihren Gerätenamen und den IDs, in denen sie sind; zum Admin ernennen.
+- **Admins:** Haupt-Admin-Passkeys, Geräte-Admins mit Status (wartet auf Passkey / aktiv), Passkey-Art (synchronisiert / gerätegebunden); entziehen.
+- **Protokoll** aller Admin-Aktionen (ohne IP-Adressen) und **Warnhinweise** für den Haupt-Admin beim nächsten Login: neuer Passkey, Ernennung, Fehlversuche.
+
+### 12.4 Admin in einer ID
+- Vollzugriff wie ein Teilnehmer. Solange ein Admin in der ID ist, steht er in der Teilnehmerliste ganz vorne, **rot** und als „Admin“ (egal welches Gerät). Verlässt er die ID, verschwindet er.
+- Im Verlauf: „Admin hat die ID geöffnet“, Änderungen als „Admin“.
+- Nichts davon landet auf dem Admin-Gerät: kein Offline-Stand, keine Warteschlange, kein Eintrag in „Meine IDs“.
+- Persönliches bleibt gesperrt: Einchecken im Laden, Signale, Rufen.
+
+### 12.5 Transparenz
+- Hat der Server eine Administration, steht das in Einstellungen und Hilfe: Admins können IDs öffnen – man sieht es in der Teilnehmerliste und im Verlauf.
+
+### 12.6 IDs pro Gerät
+- `SPACES_PER_DEVICE` (Standard 0 = unbegrenzt): wie viele IDs ein Gerät selbst anlegen darf. Gezählt werden nur selbst angelegte, noch bestehende IDs – Beitreten zählt nicht, Löschen gibt einen Platz frei, Erneuern belegt keinen. Admins sind ausgenommen.
+- Kein zusätzliches Limit pro IP-Adresse (Studentenwohnheime!); das bestehende `CREATE_LIMIT` (neue IDs pro Adresse und Stunde) bleibt unverändert.
+
+### 12.7 Bewusst nicht
+- Kein eigener Admin-Port, kein Login über Proxy-Header, keine Einladungscodes, keine Pflicht zu gerätegebundenen Passkeys, kein DBSC, keine Benachrichtigung per E-Mail/Push.
+
+### 12.8 Technik
+- Tabellen `admins` (D-ID, Status, Ablauf der Ernennung), `admin_keys` (Passkeys: Haupt-Admin oder D-ID), `admin_log`, `admin_meta`; Spalte `spaces.created_by`.
+- `/api/admin/*` (Status, Login, Passkey, Übersicht, Ernennen, Entziehen, ID löschen); Admin-Sitzung im Header, nur im Speicher.
+- WebAuthn über `@simplewebauthn/server` / `@simplewebauthn/browser`.
+- WebSocket: `hello` mit Admin-Sitzung → Anwesenheit „admin“, Operationen mit dem Absender „Admin“.
+- README: eigener, abgesetzter Abschnitt mit Verweis auf `docs/ADMIN.md` / `docs/ADMIN.de.md`, damit die normale Anleitung einfach bleibt.

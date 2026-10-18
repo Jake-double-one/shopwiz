@@ -19,6 +19,16 @@
 
 <Sheet title={t('people.title')} eyebrow={t('people.count', { count: devices.length })} {onclose}>
   <ul class="people">
+    {#if online.includes('admin')}
+      <!-- an admin of the server is in this ID right now: always on top, red -->
+      <li class="admin-row">
+        <span class="dot on"></span>
+        <div class="who">
+          <span class="name"><span class="admin-tag">{t('admin.chip')}</span></span>
+          <span class="micro">{me?.devId === 'admin' ? t('people.you') : t('admin.inHere')}</span>
+        </div>
+      </li>
+    {/if}
     {#each sorted as d (d.devId)}
       {@const isMe = d.devId === me?.devId}
       <li>
@@ -52,6 +62,17 @@
 </Sheet>
 
 <style>
+  .admin-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: var(--alert);
+    color: var(--on-alert);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
   .ai-tag {
     margin-left: 6px;
     font-family: var(--mono);
