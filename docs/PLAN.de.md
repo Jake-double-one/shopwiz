@@ -102,7 +102,7 @@ Nach dem Nachsenden zeigt die App kurz: „5 Änderungen synchronisiert, 1 über
 ### 3.7 Teilen
 - **QR-Code** (wird im Browser erzeugt, kein externer Dienst) – großflächig zum Abscannen am Handy.
 - **Teilen-Knopf** über die Web-Share-API (öffnet das native Teilen-Menü → WhatsApp, Signal, Mail …) mit Titel = Name des Space/der Liste. Fallback: Link kopieren.
-- **Link-Vorschau** für Messenger: Der Server liefert für `/<ID>` passende Open-Graph-Tags (`og:title` = Name der Liste, Beschreibung z. B. „Gemeinsame Einkaufsliste · 12 Artikel“, eigenes Vorschaubild).
+- **Link-Vorschau** für Messenger: Der Server liefert für `/<ID>` Open-Graph-Tags mit eigenem Vorschaubild. Seit v0.5.3 neutral (nur „ShopWiz“, kein Name der ID, kein Füllstand, keine ID in `og:url`): Messenger-Server, die die Vorschau holen, erfahren nichts über die Liste.
 - ID zusätzlich groß zum Abschreiben/Vorlesen.
 - **Kamera-Knopf zum QR-Scannen** (Startseite und „Space wechseln“). Nutzt die eingebaute `BarcodeDetector`-API und fällt auf eine lokal gebündelte Bibliothek (`jsQR`) zurück, weil iOS-Safari und Firefox die API nicht haben. **Der Knopf erscheint nur unter HTTPS**; ohne HTTPS wird er ausgeblendet (ebenso das native Teilen-Menü → dann „Link kopieren“).
 

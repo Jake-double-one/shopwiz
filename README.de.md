@@ -62,7 +62,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Bildschirm anlassen** | Optionaler Knopf, damit das Handy beim Einkaufen nicht sperrt. |
 | **Verlauf** | Wer hat was gemacht, mit „Wiederherstellen“ für gelöschte Artikel. Wird nach 14 Tagen automatisch geleert. |
 | **Rückgängig** | Jede Aktion lässt sich sofort rückgängig machen. |
-| **Teilen** | QR-Code, natives Teilen-Menü mit ordentlichem Titel und Link-Vorschau in Messengern. Ein Kamera-Knopf scannt QR-Codes. |
+| **Teilen** | QR-Code und natives Teilen-Menü mit ordentlichem Titel. Ein Kamera-Knopf scannt QR-Codes. Link-Vorschauen in Messengern bleiben neutral: nie der Name der ID oder was drauf ist. |
 | **Kopieren / Verschieben** | Artikel und ganze Gruppen in eine andere Liste oder eine andere ID übertragen. |
 | **ID erneuern** | Neue ID, die alte funktioniert nicht mehr. Alle teilnehmenden Geräte ziehen automatisch mit um. |
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
@@ -311,7 +311,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | Variable | Standard | Bedeutung |
 |---|---|---|
 | `PORT` | `8080` | Port im Container |
-| `PUBLIC_URL` | *(leer)* | Öffentliche Adresse, für Link-Vorschauen. Ohne Angabe wird der Host der Anfrage genutzt. |
+| `PUBLIC_URL` | *(leer)* | Öffentliche Adresse, für Link-Vorschauen und Passkeys. Ohne Angabe wird der Host der Anfrage genutzt. |
 | `SPACE_TTL_DAYS` | `181` | Standard für neue IDs: Löschen nach so vielen Tagen ohne aktives Gerät (1–367) |
 | `DEVICE_TTL_DAYS` | `30` | Geräte nach so vielen Tagen ohne Aktivität entfernen |
 | `ACTIVITY_TTL_DAYS` | `14` | So lange bleiben Verlauf, gelöschte Artikel und Konflikte erhalten |
@@ -389,6 +389,7 @@ Weitere Admins, Passkeys und was Teilnehmer davon sehen: **[docs/ADMIN.de.md](do
 - Gespeichert werden: Listeninhalte, die eingegebenen Namen und Zeitstempel. Jedes Gerät hat ein zufälliges geheimes Token; auf dem Server liegt nur dessen Hash.
 - Abgelaufene IDs und inaktive Geräte werden endgültig gelöscht. Alte IDs werden nie neu vergeben.
 - Strenge Sicherheits-Header (Content Security Policy, `Referrer-Policy: no-referrer`, damit die ID nie über Links abfließt).
+- Link-Vorschauen sind neutral: Ein Messenger, der sie abruft, erfährt weder den Namen der ID noch ihren Inhalt, nicht einmal, ob es die ID gibt.
 - Ist die optionale [Administration](#administration-optional) eingeschaltet, können Admins IDs öffnen. Teilnehmer sehen das: Einstellungen und Hilfe sagen, dass der Server eine Administration hat, und ein Admin in einer ID steht rot als „Admin“ in der Teilnehmerliste und im Verlauf.
 
 ## Lizenzen von Drittanbietern

@@ -753,26 +753,14 @@ export async function buildApp(config) {
     });
   }
 
-  function renderIndex(req, publicId) {
-    let title = 'ShopWiz';
-    let description = 'Shared shopping lists – no login, no tracking.';
-    let canonical = '';
-    if (publicId && !limiter.blocked(clientKey(req))) {
-      const space = db.q('SELECT name, uid FROM spaces WHERE public_id = ? AND deleted_at IS NULL').get(publicId);
-      if (!space) limiter.fail(clientKey(req));
-      if (space) {
-        const count = db
-          .q(
-            `SELECT COUNT(*) AS c FROM items i JOIN lists l ON l.space_uid = i.space_uid AND l.id = i.list_id
-             WHERE i.space_uid = ? AND i.deleted_at IS NULL AND i.checked = 0 AND i.parked = 0 AND l.deleted_at IS NULL`,
-          )
-          .get(space.uid).c;
-        title = `${space.name} · ShopWiz`;
-        description = `Shared shopping list · ${count} open item${count === 1 ? '' : 's'} · ${formatSpaceId(publicId)}`;
-      }
-    }
+  // The page for a link: the same for every ID. A messenger fetching the preview learns neither the
+  // name of the ID nor what is on it (and not even whether the ID exists) – the app shows all that
+  // itself once it runs. The ID stays out of og:url for the same reason.
+  function renderIndex(req) {
+    const title = 'ShopWiz';
+    const description = 'Shared shopping lists – no login, no tracking.';
     const base = config.publicUrl || `${req.protocol}://${req.headers.host}`;
-    canonical = publicId ? `${base}/${publicId}` : `${base}/`;
+    const canonical = `${base}/`;
     const meta = [
       `<meta property="og:type" content="website">`,
       `<meta property="og:site_name" content="ShopWiz">`,
@@ -804,8 +792,7 @@ export async function buildApp(config) {
     }
     // Asset-like paths that do not exist are real 404s
     if (/\.[a-z0-9]{2,5}$/i.test(path)) return reply.code(404).send({ error: 'notfound' });
-    const publicId = path && !path.includes('/') ? parseSpaceId(path) : null;
-    reply.header('Cache-Control', 'no-cache').type('text/html; charset=utf-8').send(renderIndex(req, publicId));
+    reply.header('Cache-Control', 'no-cache').type('text/html; charset=utf-8').send(renderIndex(req));
   });
 
   app.limits = LIMITS;

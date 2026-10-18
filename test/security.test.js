@@ -92,14 +92,18 @@ describe('security over HTTP', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('a list name with $-patterns stays text in the page', async () => {
+  it('the page of an ID tells nothing about it – not its name, not its ID, not whether it exists', async () => {
     app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: dir, publicUrl: 'https://shop.example' });
-    const res = await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'A $& B $` C', token: T1, deviceName: 'A' } });
+    const res = await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'Secret household', token: T1, deviceName: 'A' } });
     const { id } = res.json();
     const html = (await app.inject({ method: 'GET', url: `/${id}` })).body;
-    expect(html).toContain('<title>A $&amp; B $` C · ShopWiz</title>');
+    expect(html).toContain('<title>ShopWiz</title>');
     expect(html.match(/<title>/g)).toHaveLength(1);
-    expect(html).toContain('content="A $&amp; B $` C · ShopWiz"');
+    expect(html).not.toContain('Secret');
+    expect(html).not.toContain(id);
+    expect(html).toContain('content="https://shop.example/"');
+    // an unknown ID gets the very same page
+    expect((await app.inject({ method: 'GET', url: '/ABCDEFGH23' })).body).toBe(html);
   });
 
   it('the manifest names the shortcut in the asked language', async () => {

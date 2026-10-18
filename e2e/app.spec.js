@@ -1292,10 +1292,11 @@ test('typed text is only ever text: script, HTML and SQL in names and notes do n
   expect(await b.page.evaluate(() => window.__pwned)).toBeUndefined();
   expect(dialogs).toBe(0);
   expect(await page.locator('img[src="x"], svg[onload]').count()).toBe(0);
-  // the server-made page (link preview) escapes the list name
+  // the server-made page (link preview) tells nothing about the ID – not even its name
   const html = await (await page.request.get(`/${id}`)).text();
   expect(html).not.toContain('<b>List</b>');
-  expect(html).toContain('&lt;b&gt;List&lt;/b&gt;');
+  expect(html).not.toContain('List</title>');
+  expect(html).not.toContain(id);
   await b.ctx.close();
 });
 

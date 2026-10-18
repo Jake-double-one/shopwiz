@@ -63,7 +63,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Keep screen on** | Optional button so your phone doesn't lock while shopping. |
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
 | **Undo** | Every action can be undone right away. |
-| **Sharing** | QR code, native share menu with a proper title, and link previews in messengers. A camera button scans QR codes. |
+| **Sharing** | QR code and native share menu with a proper title. A camera button scans QR codes. Link previews in messengers stay neutral: they never show the name of the ID or what is on it. |
 | **Copy / move** | Move or copy items and whole groups to another list or another ID. |
 | **Renew ID** | Creates a new ID, the old one stops working. All participating devices move along automatically. |
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
@@ -312,7 +312,7 @@ All settings are environment variables. The defaults are fine for most setups.
 | Variable | Default | Meaning |
 |---|---|---|
 | `PORT` | `8080` | Port inside the container |
-| `PUBLIC_URL` | *(empty)* | Public address, used for link previews. Without it, the request's host is used. |
+| `PUBLIC_URL` | *(empty)* | Public address, used for link previews and passkeys. Without it, the request's host is used. |
 | `SPACE_TTL_DAYS` | `181` | Default for new IDs: delete after this many days without any active device (1–367) |
 | `DEVICE_TTL_DAYS` | `30` | Remove devices after this many days without activity |
 | `ACTIVITY_TTL_DAYS` | `14` | Keep history, deleted items and conflicts this long |
@@ -390,6 +390,7 @@ More admins, passkeys and what members see of it: **[docs/ADMIN.md](docs/ADMIN.m
 - Stored: list contents, the names you enter, and timestamps. Each device has a random secret token; only its hash is stored on the server.
 - Expired IDs and inactive devices are deleted for good. Old IDs are never given out again.
 - Strict security headers (Content Security Policy, `Referrer-Policy: no-referrer` so the ID never leaks via links).
+- Link previews are neutral: a messenger fetching one learns neither the name of the ID nor its contents, nor whether the ID exists at all.
 - With the optional [administration](#administration-optional) switched on, admins can open IDs. Members see it: settings and help say the server has an administration, and an admin inside an ID is shown in red as "Admin" in the participant list and in the history.
 
 ## Development
