@@ -112,7 +112,10 @@ export async function buildApp(config) {
   }
 
   // ---------- REST ----------
-  app.get('/healthz', async () => ({ ok: true }));
+  // which version runs here (filled in by the Docker build; "dev" when started from the sources)
+  const version = { version: process.env.APP_VERSION || 'dev', commit: process.env.GIT_SHA || null, built: process.env.BUILD_TIME || null };
+  app.get('/healthz', async () => ({ ok: true, ...version }));
+  app.get('/api/version', async () => version);
 
   app.post('/api/spaces', async (req, reply) => {
     const { name, token, deviceName, listName, doc } = req.body ?? {};

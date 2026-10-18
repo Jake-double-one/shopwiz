@@ -26,6 +26,13 @@ RUN npm ci --omit=dev --no-audit --no-fund
 
 # ---- runtime: server + built client, production deps only ----
 FROM node:22-alpine
+# the same build info for the server: GET /healthz and /api/version tell which version runs
+ARG APP_VERSION=dev
+ARG GIT_SHA=
+ARG BUILD_TIME=
+ENV APP_VERSION=$APP_VERSION \
+    GIT_SHA=$GIT_SHA \
+    BUILD_TIME=$BUILD_TIME
 ENV NODE_ENV=production \
     PORT=8080 \
     DATA_DIR=/data \

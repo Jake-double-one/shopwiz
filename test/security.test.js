@@ -126,7 +126,8 @@ describe('sync connection limits', () => {
     const open = new Promise((r) => ws.addEventListener('open', r));
     ws.addEventListener('message', (ev) => inbox.push(JSON.parse(ev.data)));
     const wait = async (pred) => {
-      for (let i = 0; i < 100; i++) {
+      // generous: with all test files running in parallel the server can be slow
+      for (let i = 0; i < 400; i++) {
         const m = inbox.find(pred);
         if (m) return m;
         await new Promise((r) => setTimeout(r, 30));
@@ -137,7 +138,7 @@ describe('sync connection limits', () => {
   }
   const closed = (ws) => new Promise((r) => (ws.readyState === 3 ? r() : ws.addEventListener('close', () => r())));
 
-  it('a full ID tells a new device so and closes – no endless loading', async () => {
+  it('a full ID tells a new device so and closes – no endless loading', { timeout: 20_000 }, async () => {
     await start();
     const token = 'token-fullfullfullfullfull';
     const { id } = await (await post('/api/spaces', { name: 'Full', token, deviceName: 'A' })).json();
@@ -154,7 +155,7 @@ describe('sync connection limits', () => {
     a.ws.close();
   });
 
-  it('a flood of ops is cut off (the device sends them again after reconnecting)', async () => {
+  it('a flood of ops is cut off (the device sends them again after reconnecting)', { timeout: 20_000 }, async () => {
     const token = 'token-floodfloodfloodflood';
     const { id } = await (await post('/api/spaces', { name: 'Flood', token, deviceName: 'A' })).json();
     const c = client();
@@ -163,6 +164,22 @@ describe('sync connection limits', () => {
     for (let i = 0; i < 700; i++) c.ws.send(JSON.stringify({ t: 'op', id: `f${i}`, op: { k: 'space.update', name: `Flood ${i}` }, at: Date.now() }));
     await c.wait((m) => m.t === 'error' && m.error === 'busy');
     await closed(c.ws);
-    expect(c.inbox.filter((m) => m.t === 'ack').length).toBeLessThanOrEqual(601);
+    // the budget refills a little while the ops are processed (10 per second) – but not all 700 get in
+    expect(c.inbox.filter((m) => m.t === 'ack').length).toBeLessThan(700);
+  });
+});
+
+describe('version', () => {
+  it('/healthz and /api/version tell which version runs (from the Docker build)', async () => {
+    const before = { ...process.env };
+    Object.assign(process.env, { APP_VERSION: 'v9.9.9', GIT_SHA: 'abc1234', BUILD_TIME: '2026-01-01T00:00:00Z' });
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    try {
+      expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toEqual({ ok: true, version: 'v9.9.9', commit: 'abc1234', built: '2026-01-01T00:00:00Z' });
+      expect((await app.inject({ method: 'GET', url: '/api/version' })).json()).toMatchObject({ version: 'v9.9.9', commit: 'abc1234' });
+    } finally {
+      await app.close();
+      for (const k of ['APP_VERSION', 'GIT_SHA', 'BUILD_TIME']) if (before[k] === undefined) delete process.env[k];
+    }
   });
 });

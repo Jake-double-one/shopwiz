@@ -356,6 +356,8 @@ docker cp shopwiz:/data/backup.db ./shopwiz-backup.db
 
 Update: In Portainer **Pull and redeploy** (Web editor) bzw. neu bauen (Repository). Auf der Kommandozeile: `git pull && docker compose up -d --build`. Das Datenbankschema wird automatisch angelegt.
 
+Welche Version läuft: `curl https://dein-host/api/version` → `{"version":"v0.4.1","commit":"…","built":"…"}` (auch in `/healthz` und in der App unter Hilfe). Images von `main` heißen nach dem letzten Release, z. B. `v0.4.1-2-g1a2b3c4` = zwei Commits nach v0.4.1. Wer ein bestimmtes Release will, nimmt den Image-Tag (`ghcr.io/jake-double-one/shopwiz:0.4.1`) statt `latest`.
+
 ## Datenschutz
 
 - Keine Konten, keine Cookies, keine Analyse, kein Fingerprinting.
