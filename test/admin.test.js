@@ -203,6 +203,7 @@ describe('main admin', () => {
 describe('promoting a device (D-ID + passkey)', () => {
   const key = authenticator();
   const did = didOfHash(hashToken(T1));
+  let code; // the promotion code the main admin passes on
 
   it('a device is nothing until the main admin promotes it', async () => {
     expect((await req('GET', '/api/admin/status', { token: T1 })).body).toMatchObject({ did, role: null });
@@ -221,27 +222,40 @@ describe('promoting a device (D-ID + passkey)', () => {
     const r = await req('POST', '/api/admin/promote', { session, body: { did: did.toLowerCase() } });
     expect(r.status).toBe(200);
     expect(r.body.role).toBe('pending');
+    expect(r.body.code).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+    code = r.body.code;
+    // shown again in the overview while it waits – to the main admin only
+    expect((await req('GET', '/api/admin/overview', { session })).body.admins[0].code).toBe(code);
     expect(r.body.until - Date.now()).toBeGreaterThan(23 * 3600_000);
     expect((await ws.wait((m) => m.t === 'admin')).role).toBe('pending');
     expect((await req('GET', '/api/admin/status', { token: T1 })).body.role).toBe('pending');
     ws.close();
   });
 
-  it('the promoted device sets up exactly one passkey – a second one (a thief) is refused', async () => {
-    const opt = await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register' } });
+  it('the promoted device sets up exactly one passkey – only with the promotion code', async () => {
+    // a copy of the device's key (infostealer) without the code gets nowhere
+    const stolen = await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register' } });
+    expect(stolen.status).toBe(401);
+    expect(stolen.body.error).toBe('wrong_code');
+    expect((await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register', code: 'AAAA-BBBB' } })).status).toBe(401);
+    const opt = await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register', code: code.toLowerCase().replace('-', ' ') } });
     expect(opt.status).toBe(200);
+    // a ticket that was changed is worthless
+    const forged = opt.body.ticket.replace(/^./, (c) => (c === 'e' ? 'f' : 'e'));
+    expect((await req('POST', '/api/admin/passkey/verify', { token: T1, body: { ticket: forged, response: key.create(opt.body.options, origin()) } })).status).toBe(400);
     expect(opt.body.options.authenticatorSelection).toMatchObject({ residentKey: 'required', userVerification: 'required' });
     const done = await req('POST', '/api/admin/passkey/verify', { token: T1, body: { ticket: opt.body.ticket, response: key.create(opt.body.options, origin()) } });
     expect(done.status).toBe(200);
     expect(done.body).toMatchObject({ role: 'device', did });
-    // a copy of the device's key can't add its own passkey now
-    const again = await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register' } });
+    // one passkey per promotion
+    const again = await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register', code } });
     expect(again.status).toBe(409);
-    expect(again.body.error).toBe('already');
+    expect(again.body.error).toBe('own_key');
     const session = await login();
     const ov = (await req('GET', '/api/admin/overview', { session })).body;
     expect(ov.admins).toEqual([expect.objectContaining({ did, state: 'active', names: ['Phone'], keys: [expect.objectContaining({ synced: false })] })]);
-    expect(ov.alerts.map((e) => e.action)).toEqual(expect.arrayContaining(['passkey_registered', 'register_refused']));
+    expect(ov.admins[0].code).toBeUndefined();
+    expect(ov.alerts.map((e) => e.action)).toEqual(expect.arrayContaining(['passkey_registered', 'login_failed']));
   });
 
   it('never only one factor: the passkey needs its device, the device needs its passkey', async () => {
@@ -281,6 +295,11 @@ describe('promoting a device (D-ID + passkey)', () => {
     o = (await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'login' } })).body;
     expect((await req('POST', '/api/admin/passkey/verify', { token: T1, body: { ticket: o.ticket, response: key.get(o.options, origin()) } })).status).toBe(401);
     expect((await req('GET', '/api/admin/status', { token: T1 })).body.role).toBe(null);
+    // promoted again: a new code – the old one is worthless
+    const again = await req('POST', '/api/admin/promote', { session: main, body: { did } });
+    expect(again.body.code).not.toBe(code);
+    expect((await req('POST', '/api/admin/passkey/options', { token: T1, body: { purpose: 'register', code } })).status).toBe(401);
+    await req('POST', '/api/admin/revoke', { session: main, body: { did } });
   });
 
   it('the main admin can have passkeys too – registering needs a recent login', async () => {
@@ -440,5 +459,90 @@ describe('setting up in the browser (ADMIN=on, code from the log)', () => {
     const log = (await b.call('GET', '/api/admin/overview', null, r.body.session)).body.log.map((e) => e.action);
     expect(log).toEqual(expect.arrayContaining(['setup', 'reset']));
     await b.a.close();
+  });
+});
+
+describe('audit fixes', () => {
+  it('API answers are never kept in the browser cache', async () => {
+    const res = await fetch(`http://${base}/api/version`);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('no device may call itself "Admin"', async () => {
+    const T = 'token-namednamednamedadmin1';
+    const id = (await req('POST', '/api/spaces', { body: { name: 'N', token: T, deviceName: 'admin' } })).body.id;
+    const ws = client();
+    await ws.send({ t: 'hello', space: id, token: T, name: 'ADMIN' });
+    const w = await ws.wait((m) => m.t === 'welcome');
+    expect(w.me.name).toBe('Device');
+    await ws.send({ t: 'op', id: 'rn1', op: { k: 'device.rename', name: 'Admin' }, at: Date.now() });
+    expect((await ws.wait((m) => m.t === 'ack' && m.id === 'rn1')).ok).toBe(false);
+    ws.close();
+  });
+
+  it('an admin over REST is recorded like one opening the ID, and connects no assistants', async () => {
+    const T = 'token-restrestrestrestrest1';
+    const id = (await req('POST', '/api/spaces', { body: { name: 'Quiet', token: T, deviceName: 'A' } })).body.id;
+    const session = await login();
+    const lists = await req('GET', `/api/spaces/${id}/lists`, { session, token: T3 });
+    const act = await req('GET', `/api/spaces/${id}/activity?list=${lists.body.lists[0].id}`, { session, token: T3 });
+    expect(act.body.activity.some((e) => e.action === 'admin.open' && e.payload.admin)).toBe(true);
+    expect((await req('POST', `/api/spaces/${id}/ai`, { session, token: T3, body: { name: 'Bot' } })).status).toBe(403);
+  });
+
+  it('continuing a deleted ID counts for the device that continues, within its limit', async () => {
+    const A = 'token-continuecontinuecon1';
+    const B = 'token-continuecontinuecon2';
+    const x = (await req('POST', '/api/spaces', { body: { name: 'X', token: A, deviceName: 'A' } })).body.id;
+    const ws = client();
+    await ws.send({ t: 'hello', space: x, token: B, name: 'B' });
+    await ws.wait((m) => m.t === 'welcome');
+    ws.close();
+    await req('POST', `/api/spaces/${x}/delete`, { token: B });
+    const y = await req('POST', `/api/spaces/${x}/continue`, { token: B, body: { deviceName: 'B' } });
+    expect(y.status).toBe(200);
+    // A's place is free again, B has one now
+    expect((await req('POST', '/api/spaces', { body: { name: 'A2', token: A } })).status).toBe(200);
+    expect((await req('POST', '/api/spaces', { body: { name: 'B2', token: B } })).status).toBe(200);
+    // B is at its limit (2): deleting and continuing doesn't get it a third
+    await req('POST', `/api/spaces/${y.body.id}/delete`, { token: B });
+    expect((await req('POST', '/api/spaces', { body: { name: 'B3', token: B } })).status).toBe(200);
+    const z = await req('POST', `/api/spaces/${y.body.id}/continue`, { token: B, body: { deviceName: 'B' } });
+    expect(z.body).toEqual({ error: 'space_limit', limit: 2 });
+  });
+
+  it('deleting for good also takes the deleted ID it was continued from – "continue" can\'t bring it back', async () => {
+    const T = 'token-purgepurgepurgepurge1';
+    const x = (await req('POST', '/api/spaces', { body: { name: 'Old', token: T, deviceName: 'P' } })).body.id;
+    await req('POST', `/api/spaces/${x}/delete`, { token: T });
+    const y = (await req('POST', `/api/spaces/${x}/continue`, { token: T, body: { deviceName: 'P' } })).body.id;
+    const session = await login();
+    expect((await req('POST', `/api/admin/spaces/${y}/delete`, { session })).status).toBe(200);
+    expect((await req('POST', `/api/spaces/${x}/continue`, { token: T, body: { deviceName: 'P' } })).status).toBe(404);
+  });
+
+  it('asking for many passkey challenges does not push out anybody else\'s', async () => {
+    const mine = (await req('POST', '/api/admin/passkey/options', { body: { purpose: 'login' } })).body;
+    await Promise.all(Array.from({ length: 600 }, () => req('POST', '/api/admin/passkey/options', { body: { purpose: 'login' } })));
+    const r = await req('POST', '/api/admin/passkey/verify', { body: { ticket: mine.ticket, response: authenticator().get(mine.options, origin()) } });
+    expect(r.body.error).toBe('wrong'); // the ticket is still good – only the (unknown) passkey is not
+  });
+
+  it('TRUST_PROXY: only the proxy in front is believed, not what a client writes into the header', async () => {
+    const { trustProxy } = await import('../server/config.js');
+    expect(trustProxy('true')).toBe('loopback, linklocal, uniquelocal');
+    expect(trustProxy('2')('10.0.0.1', 1)).toBe(true);
+    expect(trustProxy('2')('10.0.0.1', 2)).toBe(false);
+    expect(trustProxy('false')).toBe(false);
+    expect(trustProxy('')).toBe(false);
+    const a = await buildApp({ ...loadConfig({ TRUST_PROXY: 'true' }), dataDir: ':memory:', staticDir: './does-not-exist', adminUser: 'boss', adminPasswordHash: await hashPassword(PASSWORD, { N: 1024, r: 8, p: 1 }) });
+    const tryIt = (xff) => a.inject({ method: 'POST', url: '/api/admin/login', headers: { 'x-forwarded-for': xff }, payload: { user: 'boss', password: 'nope' } });
+    // a client rotating the first address of the header still counts as the address the proxy saw
+    for (let i = 0; i < 10; i++) expect((await tryIt(`10.0.0.${i}, 198.51.100.7`)).statusCode).toBe(401);
+    expect((await tryIt('10.0.0.99, 198.51.100.7')).statusCode).toBe(429);
+    // and IPv6 counts per /64
+    for (let i = 0; i < 10; i++) expect((await tryIt(`2001:db8:1:2::${i + 1}`)).statusCode).toBe(401);
+    expect((await tryIt('2001:db8:1:2:ffff::1')).statusCode).toBe(429);
+    await a.close();
   });
 });

@@ -66,7 +66,7 @@
       <h2>{t('status.kickedTitle')}</h2>
       <p class="note">{t('status.kicked')}</p>
       <div class="row wrap-row">
-        <button class="btn main" onclick={() => sync.open(spaceId)}>{t('status.rejoin')}</button>
+        <button class="btn main" onclick={() => sync.open(spaceId, { admin })}>{t('status.rejoin')}</button>
         <button class="btn" onclick={forget}>{t('back')}</button>
       </div>
     {:else if status === 'full'}

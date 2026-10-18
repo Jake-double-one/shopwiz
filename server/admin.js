@@ -8,7 +8,7 @@
 // Who is admin: the main admin (user + password, passkeys optional) and devices
 // the main admin promoted by their D-ID – those always need their D-ID *and* their passkey.
 // Sessions live only in memory, on the server and in the browser tab: nothing a stealer could copy.
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { verifyPassword, parseHash, hashPassword } from './password.js';
 import { Limiter } from './limiter.js';
@@ -39,10 +39,16 @@ class AdminError extends Error {
   }
 }
 
-/** One-time setup code: 12 characters, easy to read and type ("K7QM-2XPA-9FHT") */
-function newCode() {
-  const raw = [...randomBytes(12)].map((b) => ALPHABET[b & 31]).join('');
-  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
+/** Codes easy to read and type: 12 characters for the setup ("K7QM-2XPA-9FHT"), 8 for a promotion */
+function newCode(length = 12) {
+  const raw = [...randomBytes(length)].map((b) => ALPHABET[b & 31]).join('');
+  return raw.match(/.{1,4}/g).join('-');
+}
+/** Typed code = stored code? (constant time, forgiving about case, separators, O/0 and I/L/1) */
+function sameCode(typed, real) {
+  const a = Buffer.from(plainCode(typed));
+  const b = Buffer.from(plainCode(real));
+  return a.length === b.length && b.length > 0 && timingSafeEqual(a, b);
 }
 const plainCode = (s) => String(s ?? '').toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1').replace(/[^0-9A-Z]/g, '');
 
@@ -58,8 +64,10 @@ export function createAdmin({ store, hub, config, log }) {
   const { db } = store;
   /** sha(session token) → { key, role: 'main'|'device', did, createdAt, seenAt, authAt, opened } */
   const sessions = new Map();
-  /** ticket → a passkey challenge waiting for its answer */
-  const challenges = new Map();
+  // passkey challenges travel as signed tickets – nothing is kept per request, so asking for many
+  // can't push out somebody else's; only answered ones are remembered (no second use)
+  const ticketKey = randomBytes(32);
+  const usedChallenges = new Map(); // challenge → when its ticket runs out
   const fails = new Limiter({ limit: 10, windowMs: 15 * MIN });
   // scrypt is slow on purpose – one check at a time, and only a few waiting
   let queue = Promise.resolve();
@@ -82,7 +90,8 @@ export function createAdmin({ store, hub, config, log }) {
     const t = now();
     if (failEntry && t - failEntry.at < 10 * MIN) {
       failEntry.count++;
-      db.q('UPDATE admin_log SET detail = ? WHERE id = ?').run(JSON.stringify({ count: failEntry.count, method }), failEntry.id);
+      // the time moves along, so the entry counts as new for the main admin's notices
+      db.q('UPDATE admin_log SET detail = ?, created_at = ? WHERE id = ?').run(JSON.stringify({ count: failEntry.count, method }), t, failEntry.id);
       return;
     }
     const r = db.q('INSERT INTO admin_log (actor, action, detail, created_at) VALUES (?, ?, ?, ?) RETURNING id').get('system', 'login_failed', JSON.stringify({ count: 1, method }), t);
@@ -108,6 +117,11 @@ export function createAdmin({ store, hub, config, log }) {
     return r ? { role: r.state, since: r.created_at, until: r.state === 'pending' ? r.expires_at : null } : { role: null, since: null, until: null };
   }
   const mainHasKey = () => !!db.q('SELECT 1 FROM admin_keys WHERE did IS NULL').get();
+  /**
+   * Is this the promoted device? Once its passkey is set up, the promotion is bound to the device's
+   * full key hash – the short D-ID alone (50 bits, could be searched for) is not enough any more.
+   */
+  const boundTo = (row, tokenHash) => !!tokenHash && (row.token_hash ? row.token_hash === tokenHash : didOfHash(tokenHash) === row.did);
   // switched off in the administration – only possible (and only kept) while the main admin has a passkey
   const passwordAllowed = () => meta('password_login') !== 'off' || !mainHasKey();
   /** The main admin's user name and password hash – null until set up */
@@ -159,7 +173,10 @@ export function createAdmin({ store, hub, config, log }) {
       return null;
     }
     // a device admin's session only works together with that device's own key – and while it is admin
-    if (s.role === 'device' && (!tokenHash || didOfHash(tokenHash) !== s.did || adminRow(s.did)?.state !== 'active')) return null;
+    if (s.role === 'device') {
+      const row = adminRow(s.did);
+      if (row?.state !== 'active' || !boundTo(row, tokenHash)) return null;
+    }
     if (touch) s.seenAt = t;
     return s;
   }
@@ -189,13 +206,14 @@ export function createAdmin({ store, hub, config, log }) {
   /** Tell a device that is online right now what it is (promoted, active, revoked). */
   function notify(did) {
     const data = JSON.stringify({ t: 'admin', ...stateOf(did) });
-    for (const c of hub.all()) if (c.did === did && !c.adminKey) c.send(data);
+    const row = adminRow(did);
+    for (const c of hub.all()) if (c.did === did && !c.adminKey && (!row?.token_hash || row.token_hash === c.tokenHash)) c.send(data);
   }
 
   const sweep = setInterval(() => {
     const t = now();
     for (const s of sessions.values()) if (t - s.seenAt > IDLE_MS || t - s.createdAt > MAX_MS) endSession(s.key);
-    for (const [k, c] of challenges) if (c.expires < t) challenges.delete(k);
+    for (const [k, exp] of usedChallenges) if (exp < t) usedChallenges.delete(k);
     for (const r of db.q("DELETE FROM admins WHERE state = 'pending' AND expires_at <= ? RETURNING did").all(t)) audit('system', 'promote_expired', { did: r.did });
     db.q('DELETE FROM admin_log WHERE created_at < ?').run(t - 180 * DAY);
     db.q('DELETE FROM admin_log WHERE id <= (SELECT id FROM admin_log ORDER BY id DESC LIMIT 1 OFFSET 5000)').run();
@@ -217,15 +235,30 @@ export function createAdmin({ store, hub, config, log }) {
     return { rpID: hostname, origins: [`https://${host}`, ...(local ? [`http://${host}`] : [])] };
   }
 
+  const mac = (body) => createHmac('sha256', ticketKey).update(body).digest('base64url');
   function remember(c) {
-    const ticket = randomBytes(18).toString('base64url');
-    challenges.set(ticket, { ...c, expires: now() + CHALLENGE_MS });
-    // keep the waiting room small – the oldest go first
-    while (challenges.size > 500) challenges.delete(challenges.keys().next().value);
-    return ticket;
+    const body = Buffer.from(JSON.stringify({ ...c, expires: now() + CHALLENGE_MS })).toString('base64url');
+    return `${body}.${mac(body)}`;
   }
+  /** A ticket this server signed, not run out, not answered before – or null */
+  function ticketOf(ticket) {
+    if (typeof ticket !== 'string' || ticket.length > 4000) return null;
+    const [body, sig] = ticket.split('.');
+    if (!body || !sig) return null;
+    const a = Buffer.from(sig);
+    const b = Buffer.from(mac(body));
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    let c;
+    try {
+      c = JSON.parse(Buffer.from(body, 'base64url').toString());
+    } catch {
+      return null;
+    }
+    return c.expires > now() && !usedChallenges.has(c.challenge) ? c : null;
+  }
+  const answered = (c) => usedChallenges.set(c.challenge, c.expires);
 
-  async function passkeyOptions(req) {
+  async function passkeyOptions(req, ip) {
     const purpose = req.body?.purpose;
     const { rpID, origins } = rp(req);
     if (purpose === 'login') {
@@ -244,6 +277,7 @@ export function createAdmin({ store, hub, config, log }) {
       if (!did) throw new AdminError(400, 'invalid');
       const row = db.q('SELECT * FROM admins WHERE did = ?').get(did);
       if (!row) throw new AdminError(403, 'not_admin');
+      if (row.state === 'active' && boundTo(row, tokenHashOf(req))) throw new AdminError(409, 'own_key');
       if (row.state === 'active') {
         // somebody already set up the passkey of this promotion – maybe not this device
         if (!(refused.get(did) > now() - 10 * MIN)) {
@@ -254,7 +288,14 @@ export function createAdmin({ store, hub, config, log }) {
         throw new AdminError(409, 'already');
       }
       if (row.expires_at <= now()) throw new AdminError(410, 'expired');
-      target = { role: 'device', did };
+      // the promotion code from the main admin: a stolen device key alone can't take the promotion
+      if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
+      if (!sameCode(req.body?.code, row.code)) {
+        fails.fail(ip);
+        loginFailed('promotion');
+        throw new AdminError(401, 'wrong_code');
+      }
+      target = { role: 'device', did, tokenHash: tokenHashOf(req) };
     }
     const exclude = db.q('SELECT id, transports FROM admin_keys WHERE did IS ?').all(target.did);
     const options = await generateRegistrationOptions({
@@ -273,7 +314,7 @@ export function createAdmin({ store, hub, config, log }) {
   async function register(req, c) {
     const s = sessionOf(req);
     if (c.role === 'main' && s?.role !== 'main') throw new AdminError(401, 'login');
-    if (c.role === 'device' && didOfReq(req) !== c.did) throw new AdminError(403, 'not_admin');
+    if (c.role === 'device' && tokenHashOf(req) !== c.tokenHash) throw new AdminError(403, 'not_admin');
     let v;
     try {
       v = await verifyRegistrationResponse({
@@ -287,12 +328,16 @@ export function createAdmin({ store, hub, config, log }) {
       throw new AdminError(400, 'passkey');
     }
     if (!v.verified) throw new AdminError(400, 'passkey');
+    answered(c);
     const { credential, credentialDeviceType } = v.registrationInfo;
     const synced = credentialDeviceType === 'multiDevice' ? 1 : 0;
     db.tx(() => {
       if (c.role === 'device') {
         // exactly one passkey per promotion – whoever comes second is told so
-        const ok = db.q("UPDATE admins SET state = 'active', expires_at = NULL WHERE did = ? AND state = 'pending' AND expires_at > ?").run(c.did, now()).changes;
+        // … and from now on only for this device's full key, not just anything with the same D-ID
+        const ok = db
+          .q("UPDATE admins SET state = 'active', expires_at = NULL, token_hash = ?, code = NULL WHERE did = ? AND state = 'pending' AND expires_at > ?")
+          .run(c.tokenHash, c.did, now()).changes;
         if (!ok) {
           const row = db.q('SELECT state FROM admins WHERE did = ?').get(c.did);
           throw new AdminError(row?.state === 'active' ? 409 : 410, row?.state === 'active' ? 'already' : 'expired');
@@ -318,8 +363,9 @@ export function createAdmin({ store, hub, config, log }) {
     const response = req.body?.response;
     const key = typeof response?.id === 'string' ? db.q('SELECT * FROM admin_keys WHERE id = ?').get(response.id) : null;
     if (!key || key.rp_id !== c.rpID) throw new AdminError(401, 'wrong');
-    // a device's passkey only works on that device (its D-ID), a synced copy elsewhere does not
-    if (key.did && (key.did !== didOfReq(req) || adminRow(key.did)?.state !== 'active')) throw new AdminError(403, 'other_device');
+    // a device's passkey only works on that device, a synced copy elsewhere does not
+    const row = key.did ? adminRow(key.did) : null;
+    if (key.did && (row?.state !== 'active' || !boundTo(row, tokenHashOf(req)))) throw new AdminError(403, 'other_device');
     let v;
     try {
       v = await verifyAuthenticationResponse({
@@ -334,7 +380,10 @@ export function createAdmin({ store, hub, config, log }) {
       throw new AdminError(401, 'wrong');
     }
     if (!v.verified) throw new AdminError(401, 'wrong');
+    answered(c);
     db.q('UPDATE admin_keys SET counter = ?, last_used_at = ? WHERE id = ?').run(v.authenticationInfo.newCounter, now(), key.id);
+    // promoted before the binding existed (v0.5.0/0.5.1): bind it now
+    if (row && !row.token_hash) db.q('UPDATE admins SET token_hash = ? WHERE did = ?').run(tokenHashOf(req), row.did);
     const role = key.did ? 'device' : 'main';
     audit(role === 'main' ? 'main' : key.did, 'login', { method: 'passkey' });
     return { session: startSession(req, role, key.did), role, did: key.did };
@@ -385,6 +434,8 @@ export function createAdmin({ store, hub, config, log }) {
         state: r.state,
         since: r.created_at,
         until: r.state === 'pending' ? r.expires_at : null,
+        // the promotion code, for the main admin to pass on (again)
+        ...(s.role === 'main' && r.state === 'pending' && { code: r.code }),
         names: [...(byDid.get(r.did)?.names ?? [])],
         keys: keys.filter((k) => k.did === r.did).map(keyRow),
       }));
@@ -418,7 +469,13 @@ export function createAdmin({ store, hub, config, log }) {
       mainKeys: s.role === 'main' ? keys.filter((k) => !k.did).map(keyRow) : [],
       log,
       // since the main admin looked last: what others did, and failed logins
-      alerts: s.role === 'main' ? log.filter((e) => e.at > seen && e.actor !== 'main' && ALERTS.has(e.action)) : [],
+      alerts:
+        s.role === 'main'
+          ? db
+              .q(`SELECT * FROM admin_log WHERE created_at > ? AND actor != 'main' AND action IN (${[...ALERTS].map(() => '?').join(',')}) ORDER BY id DESC LIMIT 100`)
+              .all(seen, ...ALERTS)
+              .map((r) => ({ id: r.id, at: r.created_at, actor: r.actor, action: r.action, detail: JSON.parse(r.detail) }))
+          : [],
     };
   }
 
@@ -526,17 +583,15 @@ export function createAdmin({ store, hub, config, log }) {
       '/api/admin/passkey/options',
       handle(async (req) => {
         if (req.body?.purpose === 'login' && fails.blocked(clientKey(req))) throw new AdminError(429, 'rate_limited');
-        return passkeyOptions(req);
+        return passkeyOptions(req, clientKey(req));
       }),
     );
 
     app.post(
       '/api/admin/passkey/verify',
       handle(async (req) => {
-        const ticket = req.body?.ticket;
-        const c = typeof ticket === 'string' ? challenges.get(ticket) : null;
-        if (c) challenges.delete(ticket);
-        if (!c || c.expires < now()) throw new AdminError(400, 'expired_challenge');
+        const c = ticketOf(req.body?.ticket);
+        if (!c) throw new AdminError(400, 'expired_challenge');
         if (c.purpose === 'register') return register(req, c);
         const ip = clientKey(req);
         if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
@@ -576,10 +631,12 @@ export function createAdmin({ store, hub, config, log }) {
           const did = parseDid(req.body?.did);
           if (!did) throw new AdminError(400, 'invalid_did');
           if (adminRow(did)?.state === 'active') throw new AdminError(409, 'already');
-          db.q('INSERT OR REPLACE INTO admins (did, state, expires_at, created_at) VALUES (?, ?, ?, ?)').run(did, 'pending', now() + PROMOTION_MS, now());
+          // the device needs this code for its passkey – the main admin passes it on (chat, in person)
+          const code = newCode(8);
+          db.q('INSERT OR REPLACE INTO admins (did, state, expires_at, created_at, token_hash, code) VALUES (?, ?, ?, ?, NULL, ?)').run(did, 'pending', now() + PROMOTION_MS, now(), code);
           audit('main', 'promote', { did });
           notify(did);
-          return { did, ...stateOf(did) };
+          return { did, code, ...stateOf(did) };
         },
         { main: true, fresh: true },
       ),
@@ -657,13 +714,16 @@ export function createAdmin({ store, hub, config, log }) {
     sessionFor,
     stateOf,
     /** Active admins create as many IDs as they like (SPACES_PER_DEVICE). */
-    isAdmin: (tokenHash) => !!tokenHash && adminRow(didOfHash(tokenHash))?.state === 'active',
+    isAdmin: (tokenHash) => {
+      const row = tokenHash ? adminRow(didOfHash(tokenHash)) : null;
+      return row?.state === 'active' && boundTo(row, tokenHash);
+    },
     /** An admin opened an ID: once per session in the admin log and in the ID's history. */
     opened(s, space) {
       if (s.opened.has(space.uid)) return;
       s.opened.add(space.uid);
       audit(s.role === 'main' ? 'main' : s.did, 'space_open', { name: space.name, id: formatSpaceId(space.public_id) });
-      db.q("INSERT INTO activity (space_uid, list_id, dev_name, action, payload, created_at) VALUES (?, NULL, 'Admin', 'admin.open', '{}', ?)").run(space.uid, now());
+      db.q(`INSERT INTO activity (space_uid, list_id, dev_name, action, payload, created_at) VALUES (?, NULL, 'Admin', 'admin.open', '{"admin":true}', ?)`).run(space.uid, now());
     },
     stop() {
       clearInterval(sweep);

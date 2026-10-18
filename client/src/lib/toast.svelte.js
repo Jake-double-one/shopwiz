@@ -18,6 +18,11 @@ export function dismiss(id) {
   if (i >= 0) toasts.splice(i, 1);
 }
 
+/** Undo & co. belong to the ID they were made in – another ID (or the administration) ends them. */
+export function dismissActions() {
+  for (const t of toasts.filter((x) => x.action)) dismiss(t.id);
+}
+
 /** Plain notices (no action) from before are done when a dialog opens – they would cover its title. */
 export function dismissNotices() {
   for (const t of toasts.filter((x) => !x.action && x.kind !== 'alert')) dismiss(t.id);

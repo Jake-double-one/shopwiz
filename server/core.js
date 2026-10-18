@@ -55,6 +55,13 @@ function str(v, max, { required = false, field = 'value' } = {}) {
   return s.slice(0, max);
 }
 
+/** "Admin" is what the administration is called inside an ID – no device may call itself that */
+const checkedDeviceName = (v, opts) => {
+  const s = str(v, LIMITS.deviceName, opts);
+  if (/^admin$/i.test(s)) throw new OpError('invalid', 'name reserved');
+  return s;
+};
+
 function note(v) {
   if (v === undefined || v === null) return '';
   if (typeof v !== 'string') throw new OpError('invalid', 'note must be a string');
@@ -262,7 +269,12 @@ export class Store {
   joinDevice(uid, tokenHash, name) {
     const { db } = this;
     const now = Date.now();
-    const devName = str(name, LIMITS.deviceName) || 'Device';
+    let devName;
+    try {
+      devName = checkedDeviceName(name) || 'Device';
+    } catch {
+      devName = 'Device';
+    }
     const existing = db.q('SELECT * FROM devices WHERE space_uid = ? AND token_hash = ?').get(uid, tokenHash);
     if (existing) {
       db.q('UPDATE devices SET last_seen_at = ?, name = ? WHERE space_uid = ? AND token_hash = ?').run(now, devName, uid, tokenHash);
@@ -363,7 +375,7 @@ export class Store {
 
   /** New assistant connection → { key, device }. The key is shown once and only its hash is kept. */
   createAiDevice(uid, name) {
-    const devName = str(name, LIMITS.deviceName, { required: true, field: 'name' });
+    const devName = checkedDeviceName(name, { required: true, field: 'name' });
     const count = this.db.q("SELECT COUNT(*) AS c FROM devices WHERE space_uid = ? AND kind = 'ai'").get(uid).c;
     if (count >= 20) throw new OpError('limit', 'too many assistants');
     const key = `swk_${Buffer.from(webcrypto.getRandomValues(new Uint8Array(24))).toString('base64url')}`;
@@ -393,16 +405,26 @@ export class Store {
   purgeSpace(uid) {
     const { db } = this;
     db.tx(() => {
-      const space = this.spaceByUid(uid);
-      if (!space) return;
-      db.q('INSERT OR REPLACE INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, NULL, ?, ?)').run(space.public_id, 'admin', Date.now());
-      db.q('UPDATE retired_ids SET space_uid = NULL WHERE space_uid = ?').run(uid);
-      db.q('DELETE FROM spaces WHERE uid = ?').run(uid);
+      // deleted spaces this one was continued from go too – "continue" must not bring it back
+      const todo = [uid];
+      while (todo.length) {
+        const u = todo.pop();
+        const space = this.spaceByUid(u);
+        if (!space) continue;
+        for (const r of db.q("SELECT public_id FROM retired_ids WHERE reason = 'continued' AND space_uid = ?").all(u)) {
+          const from = Number(r.public_id.slice(2));
+          if (from && this.spaceByUid(from)?.deleted_at) todo.push(from);
+        }
+        db.q('INSERT OR REPLACE INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, NULL, ?, ?)').run(space.public_id, 'admin', Date.now());
+        db.q('UPDATE retired_ids SET space_uid = NULL WHERE space_uid = ?').run(u);
+        db.q('DELETE FROM spaces WHERE uid = ?').run(u);
+      }
     });
   }
 
   /** Copy a deleted space into a fresh one. All members continuing end up in the same new space. */
-  continueSpace(oldUid, tokenHash, deviceName) {
+  /** allowNew: asked before a new space is made (only the first member continuing makes one) */
+  continueSpace(oldUid, tokenHash, deviceName, allowNew = () => {}) {
     const { db } = this;
     return db.tx(() => {
       const old = this.spaceByUid(oldUid);
@@ -414,11 +436,12 @@ export class Store {
           return target.public_id;
         }
       }
+      allowNew();
       const now = Date.now();
       const publicId = this.generatePublicId();
       const { lastInsertRowid } = db
         .q('INSERT INTO spaces (public_id, name, ttl_days, rev, ai_write, created_by, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, old.created_by ?? null, now, now);
+        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, tokenHash, now, now);
       const uid = Number(lastInsertRowid);
       // only what was still there: rows of deleted lists stay behind
       const live = {
@@ -604,7 +627,7 @@ export class Store {
   _act(ctx, listId, action, payload) {
     this.db
       .q('INSERT INTO activity (space_uid, list_id, dev_name, action, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(ctx.uid, listId, ctx.dev.name, action, JSON.stringify(payload), ctx.now);
+      .run(ctx.uid, listId, ctx.dev.name, action, JSON.stringify(ctx.dev.kind === 'admin' ? { ...payload, admin: true } : payload), ctx.now);
   }
   _pushItem(ctx, id) {
     const r = this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ?').get(ctx.uid, id);
@@ -1512,7 +1535,7 @@ const OPS = {
 
   'device.rename'(ctx, op) {
     if (ctx.dev.kind === 'admin') throw new OpError('forbidden', 'admins have no device here');
-    const name = str(op.name, LIMITS.deviceName, { required: true, field: 'name' });
+    const name = checkedDeviceName(op.name, { required: true, field: 'name' });
     this.db.q('UPDATE devices SET name = ? WHERE space_uid = ? AND dev_id = ?').run(name, ctx.uid, ctx.dev.dev_id);
     ctx.dev.name = name;
     ctx.changes.push({ e: 'device', row: mapDevice(this.db.q('SELECT * FROM devices WHERE space_uid = ? AND dev_id = ?').get(ctx.uid, ctx.dev.dev_id)) });

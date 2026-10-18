@@ -72,6 +72,8 @@ export async function buildApp(config) {
   // ---------- security headers ----------
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header('Referrer-Policy', 'no-referrer');
+    // list contents, the administration's overview: never into the browser's disk cache
+    if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), interest-cohort=()');
@@ -83,7 +85,13 @@ export async function buildApp(config) {
   });
 
   // ---------- helpers ----------
-  const clientKey = (req) => req.ip || 'unknown';
+  // limits count per address; IPv6 per /64 – one connection usually gets a whole /64 to pick from
+  const clientKey = (req) => {
+    const ip = req.ip || 'unknown';
+    if (!ip.includes(':') || ip.startsWith('::ffff:')) return ip;
+    const full = ip.includes('::') ? ip.replace('::', `:${'0:'.repeat(9 - ip.split(':').length)}`).replace(/^:|:$/g, '') : ip;
+    return `${full.split(':').slice(0, 4).join(':')}::/64`;
+  };
 
   /**
    * Resolve :id for REST. Applies the lookup limiter. An admin inside an ID (session header)
@@ -105,6 +113,8 @@ export async function buildApp(config) {
       reply.code(404).send({ error: 'notfound' });
       return null;
     }
+    // an admin reading or changing an ID over REST is seen like one opening it (history, admin log)
+    if (adminSession && res.status === 'ok') admin.opened(adminSession, res.space);
     if (requireMember && !adminSession) {
       if (!tokenHash || !store.isMember(res.space?.uid ?? -1, tokenHash)) {
         reply.code(403).send({ error: 'not_member' });
@@ -113,6 +123,8 @@ export async function buildApp(config) {
     }
     return { ...res, tokenHash, admin: !!adminSession };
   }
+  /** IDs per device (SPACES_PER_DEVICE): only the ones it created itself and that still exist; admins have none */
+  const overLimit = (tokenHash) => config.spacesPerDevice > 0 && !(admin.enabled && admin.isAdmin(tokenHash)) && store.spacesCreatedBy(tokenHash) >= config.spacesPerDevice;
   /** Who does it: the member's device, or "Admin" */
   const devOf = (r) => (r.admin ? adminDevice() : store.device(r.space.uid, r.tokenHash));
 
@@ -131,11 +143,8 @@ export async function buildApp(config) {
     const { name, token, deviceName, listName, doc } = req.body ?? {};
     if (typeof token !== 'string' || !TOKEN_RE.test(token)) return reply.code(400).send({ error: 'invalid', message: 'token' });
     if (createLimiter.blocked(clientKey(req))) return reply.code(429).send({ error: 'rate_limited' });
-    // IDs per device (SPACES_PER_DEVICE): only the ones it created itself and that still exist; admins have none
     const tokenHash = hashToken(token);
-    if (config.spacesPerDevice > 0 && !(admin.enabled && admin.isAdmin(tokenHash)) && store.spacesCreatedBy(tokenHash) >= config.spacesPerDevice) {
-      return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
-    }
+    if (overLimit(tokenHash)) return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
     createLimiter.fail(clientKey(req));
     try {
       const id = store.createSpace({ name, token, deviceName, listName });
@@ -198,9 +207,18 @@ export async function buildApp(config) {
     if (!r) return;
     if (r.admin) return reply.code(403).send({ error: 'admin' });
     if (r.status !== 'deleted') return reply.code(409).send({ error: 'not_deleted' });
+    // a continued ID is a new ID of the device that continues it – the same limits as creating one
+    const ip = clientKey(req);
+    const allowNew = () => {
+      if (createLimiter.blocked(ip)) throw new OpError('rate_limited');
+      if (overLimit(r.tokenHash)) throw new OpError('space_limit');
+      createLimiter.fail(ip);
+    };
     try {
-      return { id: store.continueSpace(r.space.uid, r.tokenHash, req.body?.deviceName) };
+      return { id: store.continueSpace(r.space.uid, r.tokenHash, req.body?.deviceName, allowNew) };
     } catch (e) {
+      if (e instanceof OpError && e.code === 'rate_limited') return reply.code(429).send({ error: 'rate_limited' });
+      if (e instanceof OpError && e.code === 'space_limit') return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
       if (e instanceof OpError) return reply.code(400).send({ error: e.code, message: e.message });
       throw e;
     }
@@ -291,6 +309,8 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    // a key would outlive the admin's session and rights – assistants are for members
+    if (r.admin) return reply.code(403).send({ error: 'admin' });
     try {
       const { key, device } = ai.connect(r.space.uid, req.body?.name);
       return { key, devId: device.dev_id, name: device.name };

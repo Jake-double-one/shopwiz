@@ -1,6 +1,7 @@
 import { load, save } from './storage.js';
 import { deviceToken, deviceName, rememberSpace, replaceKnown, forgetSpace, knownSpaces } from './device.js';
 import { normalizeName } from '../../../shared/parse.js';
+import { dismissActions } from './toast.svelte.js';
 import { randomEntityId } from '../../../shared/ids.js';
 
 export const newId = () => randomEntityId((b) => crypto.getRandomValues(b));
@@ -348,6 +349,7 @@ class Sync {
 
   open(id, { admin = null } = {}) {
     this.close();
+    dismissActions();
     this.spaceId = id;
     this.admin = admin;
     this.status = 'connecting';
@@ -381,6 +383,7 @@ class Sync {
     this.online = [];
     this.data = empty();
     this.admin = null;
+    dismissActions();
   }
 
   connect() {
@@ -614,6 +617,7 @@ class Sync {
 
   /** Queue an operation: applied locally right away, sent when connected. */
   send(op) {
+    if (!this.spaceId) return null; // nothing open (e.g. an undo tapped after leaving the ID)
     const p = { id: `${Date.now().toString(36)}-${(++this.opSeq).toString(36)}-${newId().slice(0, 6)}`, op, at: this.now() };
     this.pending.push(p);
     this.rebuild(true);

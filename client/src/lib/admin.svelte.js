@@ -47,8 +47,8 @@ export function forget() {
 /** The browser's passkey dialog was closed or isn't possible here */
 const cancelled = (e) => e?.name === 'NotAllowedError' || e?.name === 'AbortError';
 
-async function passkey(purpose) {
-  const { ticket, options } = await call('POST', '/api/admin/passkey/options', { purpose });
+async function passkey(purpose, code) {
+  const { ticket, options } = await call('POST', '/api/admin/passkey/options', { purpose, ...(code && { code }) });
   let response;
   try {
     response = purpose === 'login' ? await startAuthentication({ optionsJSON: options }) : await startRegistration({ optionsJSON: options });
@@ -64,7 +64,8 @@ export const admin = {
   setPasswordLogin: (on) => call('POST', '/api/admin/password-login', { on }),
   loginPassword: async (user, password) => take(await call('POST', '/api/admin/login', { user, password })),
   loginPasskey: () => passkey('login'),
-  registerPasskey: () => passkey('register'),
+  /** code: the promotion code a device got from the main admin (not needed for the main admin's own) */
+  registerPasskey: (code) => passkey('register', code),
   async logout() {
     try {
       await call('POST', '/api/admin/logout', {});

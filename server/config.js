@@ -5,6 +5,24 @@ const int = (v, d) => {
 
 export const MAX_SPACE_TTL_DAYS = 367;
 
+/**
+ * Which proxies may tell the client address (X-Forwarded-For).
+ * "true" = proxies in the local/Docker network (loopback, 10.x, 172.16–31.x, 192.168.x, fc00::/7) –
+ * a client on the internet can't fake its address by writing the header itself;
+ * a number = that many proxies in a row (e.g. 2 for Cloudflare + nginx);
+ * or the proxies' addresses/networks, comma separated.
+ */
+export function trustProxy(v) {
+  const s = String(v ?? '').trim();
+  if (!s || /^(false|0|no|off)$/i.test(s)) return false;
+  if (/^(true|yes|on)$/i.test(s)) return 'loopback, linklocal, uniquelocal';
+  if (/^\d+$/.test(s)) {
+    const hops = Math.min(Number(s), 10);
+    return (addr, i) => i < hops;
+  }
+  return s;
+}
+
 export function loadConfig(env = process.env) {
   return {
     port: int(env.PORT, 8080),
@@ -14,7 +32,7 @@ export function loadConfig(env = process.env) {
     spaceTtlDays: Math.min(Math.max(int(env.SPACE_TTL_DAYS, 181), 1), MAX_SPACE_TTL_DAYS),
     deviceTtlDays: Math.max(int(env.DEVICE_TTL_DAYS, 30), 1),
     activityTtlDays: Math.max(int(env.ACTIVITY_TTL_DAYS, 14), 1),
-    trustProxy: env.TRUST_PROXY === 'true' || env.TRUST_PROXY === '1',
+    trustProxy: trustProxy(env.TRUST_PROXY),
     // Failed ID lookups allowed per client address and window (brute-force protection).
     lookupLimit: int(env.LOOKUP_LIMIT, 30),
     lookupWindowMin: int(env.LOOKUP_WINDOW_MIN, 15),

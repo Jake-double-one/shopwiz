@@ -5,7 +5,7 @@
   import Toasts from './components/Toasts.svelte';
   import NamePrompt from './components/NamePrompt.svelte';
   import AdminView from './components/AdminView.svelte';
-  import { adminSession } from './lib/admin.svelte.js';
+  import { adminSession, admin } from './lib/admin.svelte.js';
   import { parseSpaceId } from '../../shared/ids.js';
   import { currentSpace, deviceName, clearCurrent } from './lib/device.js';
   import { sync } from './lib/sync.svelte.js';
@@ -23,6 +23,8 @@
   // so reloading never opens that ID as this device
   let adminView = $state(false);
   let adminSpace = $state(null);
+  // the history only gets a random key – which ID it was stays in this tab's memory
+  const adminKeys = new Map();
 
   function show(id, { replace = false } = {}) {
     const url = id ? `/${id}` : '/';
@@ -50,6 +52,9 @@
     if (location.pathname !== '/admin') history.pushState(null, '', '/admin');
   }
   function exitAdmin() {
+    // leaving the administration logs out – nobody else on this device gets in with Back
+    admin.logout().catch(() => {});
+    adminKeys.clear();
     sync.close();
     adminSpace = null;
     adminView = false;
@@ -58,7 +63,9 @@
   function openAdminSpace(id) {
     if (!adminSession.token) return;
     adminSpace = { id, token: adminSession.token };
-    history.pushState({ adminSpace: id }, '', '/admin');
+    const key = crypto.getRandomValues(new Uint32Array(2)).join('');
+    adminKeys.set(key, id);
+    history.pushState({ adminSpace: key }, '', '/admin');
   }
   function leaveAdminSpace() {
     sync.close();
@@ -77,7 +84,7 @@
     }
     const onPop = () => {
       if (location.pathname === '/admin') {
-        const id = history.state?.adminSpace ?? null;
+        const id = adminKeys.get(history.state?.adminSpace) ?? null;
         if (id !== (adminSpace?.id ?? null)) {
           sync.close();
           adminSpace = id && adminSession.token ? { id, token: adminSession.token } : null;

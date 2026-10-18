@@ -37,21 +37,22 @@ Open `https://your-host/admin`.
 - **Main admin:** user name + password. Optionally, they set up a passkey under "Admins" and then log in with a touch – on any device. With a passkey, the password login can be switched off there, too.
 - **Device admins:** "Log in with passkey" – on their own device.
 
-The login lives **only in this browser tab** and is stored nowhere – no cookie, nothing in the device's storage. Reloading means logging in again. It ends after 15 minutes without activity, after 8 hours at the latest, and when the server restarts.
+The login lives **only in this browser tab** and is stored nowhere – no cookie, nothing in the device's storage. Reloading or leaving the administration means logging in again. It ends after 15 minutes without activity, after 8 hours at the latest, and when the server restarts.
 
 ## More admins: devices by D-ID
 
 Every device has a **D-ID** (e.g. `K7M2Q-9XH4T`, called "D-ID" in every language). The app shows it under Settings → This device once the server has an administration. It is derived from the device's secret key but doesn't reveal it.
 
 1. The person sends you their D-ID.
-2. Administration → **Devices** → enter the D-ID (or use the device in the list) → **Make admin**. Only the main admin can do this.
-3. The device gets a one-time notice "This device is an admin now" right away and has **24 hours** to set up a **passkey** (fingerprint, face or PIN of the device). Otherwise the promotion runs out.
+2. Administration → **Devices** → enter the D-ID (or use the device in the list) → **Make admin**. Only the main admin can do this. You get a **promotion code** (e.g. `7KQ2-XM4P`) – pass it on by chat or in person; it is also shown under "Admins" until it is used.
+3. The device gets a one-time notice "This device is an admin now" right away and has **24 hours** to enter the promotion code and set up a **passkey** (fingerprint, face or PIN of the device). Otherwise the promotion runs out.
 4. From then on, the settings have an **Administration** button at the very bottom.
 
 Rules:
 
 - **Never only one factor:** a device admin always needs their D-ID (so: their device) **and** their passkey. A copied app session is not enough, and neither is a synced passkey on another device.
-- **Exactly one passkey per promotion.** If somebody was faster (e.g. with a copied device key), the real device sees "A passkey was already set up for this device – but not here", and you see the passkey in the log and as a notice. Then: take the rights away and promote again.
+- **The promotion code protects the promotion:** someone who copied the device's key (an infostealer) can't set up a passkey without it. Once the passkey is set up, the promotion belongs to exactly this device's key – not just to anything with the same D-ID.
+- **Exactly one passkey per promotion.** If a passkey shows up that wasn't yours, you see it in the log and as a notice. Then: take the rights away and promote again – with a new code.
 - Taking admin rights away (Admins → "Take admin rights away") ends all sessions of that device at once.
 - Synced passkeys (iCloud, Google, password managers) are allowed, as are passkeys kept on the device only – the overview shows which one it is.
 

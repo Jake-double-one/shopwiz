@@ -51,7 +51,8 @@
   });
 
   $effect(() => {
-    document.title = list ? `${list.name} · ShopWiz` : 'ShopWiz';
+    // opened by an admin: no list name in the title – titles end up in the browser's history
+    document.title = admin ? 'Admin · ShopWiz' : list ? `${list.name} · ShopWiz` : 'ShopWiz';
     return () => (document.title = 'ShopWiz');
   });
 
@@ -232,7 +233,7 @@
   }
   function openHelp() {
     helpHint = false;
-    save('helpSeen', true);
+    if (!admin) save('helpSeen', true);
     open('help');
   }
   function dismissHint() {
@@ -523,6 +524,7 @@
     {/if}
 
     <ListBody
+      remember={!admin}
       {v}
       {list}
       {freshIds}

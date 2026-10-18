@@ -340,6 +340,7 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 - **Weitere Admins = Geräte:** Jedes Gerät hat eine **D-ID** (in allen Sprachen „D-ID“), abgeleitet aus dem Geräte-Schlüssel, aber ohne Rückschluss darauf. Sie steht in den Einstellungen, sobald der Server eine Administration hat.
 - Der Haupt-Admin **ernennt** eine D-ID zum Admin. Das Gerät bekommt einen einmaligen Hinweis zum Wegklicken (wie die Ruf-Karten) und muss **innerhalb von 24 Stunden** einen Passkey einrichten – sonst verfällt die Ernennung.
 - **Nie nur ein Faktor:** Ein Geräte-Admin braucht immer D-ID **und** Passkey (Fingerabdruck, Gesicht, PIN des Geräts). Ein kopierter Geräte-Schlüssel reicht nicht, ein Passkey allein auch nicht.
+- **Ernennungscode** (seit dem Security-Audit): Beim Ernennen bekommt der Haupt-Admin einen Code, den er der Person auf anderem Weg gibt; ohne ihn kein Passkey – ein gestohlener Geräte-Schlüssel allein reicht nicht. Nach der Einrichtung ist die Ernennung an den vollen Schlüssel-Hash des Geräts gebunden, nicht nur an die 50-Bit-D-ID.
 - Pro Ernennung lässt sich genau ein Passkey einrichten. War jemand schneller (z. B. mit einem gestohlenen Geräte-Schlüssel), sieht das echte Gerät „Passkey wurde bereits eingerichtet – warst du das nicht?“, und der Haupt-Admin sieht es im Protokoll und kann die Ernennung zurücknehmen.
 - Nur der Haupt-Admin ernennt und entzieht Admins.
 

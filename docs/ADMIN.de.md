@@ -37,21 +37,22 @@ Ohne Code kann niemand die Einrichtung übernehmen – auch nicht, wer zufällig
 - **Haupt-Admin:** Benutzername + Passwort. Optional richtet er sich unter „Admins“ zusätzlich einen Passkey ein und meldet sich dann mit einem Fingerdruck an – auf jedem Gerät. Mit Passkey lässt sich dort auch die Passwort-Anmeldung abschalten.
 - **Geräte-Admins:** „Mit Passkey anmelden“ – auf ihrem eigenen Gerät.
 
-Die Anmeldung gilt **nur in diesem Browser-Tab** und wird nirgends gespeichert – kein Cookie, nichts im Gerätespeicher. Neu laden heißt neu anmelden. Sie endet nach 15 Minuten ohne Aktivität, spätestens nach 8 Stunden, und beim Neustart des Servers.
+Die Anmeldung gilt **nur in diesem Browser-Tab** und wird nirgends gespeichert – kein Cookie, nichts im Gerätespeicher. Neu laden oder die Administration verlassen heißt neu anmelden. Sie endet nach 15 Minuten ohne Aktivität, spätestens nach 8 Stunden, und beim Neustart des Servers.
 
 ## Weitere Admins: Geräte per D-ID
 
 Jedes Gerät hat eine **D-ID** (z. B. `K7M2Q-9XH4T`, in allen Sprachen „D-ID“). Sie steht in der App unter Einstellungen → Dieses Gerät, sobald der Server eine Administration hat. Sie ist aus dem geheimen Geräte-Schlüssel abgeleitet, verrät ihn aber nicht.
 
 1. Die Person schickt dir ihre D-ID.
-2. Administration → **Geräte** → D-ID eintragen (oder beim Gerät in der Liste) → **Zum Admin ernennen**. Nur der Haupt-Admin kann das.
-3. Das Gerät bekommt sofort einen einmaligen Hinweis „Dieses Gerät ist jetzt Admin“ und hat **24 Stunden**, einen **Passkey** einzurichten (Fingerabdruck, Gesicht oder PIN des Geräts). Sonst verfällt die Ernennung.
+2. Administration → **Geräte** → D-ID eintragen (oder beim Gerät in der Liste) → **Zum Admin ernennen**. Nur der Haupt-Admin kann das. Du bekommst einen **Ernennungscode** (z. B. `7KQ2-XM4P`) – gib ihn per Chat oder persönlich weiter; bis er benutzt ist, steht er auch unter „Admins“.
+3. Das Gerät bekommt sofort einen einmaligen Hinweis „Dieses Gerät ist jetzt Admin“ und hat **24 Stunden**, den Ernennungscode einzugeben und einen **Passkey** einzurichten (Fingerabdruck, Gesicht oder PIN des Geräts). Sonst verfällt die Ernennung.
 4. Danach erscheint in den Einstellungen ganz unten der Knopf **Administration**.
 
 Regeln:
 
 - **Nie nur ein Faktor:** Ein Geräte-Admin braucht immer seine D-ID (also sein Gerät) **und** seinen Passkey. Eine kopierte App-Sitzung reicht nicht, ein synchronisierter Passkey auf einem anderen Gerät auch nicht.
-- **Pro Ernennung genau ein Passkey.** War jemand schneller (etwa mit einem kopierten Geräte-Schlüssel), sieht das echte Gerät „Für dieses Gerät wurde schon ein Passkey eingerichtet – aber nicht hier“, und du siehst den Passkey im Protokoll und als Hinweis. Dann: Rechte entziehen und neu ernennen.
+- **Der Ernennungscode schützt die Ernennung:** Wer den Geräte-Schlüssel kopiert hat (Infostealer), kann ohne ihn keinen Passkey einrichten. Ist der Passkey eingerichtet, gehört die Ernennung genau zum Schlüssel dieses Geräts – nicht bloß zu allem mit derselben D-ID.
+- **Pro Ernennung genau ein Passkey.** Taucht ein Passkey auf, der nicht deiner war, siehst du ihn im Protokoll und als Hinweis. Dann: Rechte entziehen und neu ernennen – mit neuem Code.
 - Rechte entziehen (Admins → „Admin-Rechte entziehen“) beendet sofort alle Sitzungen dieses Geräts.
 - Erlaubt sind synchronisierte Passkeys (iCloud, Google, Passwortmanager) und solche, die nur auf dem Gerät liegen – die Übersicht zeigt, welcher es ist.
 

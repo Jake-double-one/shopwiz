@@ -18,6 +18,9 @@
   let password = $state('');
   let password2 = $state('');
   let code = $state('');
+  // a promoted device: the code it got from the main admin; the main admin: the code to pass on
+  let promoCode = $state('');
+  let promoted = $state(null); // { did, code }
   let busy = $state(false);
   let error = $state('');
   let expired = $state(false);
@@ -61,6 +64,7 @@
       if (e.code === 'login') {
         data = null;
         expired = true;
+        reauth = null;
       } else toast({ text: errorText(e), kind: 'alert' });
     }
   }
@@ -105,7 +109,8 @@
   const loginPasskey = () => withBusy(async () => (await admin.loginPasskey(), await afterLogin()));
   const setUpPasskey = () =>
     withBusy(async () => {
-      const r = await admin.registerPasskey();
+      const r = await admin.registerPasskey(promoCode);
+      promoCode = '';
       if (r.did) save(`adminKey.${r.did}`, true);
       toast(t('admin.passkeyDone'));
       await afterLogin();
@@ -126,7 +131,8 @@
       await refresh();
     } catch (e) {
       if (e.code === 'reauth') reauth = { run: fn };
-      else if (e.code === 'login') expired = true;
+      // the session is gone – a waiting action must not run after somebody else logs in here
+      else if (e.code === 'login') (expired = true), (reauth = null);
       else toast({ text: errorText(e), kind: 'alert' });
     }
   }
@@ -138,13 +144,14 @@
     await loadStatus();
   }
 
-  function promote() {
-    const did = parseDid(promoteDid);
+  function promote(value = promoteDid) {
+    const did = parseDid(value);
     if (!did) return toast({ text: t('admin.error.invalid_did'), kind: 'alert' });
     act(async () => {
-      await admin.promote(did);
+      const r = await admin.promote(did);
       promoteDid = '';
-      toast(t('admin.promotedToast', { did }));
+      // the code goes to the person by another way (chat, in person) – a stolen device key alone isn't enough
+      promoted = { did: r.did, code: r.code };
     });
   }
 
@@ -224,7 +231,12 @@
         <p class="eyebrow">D-ID {status.did}</p>
         <h2>{t('admin.promoted')}</h2>
         <p class="note">{t('admin.setUpHint', { until: clock(status.until) })}</p>
-        <button class="btn main block" onclick={setUpPasskey} disabled={busy || !secure}><Icon name="key" />{t('admin.setUp')}</button>
+        <label class="field">
+          <span>{t('admin.promoCode')}</span>
+          <input class="input mono" bind:value={promoCode} placeholder="XXXX-XXXX" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+        </label>
+        <button class="btn main block" onclick={setUpPasskey} disabled={busy || !secure || promoCode.replace(/[^0-9a-z]/gi, '').length !== 8}><Icon name="key" />{t('admin.setUp')}</button>
+        {#if error}<p class="hint alert err"><span class="grow">{error}</span></p>{/if}
       </section>
     {:else if status.role === 'active' && !keyHere}
       <p class="hint alert"><span class="grow">{t('admin.takenHint')}</span></p>
@@ -253,7 +265,7 @@
           <button class="btn block" type="submit" disabled={busy || !user.trim() || !password}>{t('admin.loginPassword')}</button>
         </form>
       {/if}
-      {#if error}<p class="hint alert err"><span class="grow">{error}</span></p>{/if}
+      {#if error && status.role !== 'pending'}<p class="hint alert err"><span class="grow">{error}</span></p>{/if}
     </section>
     <p class="note">{t('admin.memoryNote')}</p>
     {/if}
@@ -294,6 +306,16 @@
         {/if}
         {#if error}<p class="hint alert err"><span class="grow">{error}</span></p>{/if}
         <button class="btn block cancel" onclick={() => ((reauth = null), (error = ''))}>{t('cancel')}</button>
+      </section>
+    {/if}
+
+    {#if promoted}
+      <section class="card promoted promo-card" role="status">
+        <p class="eyebrow">D-ID {promoted.did}</p>
+        <h2>{t('admin.promoCodeTitle')}</h2>
+        <p class="promo mono">{promoted.code}</p>
+        <p class="note">{t('admin.promoCodeHint')}</p>
+        <button class="btn small" onclick={() => (promoted = null)}>{t('signal.ok')}</button>
       </section>
     {/if}
 
@@ -392,7 +414,7 @@
               </p>
               {#if isMain && !d.admin}
                 <div class="row actions">
-                  <button class="btn small dusk" onclick={() => act(() => admin.promote(d.did).then(() => toast(t('admin.promotedToast', { did: d.did }))))}><Icon name="shield" size={16} />{t('admin.promote')}</button>
+                  <button class="btn small dusk" onclick={() => promote(d.did)}><Icon name="shield" size={16} />{t('admin.promote')}</button>
                 </div>
               {/if}
             </li>
@@ -436,6 +458,7 @@
               <p class="facts">
                 {#if a.state === 'pending'}
                   <span class="badge pending">{t('admin.badgePending')}</span> {t('admin.pendingUntil', { when: clock(a.until) })}
+                  {#if a.code}<br />{t('admin.promoCode')}: <b class="mono">{a.code}</b>{/if}
                 {:else}
                   <span class="badge">{t('admin.badgeActive')}</span>
                   {#each a.keys as k (k.id)} · {kindOf(k)} · {t('admin.keySince', { when: clock(k.createdAt) })}{/each}
@@ -499,6 +522,13 @@
   }
   .promoted {
     border: 2px solid var(--alert);
+  }
+  .promo {
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    margin: 0 0 10px;
+    color: var(--ink);
   }
   .pw-hint {
     margin: 8px 0 0;

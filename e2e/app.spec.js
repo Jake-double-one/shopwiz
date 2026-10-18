@@ -1448,9 +1448,16 @@ test('administration: the main admin opens an ID, shows as red "Admin", edits, a
   expect(stored).not.toContain(id);
   expect(stored).not.toContain('Butter');
 
+  // an undo from the ID doesn't follow the admin out of it
+  await a.getByRole('button', { name: 'Edit Bread' }).click();
+  await a.getByRole('button', { name: 'Delete' }).click();
+  await expect(a.locator('.toast', { hasText: 'Undo' })).toBeVisible();
   // back to the administration: the admin is gone from the list
   await a.locator('.admin-bar').getByRole('button', { name: 'Back to the administration' }).click();
   await expect(a.getByText('Logged in as main admin')).toBeVisible();
+  await expect(a.locator('.toast', { hasText: 'Undo' })).toHaveCount(0);
+  const keys = await a.evaluate(() => Object.keys(localStorage));
+  expect(keys.filter((k) => /pending|snap|signals|\.list\.|collapsed|shadowOpen|spaces|current/.test(k))).toEqual([]);
   await expect(page.locator('.person.admin')).toHaveCount(0);
   // the history tells everybody
   await page.getByRole('button', { name: 'List options' }).click();
@@ -1489,11 +1496,19 @@ test('administration: a device promoted by its D-ID sets up a passkey and logs i
   await a.getByPlaceholder('XXXXX-XXXXX').fill(did.toLowerCase());
   await a.locator('form.promote').getByRole('button', { name: 'Promote' }).click();
   await expect(a.locator('.rowcard', { hasText: did })).toContainText('waiting for passkey');
+  // the promotion code goes to the person by another way – the device needs it
+  const code = (await a.locator('.promo').innerText()).trim();
+  expect(code).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
 
   // the device is told right away
   await expect(page.getByText('This device is an admin now.')).toBeVisible();
   await page.getByRole('button', { name: 'Set up passkey' }).click();
   await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole('button', { name: 'Set up passkey' })).toBeDisabled();
+  await page.getByLabel('Promotion code').fill('AAAA-BBBB');
+  await page.getByRole('button', { name: 'Set up passkey' }).click();
+  await expect(page.getByText('The code is not right.')).toBeVisible();
+  await page.getByLabel('Promotion code').fill(code.toLowerCase());
   await page.getByRole('button', { name: 'Set up passkey' }).click();
   await expect(page.getByText(`Logged in as admin · D-ID ${did}`)).toBeVisible();
   // device admins don't promote
@@ -1517,7 +1532,8 @@ test('administration: a device promoted by its D-ID sets up a passkey and logs i
   await expect(page.getByText('This device is an admin now.')).toHaveCount(0);
   await page.getByRole('button', { name: 'Settings' }).first().click();
   await page.getByRole('button', { name: 'Administration' }).click();
-  // still logged in: the session lives in this tab until it is reloaded, logged out or idle for 15 minutes
+  // leaving the administration logged out: log in again
+  await page.getByRole('button', { name: 'Log in with passkey' }).click();
   await expect(page.getByText(`Logged in as admin · D-ID ${did}`)).toBeVisible();
 
   // taken back: the session ends and the passkey doesn't work any more

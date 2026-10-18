@@ -13,7 +13,8 @@
   import { normalizeName } from '../../../shared/parse.js';
 
   /** query: search text – only matching items (also inactive ones) are shown */
-  let { v, list, freshIds, query = '', onedit, onshow, ongroup, onaddto, onaddgroup } = $props();
+  // remember: keep open/closed groups on the device (not for an ID an admin opened)
+  let { v, list, freshIds, query = '', onedit, onshow, ongroup, onaddto, onaddgroup, remember = true } = $props();
 
   // travel mode: the translation under each item
   const travel = $derived(list.travel);
@@ -52,7 +53,7 @@
     const next = new Set(collapsed);
     next.has(id) ? next.delete(id) : next.add(id);
     collapsed = next;
-    save('collapsed', [...next].slice(-500));
+    if (remember) save('collapsed', [...next].slice(-500));
   }
 
   function itemsIn(groupId, parked = false) {
@@ -71,7 +72,7 @@
     const ids = new Set(shadowIds);
     ids.has(list.id) ? ids.delete(list.id) : ids.add(list.id);
     shadowIds = ids;
-    save('shadowOpen', [...ids].slice(-100));
+    if (remember) save('shadowOpen', [...ids].slice(-100));
   }
   let shadowText = $state('');
   function addInactive(e) {
