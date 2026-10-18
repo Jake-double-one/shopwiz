@@ -329,7 +329,7 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
-    const { to, listId, itemIds, groupId, mode } = req.body ?? {};
+    const { to, listId, itemIds, groupId, fromListId, mode } = req.body ?? {};
     const targetId = parseSpaceId(to ?? '');
     const target = targetId ? store.resolve(targetId, r.tokenHash) : { status: 'notfound' };
     if (target.status !== 'ok') {
@@ -338,7 +338,7 @@ export async function buildApp(config) {
     }
     const dev = store.device(r.space.uid, r.tokenHash);
     try {
-      const res = store.transfer(r.space.uid, dev, { targetUid: target.space.uid, targetListId: listId, itemIds, groupId, mode });
+      const res = store.transfer(r.space.uid, dev, { targetUid: target.space.uid, targetListId: listId, itemIds, groupId, fromListId, mode });
       if (res.source.changes.length) hub.broadcast(r.space.uid, { t: 'patch', rev: res.source.rev, changes: res.source.changes });
       if (target.space.uid !== r.space.uid || res.target.changes.length) {
         hub.broadcast(target.space.uid, { t: 'patch', rev: res.target.rev, changes: res.target.changes });

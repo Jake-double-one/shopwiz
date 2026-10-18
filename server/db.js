@@ -88,6 +88,13 @@ CREATE TABLE IF NOT EXISTS items (
   PRIMARY KEY (space_uid, id)
 );
 CREATE INDEX IF NOT EXISTS items_list ON items(space_uid, list_id);
+CREATE TABLE IF NOT EXISTS merged_items (   -- an item added twice (offline) became another one
+  space_uid  INTEGER NOT NULL REFERENCES spaces(uid) ON DELETE CASCADE,
+  id         TEXT NOT NULL,
+  target     TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (space_uid, id)
+);
 CREATE TABLE IF NOT EXISTS memory (
   space_uid     INTEGER NOT NULL REFERENCES spaces(uid) ON DELETE CASCADE,
   scope         TEXT NOT NULL,     -- list id, or '' for the shared group set

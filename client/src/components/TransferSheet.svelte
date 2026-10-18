@@ -7,7 +7,7 @@
   import { knownSpaces } from '../lib/device.js';
   import { parseSpaceId, formatSpaceId } from '../../../shared/ids.js';
 
-  let { spaceId, itemIds = null, groupId = null, label, onclose } = $props();
+  let { spaceId, itemIds = null, groupId = null, fromListId = null, label, onclose } = $props();
 
   const known = knownSpaces();
   let targetInput = $state('');
@@ -40,7 +40,7 @@
     busy = true;
     error = '';
     try {
-      const r = await api.transfer(spaceId, { to: target.id, listId, itemIds, groupId, mode });
+      const r = await api.transfer(spaceId, { to: target.id, listId, itemIds, groupId, fromListId, mode });
       toast(t(mode === 'move' ? 'transfer.moved' : 'transfer.copied', { count: r.count, name: target.name }));
       onclose();
     } catch (e) {

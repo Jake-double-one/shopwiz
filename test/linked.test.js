@@ -53,7 +53,10 @@ describe('list groups (Listenverbund)', () => {
     expect(item('mince0001')).toMatchObject({ checked: true, checkedIn: conad });
     // finishing the shop in Lidl also moves the item bought at Conad to the inactive items
     op({ k: 'list.clearChecked', listId: lidl });
-    expect(item('mince0001')).toMatchObject({ checked: false, parked: true, checkedIn: null });
+    expect(item('mince0001')).toMatchObject({ checked: false, parked: true });
+    // undo ("put back checked") still knows where it was bought
+    op({ k: 'item.setState', ids: ['mince0001'], checked: true });
+    expect(item('mince0001')).toMatchObject({ checked: true, parked: false, checkedIn: conad });
   });
 
   it('keeps group and order per shop and learns them per shop', () => {

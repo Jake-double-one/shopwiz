@@ -303,7 +303,13 @@ export class Store {
       space: mapSpace(space),
       rev: space.rev,
       lists: db.q('SELECT * FROM lists WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid).map(mapList),
-      groups: db.q('SELECT * FROM groups WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid).map(mapGroup),
+      groups: db
+        .q(
+          `SELECT g.* FROM groups g WHERE g.space_uid = ? AND g.deleted_at IS NULL
+           AND (g.list_id IS NULL OR EXISTS (SELECT 1 FROM lists l WHERE l.space_uid = g.space_uid AND l.id = g.list_id AND l.deleted_at IS NULL)) ORDER BY g.pos`,
+        )
+        .all(uid)
+        .map(mapGroup),
       items: db
         .q(
           `SELECT i.* FROM items i JOIN lists l ON l.space_uid = i.space_uid AND l.id = i.list_id
@@ -390,22 +396,24 @@ export class Store {
       const now = Date.now();
       const publicId = this.generatePublicId();
       const { lastInsertRowid } = db
-        .q('INSERT INTO spaces (public_id, name, ttl_days, last_active_at, created_at) VALUES (?, ?, ?, ?, ?)')
-        .run(publicId, old.name, old.ttl_days, now, now);
+        .q('INSERT INTO spaces (public_id, name, ttl_days, rev, ai_write, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, now, now);
       const uid = Number(lastInsertRowid);
-      const copy = (table, cols) => {
-        db.q(
-          `INSERT INTO ${table} (space_uid, ${cols}) SELECT ?, ${cols} FROM ${table} WHERE space_uid = ?${
-            ['lists', 'groups', 'items'].includes(table) ? ' AND deleted_at IS NULL' : ''
-          }`,
-        ).run(uid, oldUid);
+      // only what was still there: rows of deleted lists stay behind
+      const live = {
+        lists: ' AND deleted_at IS NULL',
+        groups: ` AND deleted_at IS NULL AND (list_id IS NULL OR list_id IN (SELECT id FROM lists WHERE space_uid = ${Number(oldUid)} AND deleted_at IS NULL))`,
+        items: ` AND deleted_at IS NULL AND list_id IN (SELECT id FROM lists WHERE space_uid = ${Number(oldUid)} AND deleted_at IS NULL)`,
       };
-      copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, link_id, created_at');
+      const copy = (table, cols) => {
+        db.q(`INSERT INTO ${table} (space_uid, ${cols}) SELECT ?, ${cols} FROM ${table} WHERE space_uid = ?${live[table] ?? ''}`).run(uid, oldUid);
+      };
+      copy('lists', 'id, name, pos, group_mode, address, travel_country, travel_lang, prio_shortcuts, link_id, created_at');
       copy('groups', 'id, list_id, parent_id, name, pos, created_at');
       copy('items', 'id, list_id, group_id, name, norm, qty, unit, note, checked, parked, prio, shared, checked_in, places, bought, checked_by, added_by, pos, meta, created_at');
       copy('memory', 'scope, norm, group_name, subgroup_name, updated_at');
       copy('suggestions', 'norm, name, uses, last_used_at');
-      copy('translations', 'norm, lang, text, auto, updated_at');
+      copy('translations', 'norm, lang, text, auto, provider, updated_at');
       db.q('INSERT OR REPLACE INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, ?, ?, ?)').run(`c:${oldUid}`, uid, 'continued', now);
       this.joinDevice(uid, tokenHash, deviceName);
       return publicId;
@@ -473,9 +481,11 @@ export class Store {
       db.q('DELETE FROM items WHERE deleted_at IS NOT NULL AND deleted_at < ?').run(cutoff);
       db.q('DELETE FROM groups WHERE deleted_at IS NOT NULL AND deleted_at < ?').run(cutoff);
       db.q('DELETE FROM items WHERE EXISTS (SELECT 1 FROM lists l WHERE l.space_uid = items.space_uid AND l.id = items.list_id AND l.deleted_at < ?)').run(cutoff);
+      db.q('DELETE FROM groups WHERE list_id IS NOT NULL AND EXISTS (SELECT 1 FROM lists l WHERE l.space_uid = groups.space_uid AND l.id = groups.list_id AND l.deleted_at < ?)').run(cutoff);
       db.q('DELETE FROM lists WHERE deleted_at IS NOT NULL AND deleted_at < ?').run(cutoff);
       db.q('DELETE FROM conflicts WHERE created_at < ?').run(cutoff);
       db.q('DELETE FROM applied_ops WHERE created_at < ?').run(cutoff);
+      db.q('DELETE FROM merged_items WHERE created_at < ?').run(cutoff);
     });
     return out;
   }
@@ -516,8 +526,12 @@ export class Store {
     if (!l || l.deleted_at) throw new OpError('notfound', 'list not found');
     return l;
   }
+  /** An id that was merged into another item (added twice while offline) → that item's id. */
+  _realId(uid, id) {
+    return this.db.q('SELECT target FROM merged_items WHERE space_uid = ? AND id = ?').get(uid, id)?.target ?? id;
+  }
   _item(uid, id, { allowDeleted = false } = {}) {
-    const it = this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ?').get(uid, id);
+    const it = this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ?').get(uid, this._realId(uid, id));
     if (!it || (it.deleted_at && !allowDeleted)) throw new OpError(it ? 'deleted' : 'notfound', 'item not found');
     return it;
   }
@@ -907,7 +921,8 @@ const OPS = {
         parked: !!r.parked,
         prio: r.prio,
       });
-      if (r.checked) db.q('UPDATE items SET checked_by = ? WHERE space_uid = ? AND id = ?').run(r.checked_by, ctx.uid, copyId);
+      // the copy keeps who checked it and how often it was bought
+      db.q('UPDATE items SET checked_by = ?, bought = ? WHERE space_uid = ? AND id = ?').run(r.checked ? r.checked_by : null, r.bought ?? 0, ctx.uid, copyId);
       this._pushItem(ctx, copyId);
       copies++;
       delete places[list.id];
@@ -957,6 +972,9 @@ const OPS = {
     const id = eid(op.id);
     const list = this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, id);
     if (!list) throw new OpError('notfound', 'list not found');
+    if (list.deleted_at && this.db.q('SELECT COUNT(*) AS c FROM lists WHERE space_uid = ? AND deleted_at IS NULL').get(ctx.uid).c >= LIMITS.listsPerSpace) {
+      throw new OpError('limit', 'too many lists');
+    }
     this.db.q('UPDATE lists SET deleted_at = NULL WHERE space_uid = ? AND id = ?').run(ctx.uid, id);
     this._pushList(ctx, id);
     // the client never saw items/groups of a deleted list after reload – resend them
@@ -973,7 +991,8 @@ const OPS = {
     const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
     for (const r of rows) {
       const meta = { ...JSON.parse(r.meta), checked: entry, parked: entry };
-      this.db.q('UPDATE items SET checked = 0, checked_by = NULL, checked_in = NULL, parked = 1, meta = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(meta), ctx.uid, r.id);
+      // checked_by / checked_in stay: undo puts back who bought it where
+      this.db.q('UPDATE items SET checked = 0, parked = 1, meta = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(meta), ctx.uid, r.id);
       this._pushItem(ctx, r.id);
     }
     if (rows.length) this._act(ctx, list.id, 'list.clearChecked', { count: rows.length, names: rows.slice(0, 20).map((r) => r.name) });
@@ -995,7 +1014,7 @@ const OPS = {
 
   /** Set checked/parked for several items at once (used to undo "clear checked"). */
   'item.setState'(ctx, op) {
-    const ids = idList(op.ids);
+    const ids = idList(op.ids).map((id) => this._realId(ctx.uid, id));
     const checked = !!op.checked;
     const parked = !!op.parked && !checked;
     const entry = { v: ctx.rev, at: ctx.at, by: ctx.dev.dev_id };
@@ -1062,7 +1081,11 @@ const OPS = {
       const placed = this.db.q("SELECT id, places FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND places LIKE ?").all(ctx.uid, `%${gid}%`);
       for (const it of placed) {
         const places = JSON.parse(it.places);
-        for (const p of Object.values(places)) if (p.groupId === gid) p.groupId = null;
+        for (const [listId, p] of Object.entries(places)) {
+          if (p.groupId !== gid) continue;
+          p.groupId = null;
+          moves.push({ id: it.id, groupId: gid, listId });
+        }
         this.db.q('UPDATE items SET places = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(places), ctx.uid, it.id);
         this._pushItem(ctx, it.id);
       }
@@ -1079,6 +1102,18 @@ const OPS = {
       if (this.db.q('UPDATE groups SET deleted_at = NULL WHERE space_uid = ? AND id = ? RETURNING id').get(ctx.uid, id)) this._pushGroup(ctx, id);
     }
     for (const m of Array.isArray(op.moves) ? op.moves.slice(0, LIMITS.itemsPerList) : []) {
+      if (m?.listId) {
+        // the place of a shared item in another shop of the list group
+        const it = this.db.q('SELECT places FROM items WHERE space_uid = ? AND id = ? AND deleted_at IS NULL').get(ctx.uid, eid(m.id));
+        const places = it ? JSON.parse(it.places || '{}') : {};
+        const l = it && places[m.listId] && this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, eid(m.listId, 'listId'));
+        const gid = l && !places[m.listId].groupId ? this._validGroup(ctx.uid, l, eid(m.groupId)) : null;
+        if (!gid) continue;
+        places[m.listId] = { ...places[m.listId], groupId: gid };
+        this.db.q('UPDATE items SET places = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(places), ctx.uid, m.id);
+        this._pushItem(ctx, m.id);
+        continue;
+      }
       const it = this.db.q('SELECT list_id FROM items WHERE space_uid = ? AND id = ? AND group_id IS NULL AND deleted_at IS NULL').get(ctx.uid, eid(m.id));
       const list = it && this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, it.list_id);
       // only back into a group of the item's own list
@@ -1110,6 +1145,8 @@ const OPS = {
         this._suggest(ctx, name, norm);
         this._act(ctx, list.id, 'item.merge', { name: dup.name, qty: sum.qty, unit: sum.unit });
         ctx.changes.push({ e: 'item', del: id }); // drop the optimistic copy everywhere
+        // later ops of the device for its copy (e.g. checked off while still offline) reach this one
+        this.db.q('INSERT OR REPLACE INTO merged_items (space_uid, id, target, created_at) VALUES (?, ?, ?, ?)').run(ctx.uid, id, dup.id, ctx.now);
         return { merged: dup.id };
       }
     }
@@ -1180,7 +1217,7 @@ const OPS = {
   },
 
   'item.set'(ctx, op) {
-    const id = eid(op.id);
+    const id = this._realId(ctx.uid, eid(op.id));
     const item = this._item(ctx.uid, id, { allowDeleted: true });
     if (item.deleted_at) {
       // Delete wins. Keep the lost edit in the history so it can be restored from there.
@@ -1275,6 +1312,8 @@ const OPS = {
     if (updates.checked) set('bought', (item.bought ?? 0) + 1);
     if ('parked' in updates) set('parked', updates.parked ? 1 : 0);
     if (updates.parked && !('checked' in updates) && item.checked) set('checked', 0), set('checked_by', null), set('checked_in', null);
+    // checked off means it is on the list again (someone else may have moved it to "inactive" meanwhile)
+    if (updates.checked && !('parked' in updates) && item.parked) set('parked', 0);
     if (share === true) set('shared', 1);
     else if (share === false) {
       set('shared', 0);
@@ -1320,13 +1359,13 @@ const OPS = {
     if ('groupId' in updates) this._act(ctx, list.id, 'item.move', { name, to: this._groupPath(ctx.uid, updates.groupId) });
     if (placeGroup !== undefined) this._act(ctx, view.id, 'item.move', { name, to: this._groupPath(ctx.uid, placeGroup) });
 
-    for (const c of conflicts) recordConflict.call(this, ctx, item, c);
+    for (const c of conflicts) recordConflict.call(this, ctx, item, c, view.id);
     this._pushItem(ctx, id);
     return conflicts.length ? { conflicts: conflicts.length } : {};
   },
 
   'item.delete'(ctx, op) {
-    const ids = idList(op.ids);
+    const ids = idList(op.ids).map((id) => this._realId(ctx.uid, id));
     const done = [];
     for (const id of ids) {
       const r = this.db.q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND id = ? AND deleted_at IS NULL RETURNING id, name, list_id').get(ctx.now, ctx.uid, id);
@@ -1335,7 +1374,9 @@ const OPS = {
       ctx.changes.push({ e: 'item', del: id });
       this._dropConflicts(ctx, id);
     }
-    if (done.length) this._act(ctx, done[0].list_id, 'item.delete', { names: done.slice(0, 20).map((r) => r.name), count: done.length, ids: done.map((r) => r.id) });
+    // the history of the list it was deleted in (a shared item of a list group may live elsewhere)
+    const where = op.listId && this.db.q('SELECT id FROM lists WHERE space_uid = ? AND id = ?').get(ctx.uid, String(op.listId)) ? String(op.listId) : done[0]?.list_id;
+    if (done.length) this._act(ctx, where, 'item.delete', { names: done.slice(0, 20).map((r) => r.name), count: done.length, ids: done.map((r) => r.id) });
     return { ids: done.map((r) => r.id) };
   },
 
@@ -1425,7 +1466,7 @@ const OPS = {
         this.db.q('UPDATE items SET prio = ?, meta = ? WHERE space_uid = ? AND id = ?').run(prioOf(v), JSON.stringify(meta), ctx.uid, item.id);
         break;
       case 'checked':
-        this.db.q('UPDATE items SET checked = ?, checked_by = ?, checked_in = ?, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? choice.byName : null, v ? item.list_id : null, JSON.stringify(meta), ctx.uid, item.id);
+        this.db.q('UPDATE items SET checked = ?, checked_by = ?, checked_in = ?, parked = CASE WHEN ? THEN 0 ELSE parked END, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? choice.byName : null, v ? item.list_id : null, v ? 1 : 0, JSON.stringify(meta), ctx.uid, item.id);
         break;
       case 'parked':
         this.db.q('UPDATE items SET parked = ?, checked = CASE WHEN ? THEN 0 ELSE checked END, meta = ? WHERE space_uid = ? AND id = ?').run(v ? 1 : 0, v ? 1 : 0, JSON.stringify(meta), ctx.uid, item.id);
@@ -1475,7 +1516,7 @@ const OPS = {
   },
 };
 
-function recordConflict(ctx, item, c) {
+function recordConflict(ctx, item, c, listId = item.list_id) {
   const existing = this.db.q('SELECT * FROM conflicts WHERE space_uid = ? AND item_id = ? AND field = ?').get(ctx.uid, item.id, c.field);
   let options = c.options;
   let id = newEntityId();
@@ -1499,9 +1540,9 @@ function recordConflict(ctx, item, c) {
       `INSERT INTO conflicts (space_uid, id, list_id, item_id, field, options, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(space_uid, id) DO UPDATE SET options = excluded.options`,
     )
-    .run(ctx.uid, id, item.list_id, item.id, c.field, JSON.stringify(options), ctx.now);
+    .run(ctx.uid, id, listId, item.id, c.field, JSON.stringify(options), ctx.now);
   ctx.changes.push({ e: 'conflict', row: mapConflict(this.db.q('SELECT * FROM conflicts WHERE space_uid = ? AND id = ?').get(ctx.uid, id)) });
-  this._act(ctx, item.list_id, 'conflict', { name: item.name, field: c.field });
+  this._act(ctx, listId, 'conflict', { name: item.name, field: c.field });
 }
 
 /** Move a list between its own group set and the space's shared set, matching groups by name. */
@@ -1519,6 +1560,15 @@ function switchGroupMode(ctx, list, mode) {
   const items = db.q('SELECT id, group_id FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL AND group_id IS NOT NULL').all(ctx.uid, list.id);
   for (const it of items) {
     db.q('UPDATE items SET group_id = ? WHERE space_uid = ? AND id = ?').run(map.get(it.group_id) ?? null, ctx.uid, it.id);
+    this._pushItem(ctx, it.id);
+  }
+  // shared items of a list group placed in this list
+  for (const it of db.q("SELECT id, places FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND list_id != ? AND places LIKE ?").all(ctx.uid, list.id, `%${list.id}%`)) {
+    const places = JSON.parse(it.places);
+    const p = places[list.id];
+    if (!p?.groupId) continue;
+    places[list.id] = { ...p, groupId: map.get(p.groupId) ?? null };
+    db.q('UPDATE items SET places = ? WHERE space_uid = ? AND id = ?').run(JSON.stringify(places), ctx.uid, it.id);
     this._pushItem(ctx, it.id);
   }
   if (mode === 'shared') {
@@ -1546,18 +1596,27 @@ function switchGroupMode(ctx, list, mode) {
  * Copy or move items (or a whole group) into a list of another space.
  * Returns { source: {changes, rev}, target: {uid, changes, rev}, count }.
  */
-Store.prototype.transfer = function transfer(srcUid, device, { targetUid, targetListId, itemIds, groupId, mode }) {
+Store.prototype.transfer = function transfer(srcUid, device, { targetUid, targetListId, itemIds, groupId, fromListId, mode }) {
   const { db } = this;
   const now = Date.now();
   if (!['copy', 'move'].includes(mode)) throw new OpError('invalid', 'mode');
   return db.tx(() => {
     let items;
     let groupIds = [];
+    let ownGroup = false; // a group of the list itself (not the space's shared set) – moved along
+    // where an item sits in the list it is sent from (a shared item of a list group: its place there)
+    let fromList = null;
+    const groupIn = (it) => (!fromList || it.list_id === fromList.id ? it.group_id : (JSON.parse(it.places || '{}')[fromList.id]?.groupId ?? null));
     if (groupId) {
       const g = this._group(srcUid, eid(groupId, 'groupId'));
       if (!g) throw new OpError('notfound', 'group not found');
       groupIds = [g.id, ...db.q('SELECT id FROM groups WHERE space_uid = ? AND parent_id = ? AND deleted_at IS NULL').all(srcUid, g.id).map((r) => r.id)];
-      items = groupIds.flatMap((gid) => db.q('SELECT * FROM items WHERE space_uid = ? AND group_id = ? AND deleted_at IS NULL ORDER BY pos').all(srcUid, gid));
+      ownGroup = g.list_id !== null;
+      // only the items of one list – a group of the shared set is used by other lists, too
+      fromList = fromListId ? this._list(srcUid, eid(fromListId, 'fromListId')) : g.list_id ? this._list(srcUid, g.list_id) : null;
+      if (!fromList) throw new OpError('invalid', 'fromListId required');
+      const ids = new Set(groupIds);
+      items = this._visibleItems(srcUid, fromList).filter((it) => ids.has(groupIn(it)));
     } else {
       items = idList(itemIds).map((id) => this._item(srcUid, id));
     }
@@ -1569,10 +1628,10 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
     const maxPos = db.q('SELECT COALESCE(MAX(pos), 0) AS m FROM items WHERE space_uid = ? AND list_id = ?').get(targetUid, tList.id).m;
     let i = 0;
     for (const it of items) {
-      const path = this._groupPath(srcUid, it.group_id);
+      const path = this._groupPath(srcUid, groupIn(it));
       const gid = this._ensurePath(tctx, tList, path.group, path.subgroup);
       const id = newEntityId();
-      const norm = this._insertItem(tctx, tList, { id, groupId: gid, name: it.name, qty: it.qty, unit: it.unit, note: it.note, pos: maxPos + ++i, checked: !!it.checked, prio: it.prio });
+      const norm = this._insertItem(tctx, tList, { id, groupId: gid, name: it.name, qty: it.qty, unit: it.unit, note: it.note, pos: maxPos + ++i, checked: !!it.checked, parked: !!it.parked, prio: it.prio });
       this._pushItem(tctx, id);
       if (gid) this._learn(tctx, tList, norm, gid);
       this._suggest(tctx, it.name, norm);
@@ -1587,7 +1646,7 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
         sctx.changes.push({ e: 'item', del: it.id });
         this._dropConflicts(sctx, it.id);
       }
-      for (const gid of groupIds) {
+      for (const gid of ownGroup ? groupIds : []) {
         db.q('UPDATE groups SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(now, srcUid, gid);
         sctx.changes.push({ e: 'group', del: gid });
       }

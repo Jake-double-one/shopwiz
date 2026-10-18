@@ -25,7 +25,7 @@
   import { sync } from '../lib/sync.svelte.js';
   import { t, relTime } from '../lib/i18n.svelte.js';
   import { load, save } from '../lib/storage.js';
-  import { sortedLists, progress, isShopping, listItems, listTree, translationOf, viewItem, linkedLists } from '../lib/model.js';
+  import { sortedLists, progress, isShopping, listItems, listTree, translationOf, viewItem, linkedLists, showsItem } from '../lib/model.js';
   import { setShopping, restoreItems, addList, finishShopping, pendingLinks, undoLink } from '../lib/actions.js';
   import { prefs, setHideChecked, setFocus } from '../lib/prefs.svelte.js';
   import { navUrl } from '../lib/nav.js';
@@ -55,7 +55,7 @@
   });
 
   const prog = $derived(list ? progress(v, list.id) : { done: 0, total: 0 });
-  const conflicts = $derived(list ? Object.values(v.conflicts).filter((c) => c.listId === list.id && v.items[c.itemId]) : []);
+  const conflicts = $derived(list ? Object.values(v.conflicts).filter((c) => v.items[c.itemId] && showsItem(v, list, v.items[c.itemId])) : []);
   const devices = $derived(Object.values(v.devices));
   const myDevId = $derived(sync.me?.devId);
 
@@ -517,7 +517,7 @@
       {list}
       group={sheet.groupId ? v.groups[sheet.groupId] : null}
       onclose={closeSheet}
-      ontransfer={(g) => open('transfer', { groupId: g.id, label: g.name })}
+      ontransfer={(g) => open('transfer', { groupId: g.id, fromListId: list.id, label: g.name })}
       oncreated={(gid, name) => {
         // a new group is empty, so it would sit in the inactive part – aim the input at it instead
         addTarget = gid;
@@ -541,7 +541,7 @@
   {:else if sheet?.kind === 'backup'}
     <BackupSheet spaceId={sync.spaceId} {v} {list} onclose={closeSheet} {onopen} />
   {:else if sheet?.kind === 'transfer'}
-    <TransferSheet spaceId={sync.spaceId} itemIds={sheet.itemIds} groupId={sheet.groupId} label={sheet.label} onclose={closeSheet} />
+    <TransferSheet spaceId={sync.spaceId} itemIds={sheet.itemIds} groupId={sheet.groupId} fromListId={sheet.fromListId} label={sheet.label} onclose={closeSheet} />
   {/if}
 {/if}
 
