@@ -89,7 +89,14 @@
     const groupId = to.group || null;
     const toParked = !!to.parked;
     const target = itemsIn(groupId, toParked).filter((i) => i.id !== id);
-    const pos = dropPos({ ...item, parked: toParked }, target, newIndex);
+    let pos = dropPos({ ...item, parked: toParked }, target, newIndex);
+    if (pos === null) {
+      // after very many moves into the same spot: fresh positions 1, 2, 3 … for the block, same order
+      const order = [...target];
+      order.splice(newIndex, 0, item);
+      order.forEach((it, i) => it.id !== item.id && it.pos !== i + 1 && editItem(it, { pos: i + 1 }));
+      pos = newIndex + 1;
+    }
     const fields = { pos };
     if ((item.groupId ?? null) !== groupId) fields.groupId = groupId;
     if (toParked !== !!item.parked) Object.assign(fields, toParked ? { parked: true, checked: false } : { parked: false });

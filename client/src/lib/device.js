@@ -37,10 +37,15 @@ export function suggestDeviceName() {
 export const knownSpaces = () => load('spaces', []);
 export const currentSpace = () => load('current', null);
 
+/** Everything a device keeps per ID */
+const PER_SPACE = ['snap', 'pending', 'signals', 'list', 'shopSince'];
+
 export function rememberSpace(id, name) {
   const list = knownSpaces().filter((s) => s.id !== id);
   list.unshift({ id, name, lastUsed: Date.now() });
   save('spaces', list.slice(0, 20));
+  // IDs that fall off the list take their cached data with them
+  for (const s of list.slice(20)) for (const k of PER_SPACE) remove(`${k}.${s.id}`);
   save('current', id);
 }
 
@@ -51,7 +56,7 @@ export function renameKnown(id, name) {
 export function replaceKnown(oldId, newId) {
   save('spaces', knownSpaces().map((s) => (s.id === oldId ? { ...s, id: newId } : s)));
   if (currentSpace() === oldId) save('current', newId);
-  for (const k of ['snap', 'pending', 'list', 'shopSince']) {
+  for (const k of PER_SPACE) {
     const v = load(`${k}.${oldId}`);
     if (v) save(`${k}.${newId}`, v);
     remove(`${k}.${oldId}`);
@@ -62,9 +67,7 @@ export function replaceKnown(oldId, newId) {
 export function forgetSpace(id) {
   save('spaces', knownSpaces().filter((s) => s.id !== id));
   if (currentSpace() === id) remove('current');
-  remove(`snap.${id}`);
-  remove(`pending.${id}`);
-  remove(`signals.${id}`);
+  for (const k of PER_SPACE) remove(`${k}.${id}`);
 }
 
 export const clearCurrent = () => remove('current');

@@ -4,7 +4,8 @@ import { normalizeName } from '../../../shared/parse.js';
 import { randomEntityId } from '../../../shared/ids.js';
 
 export const newId = () => randomEntityId((b) => crypto.getRandomValues(b));
-const SHOPPING_MS = 2 * 3_600_000;
+/** check-in ends after this long without activity (the server's default; it sends the real time right after) */
+const SHOPPING_MS = 60 * 60_000;
 
 /** How long a signal waits for a connection – the same time the server keeps it for others. */
 const SIGNAL_WAIT_MS = 30 * 60_000;
@@ -109,19 +110,33 @@ function reduce(v, op, at, me) {
           ...(op.address !== undefined && { address: op.address }),
           ...(op.travel !== undefined && { travel: op.travel }),
           ...(op.prioShortcuts !== undefined && { prioShortcuts: !!op.prioShortcuts }),
+          ...(op.groupMode !== undefined && { groupMode: op.groupMode === 'shared' ? 'shared' : 'own' }),
         };
       }
       break;
     }
-    case 'list.delete':
+    case 'list.delete': {
+      const l = v.lists[op.id];
+      // in a list group its shared items stay with the others (as the server does it)
+      const rest = l?.linkId ? Object.values(v.lists).filter((x) => x.linkId === l.linkId && x.id !== l.id).sort((a, b) => a.pos - b.pos) : [];
+      if (rest.length) {
+        for (const it of Object.values(v.items)) {
+          if (it.listId !== l.id || !it.shared) continue;
+          const home = rest[0];
+          const { [home.id]: place, ...places } = it.places ?? {};
+          v.items[it.id] = { ...it, listId: home.id, groupId: place?.groupId ?? null, pos: place?.pos ?? it.pos, places, shared: rest.length > 1 };
+        }
+        if (rest.length === 1) v.lists[rest[0].id] = { ...rest[0], linkId: null };
+      }
       delete v.lists[op.id];
       break;
+    }
     case 'list.restore':
       if (op.row) v.lists[op.id] = op.row;
       break;
     case 'list.clearChecked':
       for (const it of Object.values(v.items)) {
-        if (shows(v, op.listId, it) && it.checked && !it.parked) v.items[it.id] = { ...it, checked: false, checkedBy: null, checkedIn: null, parked: true };
+        if (shows(v, op.listId, it) && it.checked && !it.parked) v.items[it.id] = { ...it, checked: false, parked: true };
       }
       break;
     case 'list.clearParked':
@@ -151,12 +166,22 @@ function reduce(v, op, at, me) {
     case 'group.delete': {
       const ids = new Set([op.id, ...Object.values(v.groups).filter((g) => g.parentId === op.id).map((g) => g.id)]);
       for (const id of ids) delete v.groups[id];
-      for (const it of Object.values(v.items)) if (ids.has(it.groupId)) v.items[it.id] = { ...it, groupId: null };
+      for (const it of Object.values(v.items)) {
+        const places = Object.entries(it.places ?? {}).some(([, p]) => ids.has(p?.groupId))
+          ? Object.fromEntries(Object.entries(it.places).map(([l, p]) => [l, ids.has(p?.groupId) ? { ...p, groupId: null } : p]))
+          : it.places;
+        if (ids.has(it.groupId) || places !== it.places) v.items[it.id] = { ...it, groupId: ids.has(it.groupId) ? null : it.groupId, places };
+      }
       break;
     }
     case 'group.restore':
       for (const r of op.rows ?? []) v.groups[r.id] = r;
-      for (const m of op.moves ?? []) if (v.items[m.id]) v.items[m.id] = { ...v.items[m.id], groupId: m.groupId };
+      for (const m of op.moves ?? []) {
+        const it = v.items[m.id];
+        if (!it) continue;
+        if (m.listId) v.items[m.id] = { ...it, places: { ...it.places, [m.listId]: { ...(it.places?.[m.listId] ?? { pos: it.pos }), groupId: m.groupId } } };
+        else v.items[m.id] = { ...it, groupId: m.groupId };
+      }
       break;
     case 'item.add': {
       v.items[op.id] = {
@@ -269,7 +294,7 @@ function reduce(v, op, at, me) {
       delete v.devices[op.devId];
       break;
     case 'device.shopping':
-      if (me && v.devices[me.devId]) v.devices[me.devId] = { ...v.devices[me.devId], shoppingUntil: op.on ? at + SHOPPING_MS : null };
+      if (me && v.devices[me.devId]) v.devices[me.devId] = { ...v.devices[me.devId], shoppingUntil: op.on ? at + SHOPPING_MS : null, spot: null };
       break;
     default:
       break;

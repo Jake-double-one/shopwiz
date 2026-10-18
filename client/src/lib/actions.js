@@ -8,6 +8,17 @@ import { groupSet, learnedPlacement, findGroupByName, endPos, listItems, transla
 
 const v = () => sync.data;
 const undoToast = (text, undo) => toast({ text, action: { label: t('undo'), run: undo } });
+/** The item as it is now, still seen from the same list (a shared item of a list group: that shop) */
+const current = (item) => ({ ...(sync.data.items[item.id] ?? item), ...(item.view && { view: item.view }) });
+/** The stored item without the view of one list – for restoring it as it was */
+const stored = (item) => {
+  const { view: _v, ...row } = sync.data.items[item.id] ?? item;
+  return { ...row };
+};
+/** Ops with id lists are limited to 300 ids – bigger undos go in parts */
+const inParts = (ids, send) => {
+  for (let i = 0; i < ids.length; i += 300) send(ids.slice(i, i + 300));
+};
 
 function baseOf(item, fields) {
   const base = {};
@@ -74,7 +85,7 @@ export function addEntry(listId, raw, opts = {}) {
       const fields = { ...(done.parked ? { parked: false } : { checked: false }), ...detailFields(done, parsed, opts, note) };
       editItem(done, fields, { silent: true });
       const back = { ...(done.parked ? { parked: true } : { checked: true }), ...previous(done, fields) };
-      if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(sync.data.items[done.id] ?? done, back, { silent: true }));
+      if (!opts.quiet) undoToast(t('toast.reactivated', { name: done.name }), () => editItem(current(done), back, { silent: true }));
       return { status: 'reactivated', item: done };
     }
   }
@@ -128,7 +139,7 @@ export function increaseAmount(item, parsed, extra = null) {
   const fields = { amount: sum, ...more };
   const before = previous(item, fields);
   editItem(item, fields, { silent: true });
-  undoToast(t('toast.amountIncreased', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, before, { silent: true }));
+  undoToast(t('toast.amountIncreased', { name: item.name }), () => editItem(current(item), before, { silent: true }));
 }
 
 /** item.view: the list it is shown in – for a shared item of a list group that shop's place and "bought at". */
@@ -149,11 +160,14 @@ export function moveItem(item, groupId, pos) {
 
 export function deleteItems(items) {
   if (!items.length) return;
-  const rows = items.map((i) => ({ ...i }));
-  sync.send({ k: 'item.delete', ids: rows.map((r) => r.id) });
-  undoToast(rows.length === 1 ? t('toast.deleted', { name: rows[0].name }) : t('toast.deletedMany', { count: rows.length }), () =>
-    sync.send({ k: 'item.restore', ids: rows.map((r) => r.id), rows }),
-  );
+  const rows = items.map(stored);
+  const where = items[0].view;
+  inParts(rows.map((r) => r.id), (ids) => sync.send({ k: 'item.delete', ids, ...(where && { listId: where }) }));
+  undoToast(rows.length === 1 ? t('toast.deleted', { name: rows[0].name }) : t('toast.deletedMany', { count: rows.length }), () => restoreRows(rows));
+}
+
+function restoreRows(rows) {
+  inParts(rows.map((r) => r.id), (ids) => sync.send({ k: 'item.restore', ids, rows: rows.filter((r) => ids.includes(r.id)) }));
 }
 
 export function restoreItems(ids) {
@@ -165,21 +179,21 @@ export function clearChecked(listId) {
   const ids = listItems(v(), listId).filter((i) => i.checked && !i.parked).map((i) => i.id);
   if (!ids.length) return;
   sync.send({ k: 'list.clearChecked', listId });
-  undoToast(t('toast.cleared', { count: ids.length }), () => sync.send({ k: 'item.setState', ids, checked: true }));
+  undoToast(t('toast.cleared', { count: ids.length }), () => inParts(ids, (part) => sync.send({ k: 'item.setState', ids: part, checked: true })));
 }
 
 export function clearParked(listId) {
-  const rows = listItems(v(), listId).filter((i) => i.parked).map((i) => ({ ...i }));
+  const rows = listItems(v(), listId).filter((i) => i.parked).map(stored);
   if (!rows.length) return;
   sync.send({ k: 'list.clearParked', listId });
-  undoToast(t('toast.deletedMany', { count: rows.length }), () => sync.send({ k: 'item.restore', ids: rows.map((r) => r.id), rows }));
+  undoToast(t('toast.deletedMany', { count: rows.length }), () => restoreRows(rows));
 }
 
 /** Move an item to the inactive items, or back onto the list. */
 export function setParked(item, parked, { undo = false } = {}) {
   const before = { parked: !!item.parked, checked: !!item.checked };
   editItem(item, parked ? { parked: true, checked: false } : { parked: false });
-  if (undo) undoToast(t(parked ? 'toast.parked' : 'toast.unparked', { name: item.name }), () => editItem(sync.data.items[item.id] ?? item, before));
+  if (undo) undoToast(t(parked ? 'toast.parked' : 'toast.unparked', { name: item.name }), () => editItem(current(item), before));
 }
 
 /** Done shopping: checked items become inactive, the check-in ends. */
@@ -187,7 +201,7 @@ export function finishShopping(listId, { checkOut = false } = {}) {
   const ids = listItems(v(), listId).filter((i) => i.checked && !i.parked).map((i) => i.id);
   if (ids.length) sync.send({ k: 'list.clearChecked', listId });
   if (checkOut) setShopping(false);
-  if (ids.length) undoToast(t('shopping.finished', { count: ids.length }), () => sync.send({ k: 'item.setState', ids, checked: true }));
+  if (ids.length) undoToast(t('shopping.finished', { count: ids.length }), () => inParts(ids, (part) => sync.send({ k: 'item.setState', ids: part, checked: true })));
   else toast(t('shopping.finishedEmpty'));
 }
 
@@ -295,7 +309,8 @@ export async function translateNames(names, lang, { force = false } = {}) {
 }
 
 export function deleteList(list, onUndo) {
-  const row = { ...list };
+  // a deleted list leaves its list group – it comes back on its own
+  const row = { ...list, linkId: null };
   sync.send({ k: 'list.delete', id: list.id });
   undoToast(t('toast.listDeleted', { name: list.name }), () => {
     sync.send({ k: 'list.restore', id: row.id, row });
@@ -320,7 +335,12 @@ export function deleteGroup(group) {
   const all = Object.values(v().groups);
   const rows = [group, ...all.filter((g) => g.parentId === group.id)].map((g) => ({ ...g }));
   const ids = new Set(rows.map((r) => r.id));
-  const moves = Object.values(v().items).filter((i) => ids.has(i.groupId)).map((i) => ({ id: i.id, groupId: i.groupId }));
+  const moves = [];
+  for (const i of Object.values(v().items)) {
+    if (ids.has(i.groupId)) moves.push({ id: i.id, groupId: i.groupId });
+    // shared items of a list group placed in this group in another shop
+    for (const [listId, p] of Object.entries(i.places ?? {})) if (ids.has(p?.groupId)) moves.push({ id: i.id, groupId: p.groupId, listId });
+  }
   sync.send({ k: 'group.delete', id: group.id });
   undoToast(t('toast.groupDeleted', { name: group.name }), () => sync.send({ k: 'group.restore', ids: [...ids], rows, moves }));
 }

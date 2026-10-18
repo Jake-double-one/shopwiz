@@ -1344,3 +1344,32 @@ test('long press on + with a finger: Android breaking in after 0.4 s and an open
   await expect(dialog).toHaveCount(0);
   await ctx.close();
 });
+
+test('list group: undoing a group delete puts a shared item back into that shop\'s group, also after reload', async ({ page }) => {
+  await createList(page, 'Lidl');
+  await add(page, 'Milk');
+  await page.locator('.list-title').click();
+  await page.getByLabel('New list').fill('Conad');
+  await page.getByRole('button', { name: 'Create list' }).click();
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByRole('checkbox', { name: 'Lidl' }).click();
+  await page.getByRole('button', { name: 'Yes, share' }).click();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  // Conad has its own group "Dairy" for the shared Milk
+  await page.getByRole('button', { name: 'Add group' }).last().click();
+  await page.getByLabel('Name').fill('Dairy');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Edit Milk' }).click();
+  await page.getByRole('combobox', { name: 'Group', exact: true }).selectOption({ label: 'Dairy' });
+  await page.getByRole('button', { name: 'Done' }).click();
+  const inDairy = () => page.locator('.group', { hasText: 'Dairy' }).locator('.item', { hasText: 'Milk' });
+  await expect(inDairy()).toHaveCount(1);
+  await page.getByRole('button', { name: 'Options for Dairy' }).first().click();
+  await page.getByRole('button', { name: 'Delete group' }).click();
+  await expect(inDairy()).toHaveCount(0);
+  await page.locator('.toast', { hasText: 'Dairy' }).getByRole('button', { name: 'Undo' }).click();
+  await expect(inDairy()).toHaveCount(1);
+  await page.waitForTimeout(500);
+  await page.reload();
+  await expect(inDairy()).toHaveCount(1);
+});

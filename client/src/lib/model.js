@@ -102,13 +102,20 @@ export function listTree(v, list) {
 export const orderBand = (it) => (it.parked ? 'p' : it.checked ? 'c' : `o${it.prio ?? 0}`);
 
 /** Position for an item dropped at index in a container shown in order (the item itself not included). */
+/** Is there no room left between the neighbours? Then the block gets fresh positions 1, 2, 3 … */
+export function noRoom(pos, before, after) {
+  return (before != null && pos <= before) || (after != null && pos >= after);
+}
+
 export function dropPos(item, shown, index) {
   const band = orderBand(item);
   let before = null;
   let after = null;
   for (let i = index - 1; i >= 0; i--) if (orderBand(shown[i]) === band) { before = shown[i].pos; break; }
   for (let i = index; i < shown.length; i++) if (orderBand(shown[i]) === band) { after = shown[i].pos; break; }
-  return posBetween(before, after);
+  const pos = posBetween(before, after);
+  // null: the gap is used up – the caller numbers the block afresh
+  return noRoom(pos, before, after) ? null : pos;
 }
 
 /** Everything a list shows (as shown there): its own items and the shared ones of its list group. */
@@ -136,7 +143,8 @@ export function endPos(items) {
 }
 
 export function posBetween(before, after) {
-  if (before == null && after == null) return Date.now();
+  // small numbers: halving a gap works 50 times before two positions meet (with Date.now() only ~13)
+  if (before == null && after == null) return 1;
   if (before == null) return after - 1;
   if (after == null) return before + 1;
   return (before + after) / 2;

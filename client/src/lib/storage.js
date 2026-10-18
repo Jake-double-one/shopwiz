@@ -3,11 +3,13 @@ const PREFIX = 'shopwiz.';
 const memory = new Map();
 
 export function load(key, fallback = null) {
+  // what this page saved last – also when writing it to the storage failed (full, private mode)
+  if (memory.has(key)) return memory.get(key);
   try {
     const raw = localStorage.getItem(PREFIX + key);
     return raw === null ? fallback : JSON.parse(raw);
   } catch {
-    return memory.has(key) ? memory.get(key) : fallback;
+    return fallback;
   }
 }
 
