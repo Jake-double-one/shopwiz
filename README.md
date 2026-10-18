@@ -367,21 +367,17 @@ Which version runs: `curl https://your-host/api/version` → `{"version":"v0.4.1
 
 > Not needed for running ShopWiz – and **off** unless you switch it on. If you use it only at home, or behind Authentik & co., you can skip this section.
 
-Who runs a server open to others can see which IDs exist (size, last use), delete abandoned ones and help when something is wrong – at `https://your-host/admin`. The main admin logs in with a user name and password; further admins are devices, made admin by their **D-ID** and always secured with a **passkey** (fingerprint, face, PIN). The login lives only in the browser tab: nothing a stolen browser profile could reuse.
+Who runs a server open to others can see which IDs exist (size, last use), delete abandoned ones and help when something is wrong – at `https://your-host/admin`.
 
-Switch it on with two settings (HTTPS required):
+**Switching it on** (HTTPS required):
 
-```bash
-docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js   # prints ADMIN_PASSWORD_HASH=…
-```
+1. Set the variable **`ADMIN=on`** in the stack and update it.
+2. The container's **log** shows a setup code (Portainer: container → shopwiz → Logs).
+3. Open `https://your-host/admin`, enter the code, choose a user name and password. Done.
 
-| Variable | Meaning |
-|---|---|
-| `ADMIN_USER` | User name of the main admin |
-| `ADMIN_PASSWORD_HASH` | The password as a hash (from the command above) – never the password itself |
-| `ADMIN_PASSWORD_LOGIN` | `off`: no password login once the main admin has a passkey (remove it again to get back in) |
+**Forgot the password?** Set `ADMIN=reset`, restart, set it up again with the new code from the log – then back to `ADMIN=on`.
 
-Everything else – what admins see and may do, D-IDs, passkeys, what members see: **[docs/ADMIN.md](docs/ADMIN.md)**.
+More admins, passkeys and what members see of it: **[docs/ADMIN.md](docs/ADMIN.md)**.
 
 ## Privacy
 

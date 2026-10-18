@@ -11,34 +11,30 @@ Die Administration ist für alle, die einen ShopWiz-Server für andere betreiben
 - [Was Teilnehmer sehen](#was-teilnehmer-sehen)
 - [Wie sie geschützt ist](#wie-sie-geschützt-ist)
 - [Probleme lösen](#probleme-lösen)
+- [Ohne Browser einrichten](#ohne-browser-einrichten-für-fortgeschrittene)
 
 ## Einschalten
 
-1. **HTTPS** einrichten (siehe README, „HTTPS und Reverse Proxy“) und `PUBLIC_URL` setzen, z. B. `https://shop.example.com`. Passkeys funktionieren nur über HTTPS (oder `localhost`) und gehören zu genau dieser Domain.
-2. Passwort-Hash erzeugen – das Passwort selbst steht nirgends:
+1. **HTTPS** einrichten (siehe README, „HTTPS und Reverse Proxy“) und am besten `PUBLIC_URL` setzen, z. B. `https://shop.example.com`. Passkeys funktionieren nur über HTTPS (oder `localhost`) und gehören zu genau dieser Domain.
+2. Die Variable **`ADMIN=on`** setzen (Portainer: Stack → Environment) und den Stack aktualisieren.
+3. Beim Start schreibt ShopWiz einen **Einrichtungscode** ins Log (Portainer: Container → shopwiz → Logs):
 
-   ```bash
-   docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js
-   # ohne Docker:  node server/admin-hash.js
-   # nicht interaktiv:  echo -n 'mein langes Passwort' | node server/admin-hash.js
+   ```
+   =================================================================
+     ShopWiz administration – setup code:  K7QM-2XPA-9FHT
+     Open https://shop.example.com/admin and enter it there.
+   =================================================================
    ```
 
-   Ausgabe: `ADMIN_PASSWORD_HASH=scrypt:16384:8:1:…` (mindestens 12 Zeichen Passwort; ohne `$`, also problemlos in Compose-Dateien).
-3. Einstellungen setzen und neu starten:
+4. `https://dein-host/admin` öffnen, Code eingeben, **Benutzername** und **Passwort** (mindestens 12 Zeichen) festlegen. Das ist der Haupt-Admin. Der Code gilt nur einmal; gespeichert wird nur ein scrypt-Hash des Passworts.
 
-| Variable | Bedeutung |
-|---|---|
-| `ADMIN_USER` | Benutzername des Haupt-Admins |
-| `ADMIN_PASSWORD_HASH` | Der Hash aus Schritt 2 |
-| `ADMIN_PASSWORD_LOGIN` | `off`: Anmelden mit Passwort abschalten, sobald der Haupt-Admin einen Passkey hat. Hat er keinen, bleibt das Passwort trotzdem an – niemand sperrt sich aus. |
-
-Fehlt eins von beiden oder ist der Hash ungültig, bleibt die Administration aus (mit Hinweis im Log). Dann gibt es `/api/admin/…` gar nicht.
+Ohne Code kann niemand die Einrichtung übernehmen – auch nicht, wer zufällig zuerst `/admin` aufruft. Den Code sieht nur, wer das Log des Servers lesen kann.
 
 ## Anmelden
 
 `https://dein-host/admin` öffnen.
 
-- **Haupt-Admin:** Benutzername + Passwort. Optional richtet er sich unter „Admins“ zusätzlich einen Passkey ein und meldet sich dann mit einem Fingerdruck an – auf jedem Gerät. Mit Passkey lässt sich das Passwort per `ADMIN_PASSWORD_LOGIN=off` abschalten; es bleibt der Notschlüssel (Variable entfernen = wieder an).
+- **Haupt-Admin:** Benutzername + Passwort. Optional richtet er sich unter „Admins“ zusätzlich einen Passkey ein und meldet sich dann mit einem Fingerdruck an – auf jedem Gerät. Mit Passkey lässt sich dort auch die Passwort-Anmeldung abschalten.
 - **Geräte-Admins:** „Mit Passkey anmelden“ – auf ihrem eigenen Gerät.
 
 Die Anmeldung gilt **nur in diesem Browser-Tab** und wird nirgends gespeichert – kein Cookie, nichts im Gerätespeicher. Neu laden heißt neu anmelden. Sie endet nach 15 Minuten ohne Aktivität, spätestens nach 8 Stunden, und beim Neustart des Servers.
@@ -90,10 +86,14 @@ Geräte-Admins dürfen alles außer Admins ernennen und entziehen.
 
 | Problem | Lösung |
 |---|---|
+| Kein Einrichtungscode im Log | Steht `ADMIN=on`? Der Code erscheint nur, solange noch kein Haupt-Admin eingerichtet ist. Zum Neu-Einrichten: `ADMIN=reset`. |
+| Passwort vergessen, Passkey weg | `ADMIN=reset` setzen, neu starten, mit dem neuen Code aus dem Log neu einrichten (die Passkeys des Haupt-Admins werden dabei gelöscht), danach wieder `ADMIN=on`. Geräte-Admins bleiben. |
 | „Die Administration braucht eine sichere Verbindung“ | Über HTTPS (oder `localhost`) aufrufen. |
 | Passkey geht nach Domainwechsel nicht mehr | Passkeys gehören zur Domain: Haupt-Admin meldet sich mit Passwort an, Geräte-Admins neu ernennen. |
-| Haupt-Admin-Passkey weg und Passwort abgeschaltet | `ADMIN_PASSWORD_LOGIN` entfernen, neu starten, mit Passwort anmelden. |
-| Passwort vergessen | Neuen Hash erzeugen, `ADMIN_PASSWORD_HASH` ersetzen, neu starten. |
 | Admin-Gerät verloren | Rechte entziehen. Das neue Gerät hat eine neue D-ID – neu ernennen. |
 | „Dieser Passkey gehört zu einem anderen Gerät“ | Der (synchronisierte) Passkey wird auf einem Gerät mit anderer D-ID benutzt. Auf dem ernannten Gerät anmelden – oder dieses Gerät ernennen. |
 | Browserdaten gelöscht | Das Gerät hat damit eine neue D-ID und ist kein Admin mehr – neu ernennen. |
+
+## Ohne Browser einrichten (für Fortgeschrittene)
+
+Statt Einrichtungscode lässt sich der Haupt-Admin auch fest vorgeben: `ADMIN_USER` und `ADMIN_PASSWORD_HASH` setzen (den Hash erzeugt `node server/admin-hash.js` im Container). Dann gibt es keinen Code, und die beiden Variablen gelten statt der Einrichtung im Browser.

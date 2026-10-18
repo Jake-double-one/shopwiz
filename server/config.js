@@ -48,11 +48,12 @@ export function loadConfig(env = process.env) {
     mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
     // IDs a device may create itself (0 = no limit); joining doesn't count
     spacesPerDevice: Math.max(int(env.SPACES_PER_DEVICE, 0), 0),
-    // optional administration (docs/ADMIN.md): on when both are set
+    // optional administration (docs/ADMIN.md): ADMIN=on – the main admin is set up in the browser
+    // with a code from the log; ADMIN=reset sets them up again (forgotten password, lost passkey)
+    admin: /^(on|true|1|yes)$/i.test((env.ADMIN || '').trim()) ? 'on' : /^reset$/i.test((env.ADMIN || '').trim()) ? 'reset' : 'off',
+    // without the browser (v0.5.0): both set = the main admin comes from here
     adminUser: (env.ADMIN_USER || '').trim(),
     adminPasswordHash: (env.ADMIN_PASSWORD_HASH || '').trim(),
-    // "off": no password login once the main admin has a passkey (the password stays the way back)
-    adminPasswordLogin: !/^(off|false|0|no)$/i.test((env.ADMIN_PASSWORD_LOGIN || '').trim()),
     logLevel: env.LOG_LEVEL || 'warn',
     staticDir: env.STATIC_DIR || './dist',
     // your own skins (CSS files, see skins/README.md) – read at runtime, no rebuild needed

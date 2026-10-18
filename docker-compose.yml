@@ -38,10 +38,9 @@ services:
       # LIBRETRANSLATE_URL: "http://libretranslate:5000"
       # IDs a device may create itself (0 = no limit)
       SPACES_PER_DEVICE: "0"
-      # Optional administration at /admin (HTTPS needed) – see docs/ADMIN.md. Off while empty.
-      # The hash comes from: docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js
-      # ADMIN_USER: ""
-      # ADMIN_PASSWORD_HASH: ""
+      # Optional administration at /admin (HTTPS needed) – see docs/ADMIN.md.
+      # "on": the log shows a setup code, enter it at /admin. "reset": set the main admin up again.
+      ADMIN: "off"
     volumes:
       - shopwiz-data:/data
       # your own skins: a folder with CSS files (see skins/README.md), picked up while running

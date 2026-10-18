@@ -11,34 +11,30 @@ The administration is for people who run a ShopWiz server for others: see which 
 - [What members see](#what-members-see)
 - [How it is protected](#how-it-is-protected)
 - [Troubleshooting](#troubleshooting)
+- [Without the browser](#without-the-browser-advanced)
 
 ## Switching it on
 
-1. Set up **HTTPS** (see the README, "HTTPS and reverse proxy") and set `PUBLIC_URL`, e.g. `https://shop.example.com`. Passkeys only work over HTTPS (or `localhost`) and belong to exactly that domain.
-2. Create the password hash – the password itself is stored nowhere:
+1. Set up **HTTPS** (see the README, "HTTPS and reverse proxy") and preferably set `PUBLIC_URL`, e.g. `https://shop.example.com`. Passkeys only work over HTTPS (or `localhost`) and belong to exactly that domain.
+2. Set the variable **`ADMIN=on`** (Portainer: stack → Environment) and update the stack.
+3. On start, ShopWiz writes a **setup code** into its log (Portainer: container → shopwiz → Logs):
 
-   ```bash
-   docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js
-   # without Docker:  node server/admin-hash.js
-   # non-interactive:  echo -n 'my long password' | node server/admin-hash.js
+   ```
+   =================================================================
+     ShopWiz administration – setup code:  K7QM-2XPA-9FHT
+     Open https://shop.example.com/admin and enter it there.
+   =================================================================
    ```
 
-   Output: `ADMIN_PASSWORD_HASH=scrypt:16384:8:1:…` (password of at least 12 characters; no `$`, so it goes into compose files as it is).
-3. Set the settings and restart:
+4. Open `https://your-host/admin`, enter the code, choose a **user name** and **password** (at least 12 characters). That is the main admin. The code works once; only a scrypt hash of the password is stored.
 
-| Variable | Meaning |
-|---|---|
-| `ADMIN_USER` | User name of the main admin |
-| `ADMIN_PASSWORD_HASH` | The hash from step 2 |
-| `ADMIN_PASSWORD_LOGIN` | `off`: switch the password login off once the main admin has a passkey. Without one, the password stays on anyway – nobody locks themselves out. |
-
-If one of the two is missing or the hash is invalid, the administration stays off (with a note in the log). Then `/api/admin/…` doesn't exist at all.
+Without the code nobody can take over the setup – not even whoever happens to open `/admin` first. Only who can read the server's log sees the code.
 
 ## Logging in
 
 Open `https://your-host/admin`.
 
-- **Main admin:** user name + password. Optionally, they set up a passkey under "Admins" and then log in with a touch – on any device. With a passkey, the password can be switched off with `ADMIN_PASSWORD_LOGIN=off`; it stays the emergency key (remove the variable = on again).
+- **Main admin:** user name + password. Optionally, they set up a passkey under "Admins" and then log in with a touch – on any device. With a passkey, the password login can be switched off there, too.
 - **Device admins:** "Log in with passkey" – on their own device.
 
 The login lives **only in this browser tab** and is stored nowhere – no cookie, nothing in the device's storage. Reloading means logging in again. It ends after 15 minutes without activity, after 8 hours at the latest, and when the server restarts.
@@ -90,10 +86,14 @@ Device admins may do everything except promoting and revoking admins.
 
 | Problem | Solution |
 |---|---|
+| No setup code in the log | Is `ADMIN=on` set? The code only appears while no main admin is set up. To set it up again: `ADMIN=reset`. |
+| Password forgotten, passkey lost | Set `ADMIN=reset`, restart, set it up again with the new code from the log (the main admin's passkeys are deleted on the way), then back to `ADMIN=on`. Device admins stay. |
 | "The administration needs a secure connection" | Open it over HTTPS (or `localhost`). |
 | Passkeys stopped working after a domain change | Passkeys belong to the domain: the main admin logs in with the password, device admins are promoted again. |
-| Main admin's passkey lost and password switched off | Remove `ADMIN_PASSWORD_LOGIN`, restart, log in with the password. |
-| Password forgotten | Create a new hash, replace `ADMIN_PASSWORD_HASH`, restart. |
 | Admin device lost | Take its rights away. The new device has a new D-ID – promote it. |
 | "This passkey belongs to another device" | The (synced) passkey is used on a device with another D-ID. Log in on the promoted device – or promote this one. |
 | Browser data cleared | The device now has a new D-ID and is no admin any more – promote it again. |
+
+## Without the browser (advanced)
+
+Instead of the setup code, the main admin can be given by settings: set `ADMIN_USER` and `ADMIN_PASSWORD_HASH` (the hash comes from `node server/admin-hash.js` in the container). Then there is no code, and the two settings apply instead of the setup in the browser.

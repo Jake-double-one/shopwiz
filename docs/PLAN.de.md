@@ -333,10 +333,10 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 
 **Ziel:** Wer einen Server betreibt, soll sehen, welche IDs es gibt, aufräumen und bei Problemen helfen können – ohne dass die Administration selbst zur Schwachstelle wird. Sicherheit und Datenschutz gehen vor Komfort, aber nichts davon soll im Alltag nerven.
 
-**Optional und standardmäßig aus.** Wer sie nicht braucht (z. B. nur zu Hause per IP-Adresse, oder hinter Authentik), merkt nichts davon. Aktiv nur, wenn `ADMIN_USER` und `ADMIN_PASSWORD_HASH` gesetzt sind – sonst antworten alle Admin-Adressen mit 404.
+**Optional und standardmäßig aus.** Wer sie nicht braucht (z. B. nur zu Hause per IP-Adresse, oder hinter Authentik), merkt nichts davon. Aktiv nur mit `ADMIN=on` – sonst antworten alle Admin-Adressen mit 404. **Einrichten im Browser:** Beim Start steht ein einmaliger Einrichtungscode im Log (Portainer: ein Klick); damit legt man unter `/admin` Benutzername und Passwort des Haupt-Admins fest. `ADMIN=reset` richtet ihn neu ein (Passwort vergessen, Passkey weg). Eine Kommandozeile ist nicht nötig.
 
 ### 12.1 Wer ist Admin?
-- **Haupt-Admin:** Benutzername + Passwort aus der Konfiguration. Das Passwort steht nur als scrypt-Hash in der ENV (`node server/admin-hash.js` erzeugt ihn). Der Haupt-Admin ist an kein Gerät gebunden und braucht keinen Passkey; er kann sich zusätzlich einen einrichten.
+- **Haupt-Admin:** Benutzername + Passwort, festgelegt bei der Einrichtung im Browser; gespeichert wird nur ein scrypt-Hash (alternativ fest per `ADMIN_USER` + `ADMIN_PASSWORD_HASH`). Der Haupt-Admin ist an kein Gerät gebunden und braucht keinen Passkey; er kann sich zusätzlich einen einrichten.
 - **Weitere Admins = Geräte:** Jedes Gerät hat eine **D-ID** (in allen Sprachen „D-ID“), abgeleitet aus dem Geräte-Schlüssel, aber ohne Rückschluss darauf. Sie steht in den Einstellungen, sobald der Server eine Administration hat.
 - Der Haupt-Admin **ernennt** eine D-ID zum Admin. Das Gerät bekommt einen einmaligen Hinweis zum Wegklicken (wie die Ruf-Karten) und muss **innerhalb von 24 Stunden** einen Passkey einrichten – sonst verfällt die Ernennung.
 - **Nie nur ein Faktor:** Ein Geräte-Admin braucht immer D-ID **und** Passkey (Fingerabdruck, Gesicht, PIN des Geräts). Ein kopierter Geräte-Schlüssel reicht nicht, ein Passkey allein auch nicht.
@@ -348,7 +348,7 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 - Ablauf: 15 Minuten ohne Aktivität, höchstens 8 Stunden.
 - Geräte-Admin-Sitzungen gelten nur zusammen mit dem Geräte-Schlüssel dieses Geräts.
 - **Erneute Bestätigung** für Ernennen/Entziehen und ID löschen: Wer sich in den letzten 5 Minuten angemeldet hat, braucht nichts weiter, sonst Passkey bzw. Passwort. („Wenn es nervt, ändern wir es.“)
-- **Passwort als Notschlüssel:** `ADMIN_PASSWORD_LOGIN=off` schaltet den Passwort-Login ab, sobald der Haupt-Admin einen Passkey hat. Wiederherstellung: Variable wieder entfernen.
+- **Passwort als Notschlüssel:** In der Administration lässt sich die Passwort-Anmeldung abschalten, sobald der Haupt-Admin einen Passkey hat. Wiederherstellung: `ADMIN=reset`.
 - Login gegen Durchprobieren gesichert (Fehlversuche pro Adresse begrenzt, scrypt läuft nur einzeln).
 - Passkeys brauchen HTTPS (oder `localhost`) und gelten nur für die Domain. Synchronisierte Passkeys (iCloud, Google, Passwortmanager) sind erlaubt.
 

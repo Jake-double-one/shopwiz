@@ -2,6 +2,9 @@
 // promotion, the admin inside an ID, and SPACES_PER_DEVICE.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createHash, generateKeyPairSync, sign, randomBytes } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { buildApp } from '../server/app.js';
 import { loadConfig } from '../server/config.js';
 import { hashPassword, verifyPassword, parseHash } from '../server/password.js';
@@ -374,5 +377,68 @@ describe('SPACES_PER_DEVICE', () => {
     // deleting one frees a place; continuing a deleted one doesn't take a new place
     await req('POST', `/api/spaces/${a}/delete`, { token: T });
     expect((await make()).status).toBe(200);
+  });
+});
+
+describe('setting up in the browser (ADMIN=on, code from the log)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'shopwiz-admin-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  async function boot(admin) {
+    let said = null;
+    const a = await buildApp({ ...loadConfig({}), dataDir: dir, staticDir: './does-not-exist', admin, announce: (m) => (said = m) });
+    await a.listen({ port: 0, host: '127.0.0.1' });
+    const url = `http://127.0.0.1:${a.server.address().port}`;
+    const call = async (method, path, body, session) => {
+      const res = await fetch(url + path, {
+        method,
+        headers: { 'content-type': 'application/json', 'x-shopwiz-token': T3, ...(session && { 'x-shopwiz-admin': session }) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return { status: res.status, body: await res.json().catch(() => ({})) };
+    };
+    return { a, call, code: said?.match(/setup code:\s+([0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4})/)?.[1] ?? null };
+  }
+
+  it('the first start writes a one-time code to the log; with it the main admin is created at /admin', async () => {
+    const { a, call, code } = await boot('on');
+    expect(code).toBeTruthy();
+    expect((await call('GET', '/api/admin/status')).body.setup).toBe(true);
+    expect((await call('POST', '/api/admin/login', { user: 'jake', password: 'whatever whatever' })).body.error).toBe('setup');
+    // the code is needed, and a real password
+    expect((await call('POST', '/api/admin/setup', { code: 'AAAA-AAAA-AAAA', user: 'jake', password: 'long enough pass' })).status).toBe(401);
+    expect((await call('POST', '/api/admin/setup', { code, user: 'jake', password: 'short' })).body.error).toBe('weak_password');
+    // typed loosely: lower case, spaces, an O for a 0
+    const loose = code.toLowerCase().replace(/-/g, ' ').replace(/0/g, 'o');
+    const r = await call('POST', '/api/admin/setup', { code: loose, user: 'jake', password: 'my long admin password' });
+    expect(r.status).toBe(200);
+    expect(r.body.role).toBe('main');
+    expect((await call('GET', '/api/admin/overview', null, r.body.session)).status).toBe(200);
+    // used once
+    expect((await call('GET', '/api/admin/status')).body.setup).toBe(false);
+    expect((await call('POST', '/api/admin/setup', { code, user: 'evil', password: 'my long admin password' })).status).toBe(409);
+    expect((await call('POST', '/api/admin/login', { user: 'jake', password: 'my long admin password' })).status).toBe(200);
+    // the password login can only be switched off with a passkey
+    expect((await call('POST', '/api/admin/password-login', { on: false }, r.body.session)).body.error).toBe('no_key');
+    await a.close();
+  });
+
+  it('later starts write no code; ADMIN=reset sets the main admin up again', async () => {
+    let b = await boot('on');
+    expect(b.code).toBe(null);
+    expect((await b.call('GET', '/api/admin/status')).body.setup).toBe(false);
+    await b.a.close();
+
+    b = await boot('reset');
+    expect(b.code).toBeTruthy();
+    // the old password still works until the new one is set
+    expect((await b.call('POST', '/api/admin/login', { user: 'jake', password: 'my long admin password' })).status).toBe(200);
+    const r = await b.call('POST', '/api/admin/setup', { code: b.code, user: 'jake2', password: 'a brand new password' });
+    expect(r.status).toBe(200);
+    expect((await b.call('POST', '/api/admin/login', { user: 'jake', password: 'my long admin password' })).status).toBe(401);
+    expect((await b.call('POST', '/api/admin/login', { user: 'jake2', password: 'a brand new password' })).status).toBe(200);
+    const log = (await b.call('GET', '/api/admin/overview', null, r.body.session)).body.log.map((e) => e.action);
+    expect(log).toEqual(expect.arrayContaining(['setup', 'reset']));
+    await b.a.close();
   });
 });

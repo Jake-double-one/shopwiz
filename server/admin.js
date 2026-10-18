@@ -1,16 +1,20 @@
-// Optional administration (docs/ADMIN.md, plan section 12). Off unless ADMIN_USER and
-// ADMIN_PASSWORD_HASH are set – then every /api/admin address is simply not there.
+// Optional administration (docs/ADMIN.md, plan section 12). Off unless ADMIN=on – then every
+// /api/admin address is simply not there.
 //
-// Who is admin: the main admin (user + password from the config, passkeys optional) and devices
+// Setting up: the server writes a one-time code into its log; whoever can read the log enters it at
+// /admin together with the main admin's user name and password (stored as a scrypt hash only).
+// ADMIN=reset does the same again. (ADMIN_USER + ADMIN_PASSWORD_HASH still work instead.)
+//
+// Who is admin: the main admin (user + password, passkeys optional) and devices
 // the main admin promoted by their D-ID – those always need their D-ID *and* their passkey.
 // Sessions live only in memory, on the server and in the browser tab: nothing a stealer could copy.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
-import { verifyPassword, parseHash } from './password.js';
+import { verifyPassword, parseHash, hashPassword } from './password.js';
 import { Limiter } from './limiter.js';
 import { hashToken } from './core.js';
 import { didFromDigest, parseDid } from '../shared/did.js';
-import { parseSpaceId, formatSpaceId } from '../shared/ids.js';
+import { parseSpaceId, formatSpaceId, ALPHABET } from '../shared/ids.js';
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -35,11 +39,18 @@ class AdminError extends Error {
   }
 }
 
+/** One-time setup code: 12 characters, easy to read and type ("K7QM-2XPA-9FHT") */
+function newCode() {
+  const raw = [...randomBytes(12)].map((b) => ALPHABET[b & 31]).join('');
+  return `${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8)}`;
+}
+const plainCode = (s) => String(s ?? '').toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1').replace(/[^0-9A-Z]/g, '');
+
 export function createAdmin({ store, hub, config, log }) {
-  const hash = config.adminUser ? parseHash(config.adminPasswordHash) : null;
-  if (config.adminUser && !hash) log.error('ADMIN_PASSWORD_HASH is missing or not a valid hash – the administration stays off (create one with: node server/admin-hash.js)');
-  if (!config.adminUser && config.adminPasswordHash) log.error('ADMIN_PASSWORD_HASH is set, but ADMIN_USER is not – the administration stays off');
-  if (!hash) return { enabled: false, routes() {}, stop() {} };
+  // the main admin from the settings (v0.5.0 way, without the browser) – otherwise from the database
+  const envHash = config.adminUser && config.adminPasswordHash ? parseHash(config.adminPasswordHash) : null;
+  if (config.adminUser && config.adminPasswordHash && !envHash) log.error('ADMIN_PASSWORD_HASH is not a valid hash – it is ignored');
+  if (config.admin === 'off' && !envHash) return { enabled: false, routes() {}, stop() {} };
   if (config.publicUrl.startsWith('http://') && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(config.publicUrl)) {
     log.warn('the administration needs HTTPS: passkeys don\'t work and the password would travel unencrypted over plain http');
   }
@@ -97,7 +108,35 @@ export function createAdmin({ store, hub, config, log }) {
     return r ? { role: r.state, since: r.created_at, until: r.state === 'pending' ? r.expires_at : null } : { role: null, since: null, until: null };
   }
   const mainHasKey = () => !!db.q('SELECT 1 FROM admin_keys WHERE did IS NULL').get();
-  const passwordAllowed = () => config.adminPasswordLogin || !mainHasKey();
+  // switched off in the administration – only possible (and only kept) while the main admin has a passkey
+  const passwordAllowed = () => meta('password_login') !== 'off' || !mainHasKey();
+  /** The main admin's user name and password hash – null until set up */
+  function creds() {
+    if (envHash) return { user: config.adminUser, hash: envHash };
+    const user = meta('main_user');
+    const hash = parseHash(meta('main_hash'));
+    return user && hash ? { user, hash } : null;
+  }
+
+  // ----- setting up the main admin: a code in the log, entered at /admin -----
+  // (the log is what Portainer & co. show with one click – only who runs the server sees it)
+  let setupCode = null;
+  if (!envHash && (config.admin === 'reset' || !creds())) {
+    setupCode = newCode();
+    const where = `${config.publicUrl || 'https://<your-address>'}/admin`;
+    const lines = [
+      '',
+      '=================================================================',
+      `  ShopWiz administration – setup code:  ${setupCode}`,
+      `  Open ${where} and enter it there.`,
+      ...(config.admin === 'reset' ? ['  ADMIN=reset: set ADMIN=on again once you are done.'] : []),
+      '=================================================================',
+      '',
+    ];
+    (config.announce ?? console.log)(lines.join('\n'));
+  } else if (envHash && config.admin === 'reset') {
+    log.warn('ADMIN=reset does nothing while ADMIN_USER and ADMIN_PASSWORD_HASH are set – change those instead');
+  }
 
   // ----- sessions -----
 
@@ -221,7 +260,7 @@ export function createAdmin({ store, hub, config, log }) {
     const options = await generateRegistrationOptions({
       rpName: 'ShopWiz',
       rpID,
-      userName: target.role === 'main' ? config.adminUser : `D-ID ${target.did}`,
+      userName: target.role === 'main' ? (creds()?.user ?? 'admin') : `D-ID ${target.did}`,
       userDisplayName: target.role === 'main' ? 'ShopWiz Admin' : `ShopWiz Admin · ${target.did}`,
       attestationType: 'none',
       excludeCredentials: exclude.map((k) => ({ id: k.id, transports: JSON.parse(k.transports) })),
@@ -353,7 +392,8 @@ export function createAdmin({ store, hub, config, log }) {
     const log = db.q('SELECT * FROM admin_log ORDER BY id DESC LIMIT 300').all().map((r) => ({ id: r.id, at: r.created_at, actor: r.actor, action: r.action, detail: JSON.parse(r.detail) }));
     return {
       me: { role: s.role, did: s.did },
-      passwordLogin: config.adminPasswordLogin,
+      passwordLogin: meta('password_login') !== 'off',
+      mainHasKey: mainHasKey(),
       spaces: spaces.map((sp) => {
         const bytes = [items, lists, groups, devices, ...other].reduce((sum, m) => sum + (m.get(sp.uid)?.b ?? 0), 200);
         return {
@@ -407,7 +447,44 @@ export function createAdmin({ store, hub, config, log }) {
       '/api/admin/status',
       handle(async (req) => {
         const did = didOfReq(req);
-        return { did, ...stateOf(did), passwordLogin: passwordAllowed() };
+        return { did, ...stateOf(did), passwordLogin: passwordAllowed(), setup: !!setupCode };
+      }),
+    );
+
+    // the first visit: setup code from the log + user name + password of the main admin
+    app.post(
+      '/api/admin/setup',
+      handle(async (req) => {
+        const ip = clientKey(req);
+        if (!setupCode) throw new AdminError(409, 'set_up');
+        if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
+        const { code, user, password } = req.body ?? {};
+        const typed = Buffer.from(plainCode(code));
+        const real = Buffer.from(plainCode(setupCode));
+        if (typed.length !== real.length || !timingSafeEqual(typed, real)) {
+          fails.fail(ip);
+          loginFailed('setup');
+          throw new AdminError(401, 'wrong_code');
+        }
+        const name = typeof user === 'string' ? user.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
+        if (!name || name.length > 60) throw new AdminError(400, 'invalid_user');
+        if (typeof password !== 'string' || password.length < 12 || password.length > 1024) throw new AdminError(400, 'weak_password');
+        const hash = await hashPassword(password);
+        if (!setupCode) throw new AdminError(409, 'set_up'); // somebody else was faster while hashing
+        setupCode = null;
+        const again = !!creds();
+        db.tx(() => {
+          setMeta('main_user', name);
+          setMeta('main_hash', hash);
+          if (again) {
+            // starting over: the main admin's passkeys go (one may be lost or in the wrong hands)
+            db.q('DELETE FROM admin_keys WHERE did IS NULL').run();
+            db.q("DELETE FROM admin_meta WHERE key = 'password_login'").run();
+          }
+        });
+        if (again) for (const s of sessions.values()) if (s.role === 'main') endSession(s.key);
+        audit('main', again ? 'reset' : 'setup');
+        return { session: newSession('main', null), role: 'main', did: null };
       }),
     );
 
@@ -417,14 +494,16 @@ export function createAdmin({ store, hub, config, log }) {
         const ip = clientKey(req);
         if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
         if (!passwordAllowed()) throw new AdminError(403, 'password_off');
+        const c = creds();
+        if (!c) throw new AdminError(409, 'setup');
         const { user, password } = req.body ?? {};
         if (typeof user !== 'string' || typeof password !== 'string' || user.length > 200 || password.length > 1024) throw new AdminError(400, 'invalid');
         if (waiting >= 8) throw new AdminError(429, 'busy');
         waiting++;
         // the user name compared in constant time, the password always checked – no hint which one was wrong
         const job = queue.then(async () => {
-          const passOk = await verifyPassword(password, hash);
-          return timingSafeEqual(Buffer.from(sha(user)), Buffer.from(sha(config.adminUser))) && passOk;
+          const passOk = await verifyPassword(password, c.hash);
+          return timingSafeEqual(Buffer.from(sha(user)), Buffer.from(sha(c.user))) && passOk;
         });
         queue = job.catch(() => {});
         let ok = false;
@@ -517,6 +596,21 @@ export function createAdmin({ store, hub, config, log }) {
           for (const s of sessions.values()) if (s.did === did) endSession(s.key);
           if (n) audit('main', 'revoke', { did });
           notify(did);
+          return { ok: true };
+        },
+        { main: true, fresh: true },
+      ),
+    );
+
+    // the password as the emergency key only: off once the main admin has a passkey (ADMIN=reset brings it back)
+    app.post(
+      '/api/admin/password-login',
+      handle(
+        async (req) => {
+          const on = req.body?.on !== false;
+          if (!on && !mainHasKey()) throw new AdminError(409, 'no_key');
+          setMeta('password_login', on ? 'on' : 'off');
+          audit('main', on ? 'password_on' : 'password_off');
           return { ok: true };
         },
         { main: true, fresh: true },

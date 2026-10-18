@@ -60,6 +60,8 @@ async function passkey(purpose) {
 
 export const admin = {
   status: () => call('GET', '/api/admin/status'),
+  setup: async (code, user, password) => take(await call('POST', '/api/admin/setup', { code, user, password })),
+  setPasswordLogin: (on) => call('POST', '/api/admin/password-login', { on }),
   loginPassword: async (user, password) => take(await call('POST', '/api/admin/login', { user, password })),
   loginPasskey: () => passkey('login'),
   registerPasskey: () => passkey('register'),

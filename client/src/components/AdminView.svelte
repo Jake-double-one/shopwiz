@@ -16,6 +16,8 @@
   let tab = $state('spaces');
   let user = $state('');
   let password = $state('');
+  let password2 = $state('');
+  let code = $state('');
   let busy = $state(false);
   let error = $state('');
   let expired = $state(false);
@@ -90,6 +92,15 @@
     if (r) await act(r.run);
   }
 
+  const setup = () =>
+    withBusy(async () => {
+      if (password !== password2) throw Object.assign(new Error('mismatch'), { code: 'mismatch' });
+      await admin.setup(code, user.trim(), password);
+      code = '';
+      password2 = '';
+      toast(t('admin.setupDone'));
+      await afterLogin();
+    });
   const loginPassword = () => withBusy(async () => (await admin.loginPassword(user.trim(), password), await afterLogin()));
   const loginPasskey = () => withBusy(async () => (await admin.loginPasskey(), await afterLogin()));
   const setUpPasskey = () =>
@@ -174,6 +185,40 @@
       <p class="hint alert"><span class="grow">{t('admin.needsHttps')}</span></p>
     {/if}
 
+    {#if status.setup}
+      <!-- the first visit: the main admin is set up with the code from the server's log -->
+      <section class="card promoted">
+        <h2>{t('admin.setupTitle')}</h2>
+        <p class="note">{t('admin.setupHint')}</p>
+        <form
+          onsubmit={(e) => {
+            e.preventDefault();
+            setup();
+          }}>
+          <label class="field">
+            <span>{t('admin.setupCode')}</span>
+            <input class="input mono" bind:value={code} placeholder="XXXX-XXXX-XXXX" maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>{t('admin.user')}</span>
+            <input class="input" bind:value={user} autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="60" />
+          </label>
+          <label class="field">
+            <span>{t('admin.newPassword')}</span>
+            <input class="input" type="password" bind:value={password} autocomplete="new-password" maxlength="1024" />
+          </label>
+          <label class="field">
+            <span>{t('admin.repeatPassword')}</span>
+            <input class="input" type="password" bind:value={password2} autocomplete="new-password" maxlength="1024" />
+          </label>
+          <button class="btn main block" type="submit" disabled={busy || !secure || !code.trim() || !user.trim() || password.length < 12 || !password2}>
+            <Icon name="shield" />{t('admin.setupButton')}
+          </button>
+          {#if password && password.length < 12}<p class="micro pw-hint">{t('admin.passwordLength')}</p>{/if}
+        </form>
+        {#if error}<p class="hint alert err"><span class="grow">{error}</span></p>{/if}
+      </section>
+    {:else}
     {#if status.role === 'pending'}
       <section class="card promoted">
         <p class="eyebrow">D-ID {status.did}</p>
@@ -211,6 +256,7 @@
       {#if error}<p class="hint alert err"><span class="grow">{error}</span></p>{/if}
     </section>
     <p class="note">{t('admin.memoryNote')}</p>
+    {/if}
   {:else}
     <!-- ----- logged in ----- -->
     <div class="who">
@@ -368,12 +414,17 @@
                   {/if}
                 </p>
               {/each}
-              <p class="note">{data.passwordLogin ? t('admin.passwordOn') : t('admin.passwordOff')}</p>
-              {#if secure}
-                <div class="row actions">
+              <p class="note">{data.passwordLogin ? (data.mainHasKey ? t('admin.passwordOnKey') : t('admin.passwordOn')) : t('admin.passwordOff')}</p>
+              <div class="row wrap-row actions">
+                {#if secure}
                   <button class="btn small" onclick={addMainKey}><Icon name="key" size={16} />{t('admin.addMainKey')}</button>
-                </div>
-              {/if}
+                {/if}
+                {#if data.passwordLogin && data.mainHasKey}
+                  <button class="btn small" onclick={() => act(() => admin.setPasswordLogin(false))}>{t('admin.passwordOffButton')}</button>
+                {:else if !data.passwordLogin}
+                  <button class="btn small" onclick={() => act(() => admin.setPasswordLogin(true))}>{t('admin.passwordOnButton')}</button>
+                {/if}
+              </div>
             {/if}
           </li>
           {#each data.admins as a (a.did)}
@@ -448,6 +499,11 @@
   }
   .promoted {
     border: 2px solid var(--alert);
+  }
+  .pw-hint {
+    margin: 8px 0 0;
+    text-transform: none;
+    letter-spacing: 0.02em;
   }
   .or {
     text-align: center;

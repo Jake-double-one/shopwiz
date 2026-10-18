@@ -366,21 +366,17 @@ Welche Version läuft: `curl https://dein-host/api/version` → `{"version":"v0.
 
 > Für den Betrieb nicht nötig – und **aus**, solange du sie nicht einschaltest. Wer ShopWiz nur zu Hause oder hinter Authentik & Co. nutzt, kann diesen Abschnitt überspringen.
 
-Wer einen Server für andere betreibt, kann damit sehen, welche IDs es gibt (Größe, letzte Nutzung), verwaiste löschen und helfen, wenn etwas klemmt – unter `https://dein-host/admin`. Der Haupt-Admin meldet sich mit Benutzername und Passwort an; weitere Admins sind Geräte, die per **D-ID** ernannt werden und sich immer mit einem **Passkey** (Fingerabdruck, Gesicht, PIN) absichern. Die Anmeldung lebt nur im Browser-Tab: nichts, was ein gestohlenes Browserprofil weiterverwenden könnte.
+Wer einen Server für andere betreibt, kann damit sehen, welche IDs es gibt (Größe, letzte Nutzung), verwaiste löschen und helfen, wenn etwas klemmt – unter `https://dein-host/admin`.
 
-Einschalten mit zwei Einstellungen (HTTPS nötig):
+**Einschalten** (HTTPS nötig):
 
-```bash
-docker run --rm -it ghcr.io/jake-double-one/shopwiz node server/admin-hash.js   # gibt ADMIN_PASSWORD_HASH=… aus
-```
+1. Beim Stack die Variable **`ADMIN=on`** setzen und den Stack aktualisieren.
+2. Im **Log** des Containers steht ein Einrichtungscode (Portainer: Container → shopwiz → Logs).
+3. `https://dein-host/admin` öffnen, Code eingeben, Benutzername und Passwort festlegen. Fertig.
 
-| Variable | Bedeutung |
-|---|---|
-| `ADMIN_USER` | Benutzername des Haupt-Admins |
-| `ADMIN_PASSWORD_HASH` | Das Passwort als Hash (vom Befehl oben) – nie das Passwort selbst |
-| `ADMIN_PASSWORD_LOGIN` | `off`: kein Passwort-Login mehr, sobald der Haupt-Admin einen Passkey hat (zum Zurückkommen wieder entfernen) |
+**Passwort vergessen?** `ADMIN=reset` setzen, neu starten, mit dem neuen Code aus dem Log neu einrichten – danach wieder `ADMIN=on`.
 
-Alles Weitere – was Admins sehen und dürfen, D-IDs, Passkeys, was Teilnehmer sehen: **[docs/ADMIN.de.md](docs/ADMIN.de.md)**.
+Weitere Admins, Passkeys und was Teilnehmer davon sehen: **[docs/ADMIN.de.md](docs/ADMIN.de.md)**.
 
 ## Datenschutz
 

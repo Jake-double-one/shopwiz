@@ -1530,3 +1530,42 @@ test('administration: a device promoted by its D-ID sets up a passkey and logs i
   await expect(page.getByText('Login failed.')).toBeVisible();
   await ctx.close();
 });
+
+test('administration: set up in the browser with the code from the server log', async ({ browser }) => {
+  // a server of its own with ADMIN=on – what someone with only Portainer does
+  const { spawn } = await import('node:child_process');
+  const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'server/index.js'], {
+    env: { ...process.env, PORT: '8096', DATA_DIR: ':memory:', ADMIN: 'on', ADMIN_USER: '', ADMIN_PASSWORD_HASH: '' },
+  });
+  try {
+    let out = '';
+    const code = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`no setup code in: ${out}`)), 10_000);
+      server.stdout.on('data', (d) => {
+        out += d;
+        const m = out.match(/setup code:\s+([0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4})/);
+        if (m && out.includes('listening')) clearTimeout(timer), resolve(m[1]);
+      });
+    });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+    const a = await ctx.newPage();
+    await a.goto('http://localhost:8096/admin');
+    await expect(a.getByRole('heading', { name: 'Set up the administration' })).toBeVisible();
+    await a.getByLabel('Setup code').fill(code.toLowerCase());
+    await a.getByLabel('User name').fill('jake');
+    await a.getByLabel('Password (at least 12 characters)').fill('my long admin password');
+    await a.getByLabel('Repeat password').fill('my long admin password');
+    await a.getByRole('button', { name: 'Set up', exact: true }).click();
+    await expect(a.getByText('Logged in as main admin')).toBeVisible();
+    // from now on: a normal login
+    await a.reload();
+    await expect(a.getByRole('heading', { name: 'Set up the administration' })).toHaveCount(0);
+    await a.getByLabel('User name').fill('jake');
+    await a.getByLabel('Password', { exact: true }).fill('my long admin password');
+    await a.getByRole('button', { name: 'Log in with password' }).click();
+    await expect(a.getByText('Logged in as main admin')).toBeVisible();
+    await ctx.close();
+  } finally {
+    server.kill();
+  }
+});
