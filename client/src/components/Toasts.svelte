@@ -1,5 +1,6 @@
 <script>
   import { toasts, dismiss } from '../lib/toast.svelte.js';
+  import { t } from '../lib/i18n.svelte.js';
 </script>
 
 <div class="toasts" aria-live="polite">
@@ -14,7 +15,7 @@
             dismiss(tst.id);
           }}>{tst.action.label}</button>
       {/if}
-      <button class="x" onclick={() => dismiss(tst.id)} aria-label="×">×</button>
+      <button class="x" onclick={() => dismiss(tst.id)} aria-label={t('close')}>×</button>
       <!-- how long undo is still possible: the line fills up from left to right -->
       {#if tst.action && tst.timeout}<span class="progress" aria-hidden="true" style:animation-duration={`${tst.timeout}ms`}></span>{/if}
     </div>
@@ -60,6 +61,7 @@
   .text {
     flex: 1;
     min-width: 0;
+    overflow-wrap: anywhere;
   }
   .act {
     background: none;

@@ -94,12 +94,19 @@
     } else toast(t('travel.translated', { count: done }));
   }
 
+  // the fields belong to the list the menu was opened for – after deleting or switching it they must
+  // never land on the list shown next
+  const openedFor = untrack(() => list.id);
+  const same = () => list.id === openedFor;
+
   function saveAddress() {
+    if (!same()) return;
     const a = address.trim().slice(0, 300);
     if (a !== (list.address ?? '')) setAddress(list, a);
   }
 
   function saveName() {
+    if (!same()) return;
     const n = name.trim();
     if (n && n !== list.name) renameList(list, n.slice(0, 80));
   }

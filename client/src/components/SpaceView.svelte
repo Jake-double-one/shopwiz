@@ -133,13 +133,14 @@
   $effect(() => {
     const listId = list?.id ?? null;
     if (allDone && myShopping && wasAllDone.listId === listId && !wasAllDone.done) {
-      toast({ text: t('shopping.allDone'), timeout: 10000, action: { label: t('shopping.finish'), run: finish } });
+      toast({ text: t('shopping.allDone'), timeout: 10000, action: { label: t('shopping.finish'), run: () => finish(listId) } });
     }
     wasAllDone = { listId, done: allDone };
   });
-  async function finish() {
-    if (!list) return;
-    finishShopping(list.id, { checkOut: myShopping });
+  /** listId: the list that got done – not whatever list is shown when the button is tapped */
+  async function finish(listId = list?.id) {
+    if (!listId) return;
+    finishShopping(listId, { checkOut: myShopping });
     if (screenOn) await toggleScreen();
   }
 
@@ -188,8 +189,24 @@
   let sheet = $state(null);
   const open = (kind, extra = {}) => {
     dismissNotices();
-    sheet = { kind, ...extra };
+    // a dialog can't show under the focus mode – leave it first
+    if (prefs.focus) setFocus(false);
+    sheet = { kind, listId: list?.id ?? null, ...extra };
   };
+  // the list, group or item a dialog was opened for was deleted (maybe on another device) → close it
+  $effect(() => {
+    const s = sheet;
+    if (!s) return;
+    const gone =
+      (s.kind === 'listMenu' && s.listId !== list?.id) ||
+      (s.kind === 'group' && s.groupId && !v.groups[s.groupId]) ||
+      (s.kind === 'item' && !v.items[s.itemId]);
+    if (!gone) return;
+    untrack(() => {
+      sheet = null;
+      if (s.kind === 'item') toast(t('toast.goneMeanwhile'));
+    });
+  });
   const closeSheet = () => (sheet = null);
   // app shortcut "Add item": the "new item" dialog right away, on the list opened last
   $effect(() => {
@@ -432,7 +449,7 @@
       <div class="hint dusk done-card">
         <Icon name="check" size={18} />
         <span class="grow">{t('shopping.doneTitle')}</span>
-        <button class="btn small main" onclick={finish}>{t('shopping.finish')}</button>
+        <button class="btn small main" onclick={() => finish()}>{t('shopping.finish')}</button>
       </div>
     {/if}
 

@@ -1373,3 +1373,43 @@ test('list group: undoing a group delete puts a shared item back into that shop\
   await page.reload();
   await expect(inDairy()).toHaveCount(1);
 });
+
+test('two devices: an open dialog never overwrites what the other device changed meanwhile', async ({ page, browser }) => {
+  const id = await createList(page, 'Weekly');
+  await add(page, 'Milk');
+  const b = await join(browser, id, 'Sam');
+  // A has the details of Milk open, B renames it, A closes without touching anything
+  await page.getByRole('button', { name: 'Edit Milk' }).click();
+  await b.page.getByRole('button', { name: 'Edit Milk' }).click();
+  await b.page.getByLabel('Name', { exact: true }).fill('Oat milk');
+  await b.page.getByRole('button', { name: 'Done' }).click();
+  await expect(item(b.page, 'Oat milk')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(item(page, 'Oat milk')).toHaveCount(1);
+  await expect(item(b.page, 'Oat milk')).toHaveCount(1);
+
+  // A has the options of a list open, B deletes that list: the dialog closes, no other list is renamed
+  await page.locator('.list-title').click();
+  await page.getByLabel('New list').fill('Aldi');
+  await page.getByRole('button', { name: 'Create list' }).click();
+  await expect(page.locator('.list-title .name')).toHaveText('Aldi');
+  await page.getByRole('button', { name: 'List options' }).click();
+  await b.page.locator('.list-title').click();
+  await b.page.locator('.lists .pick', { hasText: 'Aldi' }).click();
+  await b.page.getByRole('button', { name: 'List options' }).click();
+  await b.page.getByRole('button', { name: 'Delete list' }).click();
+  await b.page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(b.page.locator('.list-title .name')).toHaveText('Weekly');
+  await expect(page.getByRole('dialog', { name: 'Aldi' })).toHaveCount(0);
+  await expect(page.locator('.list-title .name')).toHaveText('Weekly');
+  await page.waitForTimeout(300);
+  await expect(b.page.locator('.list-title .name')).toHaveText('Weekly');
+
+  // the details of an item deleted on the other device close with a note
+  await page.getByRole('button', { name: 'Edit Oat milk' }).click();
+  await b.page.getByRole('button', { name: 'Edit Oat milk' }).click();
+  await b.page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Oat milk' })).toHaveCount(0);
+  await expect(page.locator('.toast', { hasText: 'deleted on another device' })).toBeVisible();
+  await b.ctx.close();
+});

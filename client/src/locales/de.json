@@ -580,5 +580,6 @@
   "link.wholeGroup": "Im ganzen Verbund",
   "status.fullTitle": "Zu viele Geräte",
   "status.full": "Diese ID hat schon 100 Geräte. Jemand, der schon dabei ist, kann alte Geräte unter Einstellungen → Teilnehmer entfernen – dann geht es weiter.",
-  "travel.useCountry": "{country} übernehmen"
+  "travel.useCountry": "{country} übernehmen",
+  "toast.goneMeanwhile": "Der Artikel wurde inzwischen auf einem anderen Gerät gelöscht."
 }

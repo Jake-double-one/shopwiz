@@ -26,7 +26,7 @@
   {#if sig.kind === 'where'}
     {#if choosing}
       <div class="row wrap-row">
-        {#each places as p (p)}
+        {#each places as p, i (i)}
           <button class="chip" onclick={() => reply('here', p)}>{p}</button>
         {/each}
       </div>

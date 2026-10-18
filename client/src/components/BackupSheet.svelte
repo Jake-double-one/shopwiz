@@ -86,7 +86,8 @@
   <section>
     <p class="eyebrow">{t('backup.import')}</p>
     <p class="note">{t('backup.importNote')}</p>
-    <input bind:this={fileInput} class="sr-only" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" onchange={pickFile} />
+    <!-- reached through the button below: not focusable on its own, and named for screen readers -->
+    <input bind:this={fileInput} class="sr-only" type="file" tabindex="-1" aria-label={t('backup.chooseFile')} accept=".md,.markdown,.txt,text/markdown,text/plain" onchange={pickFile} />
     <button class="btn block" onclick={() => fileInput.click()}><Icon name="folder" />{fileName || t('backup.chooseFile')}</button>
     <label class="field paste">
       <span>{t('backup.orPaste')}</span>

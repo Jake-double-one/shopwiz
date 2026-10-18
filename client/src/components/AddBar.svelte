@@ -316,6 +316,10 @@
     pointer-events: none;
   }
   /* open suggestions or prompts sit above toasts */
+  /* a dialog (sheet) or the focus mode always lies above the add bar, even with a hint open */
+  :global(body.sheet-open) .bar-wrap.raised {
+    z-index: 40;
+  }
   .bar-wrap.raised {
     z-index: 70;
   }
@@ -413,6 +417,11 @@
     display: none;
   }
   .clear {
+    min-width: 0;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--mono);
     font-size: 0.7rem;
     background: var(--dusk-soft);

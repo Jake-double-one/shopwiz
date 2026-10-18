@@ -43,7 +43,7 @@
       <span class="micro">{t('call.place')}</span>
       <select class="select" bind:value={place}>
         <option value="">{autoPlace ? t('call.placeAuto', { place: autoPlace }) : t('call.placeNone')}</option>
-        {#each places as p (p)}<option value={p}>{p}</option>{/each}
+        {#each places as p, i (i)}<option value={p}>{p}</option>{/each}
       </select>
     </label>
     <button class="btn block big" onclick={() => send('checkout')}>{t('call.checkout')}</button>

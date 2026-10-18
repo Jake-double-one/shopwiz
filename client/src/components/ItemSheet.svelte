@@ -134,16 +134,18 @@
   }
 
   function save() {
+    // only what was changed in this sheet – compared with what it showed when it opened, so a change
+    // made meanwhile on another device stays (or becomes a conflict to choose from, via the old base)
     const fields = {};
     const n = name.trim();
-    if (n && n !== item.name) fields.name = n.slice(0, 120);
+    if (n && n !== initial.name) fields.name = n.slice(0, 120);
     const q = String(qty ?? '').replace(',', '.').trim();
     const validQty = q === '' || /^\d+(\.\d+)?$/.test(q);
-    if (validQty && (q !== item.qty || unit.trim() !== item.unit)) fields.amount = { qty: q, unit: unit.trim().slice(0, 16) };
-    if (note.trim() !== item.note) fields.note = note.trim();
-    if (prio !== (item.prio ?? 0)) fields.prio = prio;
-    if (partners.length && shared !== !!item.shared) fields.shared = shared;
-    if (Object.keys(fields).length) editItem(item, fields);
+    if (validQty && (q !== initial.qty || unit.trim() !== initial.unit)) fields.amount = { qty: q, unit: unit.trim().slice(0, 16) };
+    if (note.trim() !== initial.note) fields.note = note.trim();
+    if (prio !== (initial.prio ?? 0)) fields.prio = prio;
+    if (partners.length && shared !== !!initial.shared) fields.shared = shared;
+    if (Object.keys(fields).length) editItem({ ...item, meta: initial.meta }, fields);
     if (travel) {
       const finalName = fields.name ?? item.name;
       const text = tr.trim().slice(0, 120);
