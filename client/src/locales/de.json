@@ -229,7 +229,7 @@
   "transfer.title": "Kopieren oder verschieben",
   "transfer.short": "Kopieren/Verschieben",
   "transfer.group": "Gruppe kopieren oder verschieben",
-  "transfer.note": "Wähle das Ziel – eine andere Liste dieser ID oder eine andere ID, die du kennst.",
+  "transfer.note": "Wähle das Ziel – eine andere Liste dieser ID oder eine andere ID, in der du auch bist.",
   "transfer.thisSpace": "Andere Liste dieser ID",
   "transfer.otherId": "Andere ID",
   "transfer.next": "Weiter",
@@ -729,5 +729,6 @@
   "admin.promoCodeHint": "Gib diesen Code der Person, z. B. per Chat oder persönlich. Ihr Gerät braucht ihn, um innerhalb von 24 Stunden seinen Passkey einzurichten – ein kopierter Geräte-Schlüssel allein reicht so nicht. Der Code steht bis dahin auch unter „Admins“.",
   "admin.error.own_key": "Dieses Gerät hat schon seinen Passkey – melde dich damit an.",
   "admin.method.promotion": "Ernennungscode",
-  "admin.error.https": "Die Anmeldung geht nur über HTTPS."
+  "admin.error.https": "Die Anmeldung geht nur über HTTPS.",
+  "transfer.notMember": "In dieser ID bist du nicht dabei. Tritt ihr erst bei (Startseite → ID eingeben), dann kannst du dorthin übertragen."
 }

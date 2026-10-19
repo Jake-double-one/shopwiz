@@ -63,7 +63,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Verlauf** | Wer hat was gemacht, mit „Wiederherstellen“ für gelöschte Artikel. Wird nach 14 Tagen automatisch geleert. |
 | **Rückgängig** | Jede Aktion lässt sich sofort rückgängig machen. |
 | **Teilen** | QR-Code und natives Teilen-Menü mit ordentlichem Titel. Ein Kamera-Knopf scannt QR-Codes. Link-Vorschauen in Messengern bleiben neutral: nie der Name der ID oder was drauf ist. |
-| **Kopieren / Verschieben** | Artikel und ganze Gruppen in eine andere Liste oder eine andere ID übertragen. |
+| **Kopieren / Verschieben** | Artikel und ganze Gruppen in eine andere Liste oder eine andere ID übertragen, in der du auch bist. |
 | **ID erneuern** | Neue ID, die alte funktioniert nicht mehr. Alle teilnehmenden Geräte ziehen automatisch mit um. |
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
 | **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nur übersetzt, wenn du für eine Liste den Reisemodus einschaltest. |

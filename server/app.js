@@ -179,9 +179,10 @@ export async function buildApp(config) {
     }
   });
 
-  // Lists of a space – used to pick a target when transferring items. Knowing the id is enough.
+  // Lists of a space – used to pick a target when transferring items. Members only: an ID one
+  // merely knows is no target (join it first – then everybody there sees who is in)
   app.get('/api/spaces/:id/lists', async (req, reply) => {
-    const r = lookup(req, reply);
+    const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(404).send({ error: 'notfound' });
     return { id: r.space.public_id, name: r.space.name, lists: store.listsOf(r.space.uid) };
@@ -397,6 +398,8 @@ export async function buildApp(config) {
       limiter.fail(clientKey(req));
       return reply.code(404).send({ error: 'target_notfound' });
     }
+    // only into an ID one is in oneself (an admin is in all of them)
+    if (!r.admin && !store.isMember(target.space.uid, r.tokenHash)) return reply.code(403).send({ error: 'not_member' });
     const dev = devOf(r);
     try {
       const res = store.transfer(r.space.uid, dev, { targetUid: target.space.uid, targetListId: listId, itemIds, groupId, fromListId, mode });

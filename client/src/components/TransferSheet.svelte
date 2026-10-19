@@ -29,7 +29,7 @@
       target = await api.lists(parsed);
       listId = target.lists[0]?.id ?? '';
     } catch (e) {
-      error = e.code === 'offline' ? t('start.offline') : e.status === 429 ? t('status.limited') : t('transfer.notFound');
+      error = e.code === 'offline' ? t('start.offline') : e.status === 429 ? t('status.limited') : e.status === 403 ? t('transfer.notMember') : t('transfer.notFound');
     } finally {
       busy = false;
     }

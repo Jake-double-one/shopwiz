@@ -64,7 +64,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **History** | Who did what, with “restore” for deleted items. Cleared automatically after 14 days. |
 | **Undo** | Every action can be undone right away. |
 | **Sharing** | QR code and native share menu with a proper title. A camera button scans QR codes. Link previews in messengers stay neutral: they never show the name of the ID or what is on it. |
-| **Copy / move** | Move or copy items and whole groups to another list or another ID. |
+| **Copy / move** | Move or copy items and whole groups to another list or another ID you are in as well. |
 | **Renew ID** | Creates a new ID, the old one stops working. All participating devices move along automatically. |
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
 | **Languages** | English and German, per device. Your entries are only translated if you turn on travel mode for a list. |

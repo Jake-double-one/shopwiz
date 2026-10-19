@@ -229,7 +229,7 @@
   "transfer.title": "Copy or move",
   "transfer.short": "Copy/move",
   "transfer.group": "Copy or move group",
-  "transfer.note": "Choose where it should go – another list of this ID or any other ID you know.",
+  "transfer.note": "Choose where it should go – another list of this ID, or another ID you are in as well.",
   "transfer.thisSpace": "Another list of this ID",
   "transfer.otherId": "Other ID",
   "transfer.next": "Next",
@@ -729,5 +729,6 @@
   "admin.promoCodeHint": "Give this code to the person, e.g. by chat or in person. Their device needs it to set up its passkey within 24 hours – so a copied device key alone is not enough. Until then the code is also shown under \"Admins\".",
   "admin.error.own_key": "This device has its passkey already – log in with it.",
   "admin.method.promotion": "promotion code",
-  "admin.error.https": "Logging in only works over HTTPS."
+  "admin.error.https": "Logging in only works over HTTPS.",
+  "transfer.notMember": "You are not in this ID. Join it first (start page → enter the ID), then you can transfer there."
 }

@@ -230,3 +230,27 @@ describe('hardening (analysis after v0.5.2)', () => {
     await app.close();
   });
 });
+
+describe('transfer only into IDs one is in', () => {
+  it('a known but not joined ID is no target; after joining it is', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const mk = (name, token) => app.inject({ method: 'POST', url: '/api/spaces', payload: { name, token, deviceName: 'X' } }).then((r) => r.json().id);
+    const src = await mk('Src', T1);
+    const dst = await mk('Dst', 'token-otherotherotherother1');
+    const itemId = 'itemitemitem';
+    await app.inject({ method: 'POST', url: `/api/spaces/${src}/import`, headers: { 'x-shopwiz-token': T1 }, payload: { doc: { lists: [{ name: 'Src', items: [{ name: 'Soap' }] }] } } });
+    const soap = app.store.snapshot(app.store.resolve(src, null).space.uid).items[0];
+    const lists = await app.inject({ method: 'GET', url: `/api/spaces/${dst}/lists`, headers: { 'x-shopwiz-token': T1 } });
+    expect(lists.statusCode).toBe(403);
+    const dstList = app.store.snapshot(app.store.resolve(dst, null).space.uid).lists[0].id;
+    const t1 = await app.inject({ method: 'POST', url: `/api/spaces/${src}/transfer`, headers: { 'x-shopwiz-token': T1 }, payload: { to: dst, listId: dstList, itemIds: [soap.id], mode: 'copy' } });
+    expect(t1.json()).toEqual({ error: 'not_member' });
+    // join → fine
+    app.store.joinDevice(app.store.resolve(dst, null).space.uid, hashToken(T1), 'X');
+    expect((await app.inject({ method: 'GET', url: `/api/spaces/${dst}/lists`, headers: { 'x-shopwiz-token': T1 } })).statusCode).toBe(200);
+    const t2 = await app.inject({ method: 'POST', url: `/api/spaces/${src}/transfer`, headers: { 'x-shopwiz-token': T1 }, payload: { to: dst, listId: dstList, itemIds: [soap.id], mode: 'copy' } });
+    expect(t2.json()).toEqual({ count: 1 });
+    expect(itemId).toBeTruthy();
+    await app.close();
+  });
+});

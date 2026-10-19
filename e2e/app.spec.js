@@ -236,6 +236,16 @@ test('copy items to another ID', async ({ page, browser }) => {
   const otherId = await createList(other, 'Office', 'Work');
   await page.getByRole('button', { name: 'Edit Soap' }).click();
   await page.getByRole('button', { name: 'Copy/move' }).click();
+  // an ID one merely knows is no target – join it first
+  await page.getByLabel('Other ID').fill(otherId);
+  await page.getByRole('button', { name: 'Next' }).click();
+  await expect(page.getByText('You are not in this ID.')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.goto(`/${otherId}`);
+  await expect(page.locator('.list-title')).toContainText('Office');
+  await page.goto(`/${id}`);
+  await page.getByRole('button', { name: 'Edit Soap' }).click();
+  await page.getByRole('button', { name: 'Copy/move' }).click();
   await page.getByLabel('Other ID').fill(otherId);
   await page.getByRole('button', { name: 'Next' }).click();
   await page.locator('.themeswitch.mode').getByRole('button', { name: 'Move' }).click();
