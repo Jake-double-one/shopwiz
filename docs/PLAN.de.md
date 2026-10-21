@@ -133,13 +133,13 @@ Nach dem Nachsenden zeigt die App kurz: „5 Änderungen synchronisiert, 1 über
 - Datensparsamkeit: gespeichert werden nur Listeninhalte, Namen und Zeitstempel. Abgelaufene Spaces und inaktive Geräte werden hart gelöscht.
 - Strenge Sicherheits-Header (CSP, `Referrer-Policy: no-referrer`, damit die ID nicht über Referrer abfließt).
 
-## 5. Design (Feierabend-Designsystem v2)
+## 5. Design (Feierabend-Designsystem v3)
 
 Übernahme der Tokens 1:1:
 
-- Farben: `--bg #E9EDE6`, `--surface #FBFCF9`, `--surface-2 #E1E7DD`, `--ink #16211B`, `--muted #5C6B60`, `--line #CAD4C5`, `--dusk #4B45A8` (Akzent/Fokus), `--sun #D9920B` (Hauptaktion), `--alert #A33A22` – plus die dunklen Varianten.
+- Farben: `--bg #E9EDE6`, `--surface #FBFCF9`, `--surface-2 #E1E7DD`, `--ink #16211B`, `--muted #5C6B60`, `--line #CAD4C5`, `--dusk #4B45A8` (Akzent/Fokus), `--sun #D9920B` (Hauptaktion), `--on-sun #201503`, `--alert #A33A22` – das ist der Skin Hell; dazu Dunkel, AMOLED und Mango.
 - Schriften: **Instrument Sans** für Text, **IBM Plex Mono** für Überschriften, IDs, Mengen, Eyebrows.
-- Bausteine: Karten (Radius 18 px, weicher Schatten), Chips (999 px) für Gruppenfilter/Gerätenamen, `hint`-Kästen für Hinweise (Ablauf, offline), aufklappbare `details.card` für Gruppen, Themeswitch Hell/Dunkel/Auto.
+- Bausteine: Karten (Radius 18 px, weicher Schatten), Chips (999 px) für Gruppenfilter/Gerätenamen, `hint`-Kästen für Hinweise (Ablauf, offline), aufklappbare `details.card` für Gruppen, Skinwahl statt Hell/Dunkel/Auto: Jeder Skin trägt das Tag `scheme: light|dark`, ohne Auswahl gilt der Standard-Skin (`default: light|dark`) der Browsereinstellung.
 - Mobil zuerst, max. Breite ~780 px, große Tippflächen.
 
 ## 6. Technik
