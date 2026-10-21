@@ -67,7 +67,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **ID erneuern** | Neue ID, die alte funktioniert nicht mehr. Alle teilnehmenden Geräte ziehen automatisch mit um. |
 | **ID löschen** | Für alle, mit doppelter Bestätigung. Teilnehmer können mit einer Kopie unter neuer ID weitermachen. |
 | **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nur übersetzt, wenn du für eine Liste den Reisemodus einschaltest. |
-| **Skins** | Dunkel, AMOLED (echtes Schwarz), Hell und Mango (kräftig und fruchtig) – pro Gerät in den Einstellungen wählbar. Weitere lassen sich als CSS-Datei ablegen, auch auf einem laufenden Server. Beim ersten Besuch folgt ShopWiz dem Browser (Dunkel oder Hell). Alle Skins halten den Kontrast-Standard WCAG AA ein (automatisch getestet). Design: *Feierabend-Designsystem v2*. |
+| **Skins** | Dunkel, AMOLED (echtes Schwarz), Hell und Mango (kräftig und fruchtig) – pro Gerät in den Einstellungen wählbar. Weitere lassen sich als CSS-Datei ablegen, auch auf einem laufenden Server. Beim ersten Besuch folgt ShopWiz dem Browser (Dunkel oder Hell). Alle Skins halten den Kontrast-Standard WCAG AA ein (automatisch getestet). Design: *Feierabend-Designsystem v3*. |
 | **Eingebaute Hilfe** | Ein (?) in der Kopfzeile (und „So funktioniert ShopWiz“ auf der Startseite) erklärt alle Funktionen in kurzen Themen – offline und in der Sprache des Geräts. Neue Nutzer bekommen einmalig einen Hinweis. |
 | **Installierbar** | Läuft als App auf dem Homescreen (PWA). |
 
