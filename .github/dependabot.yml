@@ -16,3 +16,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Node stays on its LTS line (22 until April 2027): digest and patch updates only – a new
+    # major is a deliberate change, tested with the app, not a weekly bump
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
