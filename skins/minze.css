@@ -1,0 +1,31 @@
+/*
+ * ShopWiz skin – Mint: a fresh morning – soft mint, teal accent, leaf-green buttons.
+ *
+ * name: Mint
+ * name.de: Minze
+ * scheme: light
+ * order: 35
+ */
+:root {
+  --bg: #ddf0e5;
+  --surface: #f6fbf8;
+  --surface-2: #cde8d8;
+  --ink: #0f2419;
+  --muted: #44655a;
+  --line: #b2d6c2;
+  --dusk: #11735c;
+  --dusk-soft: #bfe8d3;
+  --sun: #22804d;
+  --sun-soft: #d3f0df;
+  --alert: #b4322a;
+  --ok: #22804d;
+  --control: #66937c;
+  --control-ink: #2e5a47;
+  --on-dusk: #ffffff;
+  --on-sun: #ffffff;
+  --on-alert: #ffffff;
+  --focus-bg: #ffffff;
+  --focus-ink: #000000;
+  --focus-dim: #8a8a8a;
+  --shadow: 0 1px 2px rgba(15, 36, 25, 0.06), 0 12px 32px -18px rgba(15, 36, 25, 0.35);
+}

@@ -68,7 +68,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Renew ID** | Creates a new ID, the old one stops working. All participating devices move along automatically. |
 | **Delete ID** | For everyone, with double confirmation. Participants can continue with a copy under a new ID. |
 | **Languages** | English and German, per device. Your entries are only translated if you turn on travel mode for a list. |
-| **Skins** | Dark, AMOLED (true black), Light and Mango (bright and fruity) – picked per device in the settings. More can be dropped in as CSS files, also on a running server. On the first visit ShopWiz follows the browser (dark or light). Every skin meets the WCAG AA contrast level (tested automatically). Design: *Feierabend design system v3*. |
+| **Skins** | Dark, AMOLED (true black), Sunset (dark plum and coral), Light, Mint (soft mint and green) and Mango (bright and fruity) – picked per device in the settings. More can be dropped in as CSS files, also on a running server. On the first visit ShopWiz follows the browser (dark or light). Every skin meets the WCAG AA contrast level (tested automatically). Design: *Feierabend design system v4*. |
 | **Built-in help** | A (?) in the header (and “How ShopWiz works” on the start screen) explains every feature in short topics – offline and in the device's language. New users get a one-time hint. |
 | **Installable** | Works as an app on the home screen (PWA). |
 

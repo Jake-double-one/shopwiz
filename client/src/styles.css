@@ -1,6 +1,6 @@
-/* Feierabend design system v3 – fonts and sizes; the colors come from the skins (skins/, put in by the server) */
+/* Feierabend design system v4 – fonts and sizes; the colors come from the skins (skins/, put in by the server) */
 :root {
-  --feierabend-version: '3';
+  --feierabend-version: '4';
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --radius: 18px;
