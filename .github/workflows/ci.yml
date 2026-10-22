@@ -33,6 +33,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # nothing with a known vulnerability goes into the image
+      - run: npm audit --omit=dev --audit-level=moderate
       - run: npm run check
       - run: npm test
       - run: npm run build

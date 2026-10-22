@@ -408,6 +408,8 @@ ShopWiz baut auf diesen Projekten auf – danke:
 | KI-Assistenten | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), [zod](https://zod.dev) | MIT |
 | Passkeys (optionale Administration) | [SimpleWebAuthn](https://github.com/MasterKale/SimpleWebAuthn) (mit @peculiar/x509 und asn1-Paketen, asn1js, @hexagon/base64, tiny-cbor, reflect-metadata, tsyringe, tslib) | MIT; asn1js BSD-3-Clause, reflect-metadata Apache-2.0, tslib 0BSD |
 
+**Abhängigkeiten im Blick:** Jeder Push lässt `npm audit` über die Pakete laufen, die im Image landen (ab „moderate“ bricht der Build ab). Ein nächtlicher Workflow (`.github/workflows/audit.yml`) prüft alle Pakete erneut und scannt das veröffentlichte Image mit Trivy – Alpine, Node und die enthaltenen Pakete – und schlägt bei bekannten hohen oder kritischen Lücken mit verfügbarem Fix fehl. Dependabot öffnet wöchentlich Pull Requests für Pakete, Actions und das Basis-Image.
+
 Die App liefert die vollständigen Lizenztexte von allem, was im Browser läuft, als `/licenses.txt` mit (Hilfe → „Lizenzen der verwendeten Software und Schriften“). Die Datei entsteht beim Build aus den Paketen im Bundle (`scripts/licenses.js`) und bleibt so vollständig, wenn sich Abhängigkeiten ändern. Die Server-Pakete behalten ihre Lizenzdateien im `node_modules` des Docker-Images.
 
 ## Entwicklung
