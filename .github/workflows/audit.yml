@@ -29,6 +29,21 @@ jobs:
       - name: Build and test tools (development)
         run: npm audit --audit-level=high
 
+  runtime:
+    name: Node in the image
+    runs-on: ubuntu-latest
+    steps:
+      # the SQLite inside Node is no Alpine package – Trivy can't see it. Node's own security
+      # releases are what carry its updates: the image must run the newest Node of its LTS line
+      - name: Node and SQLite in the image vs. the newest Node 22
+        run: |
+          set -e
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin >/dev/null
+          have=$(docker run --rm ghcr.io/jake-double-one/shopwiz:latest node -p "process.version + ' (SQLite ' + process.versions.sqlite + ')'")
+          want=$(curl -fsS https://nodejs.org/dist/index.json | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).find(v => v.version.startsWith('v22.')).version")
+          echo "image: $have – newest Node 22: $want"
+          [ "${have%% *}" = "$want" ] || { echo "::error::the image runs ${have%% *}, newest is $want – bump the digest in the Dockerfile (Dependabot does it weekly)"; exit 1; }
+
   image:
     name: published image
     runs-on: ubuntu-latest
