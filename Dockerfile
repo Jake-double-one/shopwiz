@@ -48,6 +48,9 @@ COPY skins ./skins
 COPY --from=build /app/dist ./dist
 # your own skins go into /data/skins (see skins/README.md)
 RUN mkdir -p /data/skins && chown -R node:node /data
+# the container only ever runs "node": npm, npx, corepack and yarn (with their hundreds of packages)
+# are not needed at runtime – fewer things for a scanner, or an attacker, to find
+RUN rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn*
 USER node
 VOLUME /data
 EXPOSE 8080
