@@ -1,0 +1,31 @@
+/*
+ * ShopWiz skin – Sunset: dark plum, coral accent, golden buttons – the sky after work.
+ *
+ * name: Sunset
+ * name.de: Abendrot
+ * scheme: dark
+ * order: 25
+ */
+:root {
+  --bg: #1b0e14;
+  --surface: #27161c;
+  --surface-2: #372128;
+  --ink: #f8e9e3;
+  --muted: #cba09a;
+  --line: #4a2c33;
+  --dusk: #ff8a5b;
+  --dusk-soft: #4e2a24;
+  --sun: #ffb454;
+  --sun-soft: #4d3518;
+  --alert: #ff7b8b;
+  --ok: #80d9a2;
+  --control: #a5767a;
+  --control-ink: #e6c9c3;
+  --on-dusk: #2b0e04;
+  --on-sun: #2a1500;
+  --on-alert: #2a0609;
+  --focus-bg: #000000;
+  --focus-ink: #ffffff;
+  --focus-dim: #7a7a7a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 16px 40px -22px rgba(0, 0, 0, 0.9);
+}

@@ -12,7 +12,7 @@ describe('skins', () => {
   it('the built-in skins are complete and readable (WCAG AA)', () => {
     const warnings = [];
     const { skins, list } = loadSkins({ log: { warn: (m) => warnings.push(m) } });
-    expect(skins.map((s) => s.id)).toEqual(['dark', 'amoled', 'light', 'mango']);
+    expect(skins.map((s) => s.id)).toEqual(['dark', 'amoled', 'abendrot', 'light', 'minze', 'mango']);
     expect(list.defaults).toEqual({ light: 'light', dark: 'dark' });
     expect(warnings).toEqual([]);
     for (const s of skins) expect(Object.keys(s.vars).sort()).toEqual([...TOKENS].sort());

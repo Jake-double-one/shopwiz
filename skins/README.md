@@ -21,7 +21,7 @@ volumes:
  * name: Ocean               ← shown in the app
  * name.de: Ozean            ← name in another language (optional, one line per language)
  * scheme: dark              ← light or dark: what the browser gets for its own parts
- * order: 50                 ← position in the list (optional; built-in: 10, 20, 30, 40)
+ * order: 50                 ← position in the list (optional; built-in: 10, 20, 25, 30, 35, 40)
  */
 :root {
   --bg: #0b1a2a;            /* page background */
