@@ -8,8 +8,9 @@ services:
     container_name: shopwiz
     restart: unless-stopped
     ports:
-      # behind a reverse proxy on the same host, "127.0.0.1:8080:8080" keeps ShopWiz off the open internet
-      - "8080:8080"
+      # reachable only through the reverse proxy on this host (see TRUST_PROXY). Without a proxy, e.g.
+      # only at home over http, use "8080:8080" – and TRUST_PROXY "false"
+      - "127.0.0.1:8080:8080"
     environment:
       # Public address, used for link previews (Open Graph) – e.g. https://shop.example.com
       PUBLIC_URL: ""
@@ -19,8 +20,10 @@ services:
       DEVICE_TTL_DAYS: "30"
       # History entries and deleted items are kept this long
       ACTIVITY_TTL_DAYS: "14"
-      # Set to "true" behind a reverse proxy so rate limiting sees the real client address
-      TRUST_PROXY: "false"
+      # "true" behind a reverse proxy, so the limits per address see the real client address –
+      # together with the port bound to 127.0.0.1 above, nobody can get around the proxy. Without a
+      # proxy: "false". Two proxies in a row (e.g. Cloudflare + nginx): "2". Check: /healthz → yourAddress
+      TRUST_PROXY: "true"
       LOG_LEVEL: "warn"
       # AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1).
       # Connect them in ShopWiz: Settings → AI assistants. Needs HTTPS from the internet.
@@ -28,6 +31,8 @@ services:
       # Travel mode translations: one service or several in order – the next one steps in
       # when one is used up or down. mymemory (free, no key) | deepl | azure | google | libretranslate | none
       TRANSLATE_PROVIDER: "mymemory"
+      # Characters per day the whole server sends to translation services (one quota for every ID; 0 = no limit)
+      TRANSLATE_DAILY_CHARS: "100000"
       # One key per service – only for the ones listed above
       DEEPL_API_KEY: ""
       AZURE_TRANSLATOR_KEY: ""
