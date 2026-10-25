@@ -5,7 +5,7 @@
   import Flag from './Flag.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
-  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, translationOn, addEntry, increaseAmount } from '../lib/actions.js';
+  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, translationOn, addEntry, increaseAmount, prioFromText } from '../lib/actions.js';
   import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement, suggestionsFor, viewItem } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -29,6 +29,14 @@
   let prio = $state(initial.prio ?? 0);
   let listId = $state(untrack(() => startList.id));
   const list = $derived(create ? (v.lists[listId] ?? startList) : startList);
+  // "!Milk" / "?Basil" typed into the name (when the list allows the shortcut) – the mark is
+  // the priority, not part of the name; the choice below shows it while typing
+  const typed = $derived(prioFromText(list, name));
+  const shownPrio = $derived(typed.prio || prio);
+  const pickPrio = (p) => {
+    if (typed.prio) name = typed.text;
+    prio = p;
+  };
   const lists = $derived(sortedLists(v));
   const options = $derived(groupOptions(v, list));
 
@@ -43,7 +51,7 @@
   const learned = $derived(create && name.trim() ? learnedPlacement(v, list, name.trim()) : null);
   // names used before – the same suggestions as in the add bar, only while typing
   let nameFocus = $state(false);
-  const sugg = $derived(create && nameFocus && name.trim() ? suggestionsFor(v, list, name.trim(), 5) : []);
+  const sugg = $derived(create && nameFocus && typed.text.trim() ? suggestionsFor(v, list, typed.text.trim(), 5) : []);
   let dup = $state(null); // { existing, parsed, another } – the name is on the list already
   $effect(() => {
     // another list: its groups
@@ -137,13 +145,13 @@
     // only what was changed in this sheet – compared with what it showed when it opened, so a change
     // made meanwhile on another device stays (or becomes a conflict to choose from, via the old base)
     const fields = {};
-    const n = name.trim();
+    const n = typed.text.trim();
     if (n && n !== initial.name) fields.name = n.slice(0, 120);
     const q = String(qty ?? '').replace(',', '.').trim();
     const validQty = q === '' || /^\d+(\.\d+)?$/.test(q);
     if (validQty && (q !== initial.qty || unit.trim() !== initial.unit)) fields.amount = { qty: q, unit: unit.trim().slice(0, 16) };
     if (note.trim() !== initial.note) fields.note = note.trim();
-    if (prio !== (initial.prio ?? 0)) fields.prio = prio;
+    if (shownPrio !== (initial.prio ?? 0)) fields.prio = shownPrio;
     if (partners.length && shared !== !!initial.shared) fields.shared = shared;
     if (Object.keys(fields).length) editItem({ ...item, meta: initial.meta }, fields);
     if (travel) {
@@ -222,7 +230,7 @@
       <span class="prio-label" id="prio-label">{t('prio.label')}</span>
       <div class="prio-seg" role="radiogroup" aria-labelledby="prio-label">
         {#each [0, 1, -1] as p (p)}
-          <button type="button" role="radio" aria-checked={prio === p} class:up={p > 0} class:down={p < 0} onclick={() => (prio = p)}>
+          <button type="button" role="radio" aria-checked={shownPrio === p} class:up={p > 0} class:down={p < 0} onclick={() => pickPrio(p)}>
             {#if p}<PrioIcon prio={p} size={13} />{/if}{t(p > 0 ? 'prio.up' : p < 0 ? 'prio.down' : 'prio.normal')}
           </button>
         {/each}

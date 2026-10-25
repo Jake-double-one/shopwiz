@@ -699,6 +699,7 @@ test('important / not important: shortcut, add-bar button, details, display styl
   // the add-bar button shows what the typed mark does, and can be used instead
   const input = page.getByPlaceholder('Add item, e.g. 2 milk');
   await input.fill('!');
+  await expect(page.locator('.sugg')).toHaveCount(0); // the mark alone is not a name to look up
   await input.pressSequentially('Bread');
   await expect(page.locator('.prio-pick')).toHaveText('Important');
   await input.fill('');
@@ -714,6 +715,13 @@ test('important / not important: shortcut, add-bar button, details, display styl
   await page.getByRole('radio', { name: 'Normal' }).click();
   await page.getByRole('button', { name: 'Done' }).click();
   await expect(item(page, 'Basil')).not.toHaveClass(/prio-/);
+  // the mark works in the edit sheet too: it sets the priority and is not part of the name
+  await page.getByRole('button', { name: 'Edit Basil' }).click();
+  await page.getByLabel('Name').fill('!Basil');
+  await expect(page.getByRole('radio', { name: 'Important', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(item(page, 'Basil')).toHaveClass(/prio-up/);
+  await expect(item(page, '!Basil')).toHaveCount(0);
 
   // display style per device
   await page.getByRole('button', { name: 'Settings' }).click();

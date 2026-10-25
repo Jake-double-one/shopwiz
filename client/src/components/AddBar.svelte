@@ -47,7 +47,9 @@
   const shareOpt = () => (partners.length ? { shared: share } : {});
 
   const parsed = $derived(parseEntry(typed.text));
-  const sugg = $derived(showSugg ? suggestionsFor(v, list, parsed.name || text) : []);
+  // a lone "!" or "?" (the shortcut, nothing typed after it yet) is not a name to look for
+  const query = $derived(list?.prioShortcuts ? typed.text.replace(/^\s*[!?]\s*$/, '') : text);
+  const sugg = $derived(showSugg && query ? suggestionsFor(v, list, parseEntry(query).name || query) : []);
   const options = $derived(groupOptions(v, list));
   const learned = $derived(!target && parsed.name ? learnedPlacement(v, list, parsed.name) : null);
   const targetLabel = $derived(target ? groupLabel(v, target) : '');
