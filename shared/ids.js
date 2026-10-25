@@ -1,14 +1,17 @@
 // Crockford Base32 without I, L, O, U – easy to read aloud, no 0/O or 1/I/l confusion.
 export const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const ID_LENGTH = 10;
+/** Longest input parseSpaceId looks at (a share link with separators is ~60 characters). */
+export const MAX_INPUT = 256;
 
 /** Normalise user input: strip separators, uppercase, map look-alikes. Returns null if invalid. */
 export function parseSpaceId(input) {
-  if (typeof input !== 'string') return null;
+  // Anything longer than a share link is no ID – and every step below stays linear in the length
+  // (a nested-quantifier regex used to live here; a crafted 45-character "ID" stalled the server).
+  if (typeof input !== 'string' || input.length > MAX_INPUT) return null;
   let s = input.trim();
-  // Accept full links: take the last path segment.
-  const m = s.match(/([0-9A-Za-z]{2,}[-\s]?){2,}[0-9A-Za-z]*\/?$/);
-  if (s.includes('/') && m) s = m[0];
+  // Accept full links: take the last non-empty path segment.
+  if (s.includes('/')) s = s.replace(/\/+$/, '').split('/').pop() ?? '';
   s = s.toUpperCase().replace(/[\s\-_./]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
   if (s.length !== ID_LENGTH) return null;
   for (const ch of s) if (!ALPHABET.includes(ch)) return null;

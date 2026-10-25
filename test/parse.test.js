@@ -66,6 +66,20 @@ describe('space ids', () => {
     expect(parseSpaceId('https://shop.example/K7QM-2XPA-9F')).toBe('K7QM2XPA9F');
     expect(parseSpaceId('K7QM2XPA9')).toBeNull();
     expect(parseSpaceId('K7QM2XPA9U')).toBeNull();
+    expect(parseSpaceId('https://shop.example/K7QM-2XPA-9F/')).toBe('K7QM2XPA9F');
+    expect(parseSpaceId('/K7QM2XPA9F')).toBe('K7QM2XPA9F');
+    expect(parseSpaceId('shop.example/K7QM 2XPA 9F')).toBe('K7QM2XPA9F');
+  });
+  it('costs linear time on hostile input (no catastrophic backtracking)', () => {
+    // 'a'×45+'!' used to take over a minute; 'a'×100+'!' must be instant
+    for (const n of [45, 100, 255]) {
+      const t = performance.now();
+      expect(parseSpaceId('a'.repeat(n) + '!')).toBeNull();
+      expect(parseSpaceId('https://x/' + 'a-'.repeat(n / 2) + '!')).toBeNull();
+      expect(performance.now() - t).toBeLessThan(50);
+    }
+    expect(parseSpaceId('K7QM2XPA9F'.padEnd(257, '/'))).toBeNull(); // over the input cap
+    expect(parseSpaceId('K7QM2XPA9F'.padEnd(256, '/'))).toBe('K7QM2XPA9F'); // at the cap
   });
   it('formats', () => expect(formatSpaceId('K7QM2XPA9F')).toBe('K7QM-2XPA-9F'));
   it('generates valid ids', () => {
