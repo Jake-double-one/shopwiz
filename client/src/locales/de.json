@@ -658,6 +658,8 @@
   "admin.lastUsed": "zuletzt {when}",
   "admin.lastSeen": "zuletzt gesehen {when}",
   "admin.deletedAt": "gelöscht {when}",
+  "admin.expires_one": "wird gelöscht am {when} (noch 1 Tag)",
+  "admin.expires_other": "wird gelöscht am {when} (noch {count} Tage)",
   "admin.open": "Öffnen",
   "admin.delete": "Löschen",
   "admin.deleteConfirm": "„{name}“ mit allen Listen endgültig löschen? Das lässt sich nicht rückgängig machen.",

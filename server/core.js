@@ -317,6 +317,18 @@ export class Store {
     return this.db.q('SELECT * FROM devices WHERE space_uid = ? AND token_hash = ?').get(uid, tokenHash);
   }
 
+  /**
+   * Next revision of a space. A member's edit also counts as activity (the ID is deleted TTL days
+   * after its last activity) – an admin's visit or edit does not: looking after an ID must not
+   * keep it alive.
+   */
+  _bump(uid, device, now) {
+    const sql = device?.kind === 'admin'
+      ? 'UPDATE spaces SET rev = rev + 1 WHERE uid = ? RETURNING rev'
+      : 'UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev';
+    return this.db.q(sql).get(...(device?.kind === 'admin' ? [uid] : [now, uid])).rev;
+  }
+
   touch(uid, tokenHash) {
     const now = Date.now();
     this.db.q('UPDATE spaces SET last_active_at = ? WHERE uid = ? AND last_active_at < ?').run(now, uid, now - 60_000);
@@ -592,7 +604,7 @@ export class Store {
     // Client time is corrected by the client; never trust it beyond "now".
     const madeAt = typeof at === 'number' && Number.isFinite(at) ? Math.min(at, now) : now;
     return db.tx(() => {
-      const rev = db.q('UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev').get(now, uid).rev;
+      const rev = this._bump(uid, device, now);
       const ctx = { uid, dev: device, rev, at: madeAt, now, changes: [] };
       // own handlers only – never something every object has (valueOf, constructor, …)
       const handler = Object.hasOwn(OPS, op.k) ? OPS[op.k] : null;
@@ -1728,7 +1740,7 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
     } else {
       items = idList(itemIds).map((id) => this._item(srcUid, id));
     }
-    const tRev = db.q('UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev').get(now, targetUid).rev;
+    const tRev = this._bump(targetUid, device, now);
     const tctx = { uid: targetUid, dev: device, rev: tRev, at: now, now, changes: [] };
     const tList = this._list(targetUid, eid(targetListId, 'listId'));
     const count = db.q('SELECT COUNT(*) AS c FROM items WHERE space_uid = ? AND list_id = ? AND deleted_at IS NULL').get(targetUid, tList.id).c;
@@ -1746,7 +1758,7 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
     }
     this._act(tctx, tList.id, 'transfer.in', { count: items.length, names: items.slice(0, 20).map((r) => r.name) });
 
-    const sRev = db.q('UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev').get(now, srcUid).rev;
+    const sRev = this._bump(srcUid, device, now);
     const sctx = { uid: srcUid, dev: device, rev: sRev, at: now, now, changes: [] };
     if (mode === 'move') {
       for (const it of items) {
@@ -1782,7 +1794,7 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
   if (total > IMPORT_LIMITS.items) throw new OpError('limit', 'too many items');
   const now = Date.now();
   return db.tx(() => {
-    const rev = db.q('UPDATE spaces SET rev = rev + 1, last_active_at = ? WHERE uid = ? RETURNING rev').get(now, uid).rev;
+    const rev = this._bump(uid, device, now);
     const ctx = { uid, dev: device, rev, at: now, now, changes: [] };
     const stats = { lists: 0, added: 0, skipped: 0, reactivated: 0 };
     const live = () => db.q('SELECT * FROM lists WHERE space_uid = ? AND deleted_at IS NULL ORDER BY pos').all(uid);

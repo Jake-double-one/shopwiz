@@ -658,6 +658,8 @@
   "admin.lastUsed": "last used {when}",
   "admin.lastSeen": "last seen {when}",
   "admin.deletedAt": "deleted {when}",
+  "admin.expires_one": "deleted on {when} (1 day left)",
+  "admin.expires_other": "deleted on {when} ({count} days left)",
   "admin.open": "Open",
   "admin.delete": "Delete",
   "admin.deleteConfirm": "Delete “{name}” with all its lists for good? This can't be undone.",

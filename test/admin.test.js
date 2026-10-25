@@ -339,10 +339,19 @@ describe('admin inside an ID', () => {
 
     // full access: add an item
     const listId = welcome.snapshot.lists[0].id;
+    // ... but an admin's visit and edits are not activity of the ID: the "last used" time (and with
+    // it the day the ID is deleted) stays where the members left it
+    const lastActive = () => app.store.db.q('SELECT last_active_at FROM spaces WHERE public_id = ?').get(spaceId).last_active_at;
+    const yesterday = Date.now() - 86_400_000;
+    app.store.db.q('UPDATE spaces SET last_active_at = ? WHERE public_id = ?').run(yesterday, spaceId);
     await admin.send({ t: 'op', id: 'a1', op: { k: 'item.add', id: 'admitem00001', listId, name: 'Milk', pos: 1 }, at: Date.now() });
     expect((await admin.wait((m) => m.t === 'ack' && m.id === 'a1')).ok).toBe(true);
     const patch = await member.wait((m) => m.t === 'patch' && m.changes.some((c) => c.row?.name === 'Milk'));
     expect(patch.changes.find((c) => c.e === 'item').row.addedBy).toBe('Admin');
+    expect(lastActive()).toBe(yesterday);
+    await member.send({ t: 'op', id: 'm1', op: { k: 'item.add', id: 'memitem00001', listId, name: 'Eggs', pos: 2 }, at: Date.now() });
+    expect((await member.wait((m) => m.t === 'ack' && m.id === 'm1')).ok).toBe(true);
+    expect(lastActive()).toBeGreaterThan(yesterday); // a member's edit counts
     // nothing personal: no check-in, no renaming a device that isn't there
     await admin.send({ t: 'op', id: 'a2', op: { k: 'device.shopping', on: true }, at: Date.now() });
     expect((await admin.wait((m) => m.t === 'ack' && m.id === 'a2')).ok).toBe(false);

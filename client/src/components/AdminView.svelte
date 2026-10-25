@@ -2,6 +2,10 @@
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import { t, relTime, clock } from '../lib/i18n.svelte.js';
+  // an ID is deleted TTL days after its last activity (the hourly cleanup removes it)
+  const DAY = 86_400_000;
+  const expiresAt = (s) => s.lastActiveAt + s.ttlDays * DAY;
+  const daysLeft = (s) => Math.max(0, Math.ceil((expiresAt(s) - Date.now()) / DAY));
   import { toast } from '../lib/toast.svelte.js';
   import { load, save } from '../lib/storage.js';
   import { admin, adminSession, passkeysPossible } from '../lib/admin.svelte.js';
@@ -362,7 +366,11 @@
               </p>
               <p class="micro dates">
                 {t('admin.created', { when: clock(s.createdAt) })} · {t('admin.lastUsed', { when: relTime(s.lastActiveAt) })}
-                {#if s.deletedAt} · {t('admin.deletedAt', { when: clock(s.deletedAt) })}{/if}
+                {#if s.deletedAt}
+                  · {t('admin.deletedAt', { when: clock(s.deletedAt) })}
+                {:else}
+                  · {t('admin.expires', { when: clock(expiresAt(s)), count: daysLeft(s) })}
+                {/if}
               </p>
               {#if confirm === `space:${s.id}`}
                 <div class="hint alert"><span class="grow">{t('admin.deleteConfirm', { name: s.name })}</span></div>
