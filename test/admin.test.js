@@ -574,3 +574,79 @@ describe('hardening (analysis after v0.5.2)', () => {
     await req('POST', '/api/admin/revoke', { session, body: { did } });
   });
 });
+
+describe('main admin credential changes (audit run-1)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'shopwiz-cred-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  const OLD = 'old leaked password 1';
+  const NEW = 'brand new rotated password 2';
+
+  async function boot(extra) {
+    let said = null;
+    const a = await buildApp({ ...loadConfig({}), dataDir: dir, staticDir: './does-not-exist', announce: (m) => (said = m), ...extra });
+    await a.listen({ port: 0, host: '127.0.0.1' });
+    const url = `http://127.0.0.1:${a.server.address().port}`;
+    const call = async (method, path, { body, session } = {}) => {
+      const res = await fetch(url + path, {
+        method,
+        headers: { 'content-type': 'application/json', 'x-shopwiz-token': T3, ...(session && { 'x-shopwiz-admin': session }) },
+        body: body ? JSON.stringify(body) : method === 'POST' ? '{}' : undefined,
+      });
+      return { status: res.status, body: await res.json().catch(() => ({})) };
+    };
+    return { a, call, url, code: said?.match(/setup code:\s+([0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4})/)?.[1] ?? null };
+  }
+  /** the old holder registers a main passkey and switches the password off */
+  async function plantKey(b, password) {
+    const session = (await b.call('POST', '/api/admin/login', { body: { user: 'boss', password } })).body.session;
+    const mk = authenticator();
+    const opt = await b.call('POST', '/api/admin/passkey/options', { session, body: { purpose: 'register' } });
+    expect((await b.call('POST', '/api/admin/passkey/verify', { session, body: { ticket: opt.body.ticket, response: mk.create(opt.body.options, b.url) } })).status).toBe(200);
+    expect((await b.call('POST', '/api/admin/password-login', { session, body: { on: false } })).status).toBe(200);
+    return mk;
+  }
+  const keyLogin = async (b, mk) => {
+    const o = (await b.call('POST', '/api/admin/passkey/options', { body: { purpose: 'login' } })).body;
+    return o.ticket ? (await b.call('POST', '/api/admin/passkey/verify', { body: { ticket: o.ticket, response: mk.get(o.options, b.url) } })).status : 401;
+  };
+
+  it('a changed ADMIN_PASSWORD_HASH drops the passkeys and the password switch of the old credential', async () => {
+    const [hashA, hashB] = await Promise.all([OLD, NEW].map((p) => hashPassword(p, { N: 1024, r: 8, p: 1 })));
+    let b = await boot({ adminUser: 'boss', adminPasswordHash: hashA });
+    const mk = await plantKey(b, OLD);
+    expect((await b.call('POST', '/api/admin/login', { body: { user: 'boss', password: OLD } })).body.error).toBe('password_off');
+    await b.a.close();
+
+    b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
+    const r = await b.call('POST', '/api/admin/login', { body: { user: 'boss', password: NEW } });
+    expect(r.status).toBe(200);
+    expect(await keyLogin(b, mk)).not.toBe(200);
+    const ov = (await b.call('GET', '/api/admin/overview', { session: r.body.session })).body;
+    expect(ov.mainKeys).toHaveLength(0);
+    expect(ov.log.map((e) => e.action)).toContain('reset');
+    await b.a.close();
+    // the same credential again: nothing is reset
+    b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
+    const again = await plantKey(b, NEW);
+    await b.a.close();
+    b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
+    expect(await keyLogin(b, again)).toBe(200);
+    await b.a.close();
+  });
+
+  it('moving from the env settings to the setup code drops them as well', async () => {
+    const hashA = await hashPassword(OLD, { N: 1024, r: 8, p: 1 });
+    let b = await boot({ adminUser: 'boss', adminPasswordHash: hashA });
+    const mk = await plantKey(b, OLD);
+    await b.a.close();
+
+    b = await boot({ admin: 'reset' });
+    expect(b.code).toBeTruthy();
+    const r = await b.call('POST', '/api/admin/setup', { body: { code: b.code, user: 'operator', password: NEW } });
+    expect(r.status).toBe(200);
+    expect((await b.call('POST', '/api/admin/login', { body: { user: 'operator', password: NEW } })).status).toBe(200);
+    expect(await keyLogin(b, mk)).not.toBe(200);
+    expect((await b.call('GET', '/api/admin/overview', { session: r.body.session })).body.mainKeys).toHaveLength(0);
+    await b.a.close();
+  });
+});

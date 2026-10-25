@@ -26,7 +26,12 @@ export const LIMITS = {
   devicesPerSpace: 100,
   itemsPerList: 2000,
   batch: 300,
+  linkedItems: 4000, // shared items a list group may hold – list.link works through all of them at once
 };
+/** How large one history entry may get (the largest legitimate one, 300 deleted ids, is ~8 KB). */
+export const ACTIVITY_PAYLOAD_MAX = 32 * 1024;
+/** What "list.linkUndo" puts back – all that "list.link" remembers per item. */
+const UNDO_COLS = ['id', 'list_id', 'group_id', 'qty', 'unit', 'note', 'prio', 'shared', 'places', 'checked', 'checked_by', 'checked_in', 'parked', 'pos', 'deleted_at'];
 
 const rnd = (b) => webcrypto.getRandomValues(b);
 export const newEntityId = () => randomEntityId(rnd);
@@ -429,10 +434,13 @@ export class Store {
     return db.tx(() => {
       const old = this.spaceByUid(oldUid);
       const marker = db.q("SELECT space_uid FROM retired_ids WHERE public_id = ? AND reason = 'continued'").get(`c:${oldUid}`);
+      // a device continues once – from then on only the new ID decides whether it is in (kick, renew)
+      const leaveOld = () => db.q('DELETE FROM devices WHERE space_uid = ? AND token_hash = ?').run(oldUid, tokenHash);
       if (marker) {
         const target = this.spaceByUid(marker.space_uid);
         if (target && !target.deleted_at) {
           this.joinDevice(target.uid, tokenHash, deviceName);
+          leaveOld();
           return target.public_id;
         }
       }
@@ -460,6 +468,7 @@ export class Store {
       copy('translations', 'norm, lang, text, auto, provider, updated_at');
       db.q('INSERT OR REPLACE INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, ?, ?, ?)').run(`c:${oldUid}`, uid, 'continued', now);
       this.joinDevice(uid, tokenHash, deviceName);
+      leaveOld();
       return publicId;
     });
   }
@@ -625,9 +634,13 @@ export class Store {
     ctx.changes.push({ e: 'suggestion', row: mapSuggestion(row) });
   }
   _act(ctx, listId, action, payload) {
+    // every payload holds validated, truncated values – this is the backstop so no new call site can
+    // make the history a place to park megabytes (the largest legitimate one, 300 deleted ids, is ~8 KB)
+    let json = JSON.stringify(ctx.dev.kind === 'admin' ? { ...payload, admin: true } : payload);
+    if (json.length > ACTIVITY_PAYLOAD_MAX) json = JSON.stringify({ truncated: true });
     this.db
       .q('INSERT INTO activity (space_uid, list_id, dev_name, action, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(ctx.uid, listId, ctx.dev.name, action, JSON.stringify(ctx.dev.kind === 'admin' ? { ...payload, admin: true } : payload), ctx.now);
+      .run(ctx.uid, listId, ctx.dev.name, action, json, ctx.now);
   }
   _pushItem(ctx, id) {
     const r = this.db.q('SELECT * FROM items WHERE space_uid = ? AND id = ?').get(ctx.uid, id);
@@ -755,25 +768,29 @@ const OPS = {
   'space.update'(ctx, op) {
     const sets = [];
     const args = [];
+    const logged = {}; // the history gets the validated values, never the raw op
     if (op.name !== undefined) {
+      logged.name = str(op.name, LIMITS.spaceName, { required: true, field: 'name' });
       sets.push('name = ?');
-      args.push(str(op.name, LIMITS.spaceName, { required: true, field: 'name' }));
+      args.push(logged.name);
     }
     if (op.ttlDays !== undefined) {
       const d = Number(op.ttlDays);
       if (!Number.isInteger(d) || d < MIN_SPACE_TTL_DAYS || d > MAX_SPACE_TTL_DAYS) throw new OpError('invalid', 'ttlDays out of range');
+      logged.ttlDays = d;
       sets.push('ttl_days = ?');
       args.push(d);
     }
     if (op.aiWrite !== undefined) {
       if (ctx.dev.kind === 'ai') throw new OpError('forbidden', 'assistants cannot change this');
+      logged.aiWrite = !!op.aiWrite;
       sets.push('ai_write = ?');
       args.push(op.aiWrite ? 1 : 0);
     }
     if (!sets.length) return {};
     this.db.q(`UPDATE spaces SET ${sets.join(', ')} WHERE uid = ?`).run(...args, ctx.uid);
     ctx.changes.push({ e: 'space', row: mapSpace(this.spaceByUid(ctx.uid)) });
-    this._act(ctx, null, 'space.update', { name: op.name, ttlDays: op.ttlDays, ...(op.aiWrite !== undefined && { aiWrite: !!op.aiWrite }) });
+    this._act(ctx, null, 'space.update', logged);
   },
 
   'list.add'(ctx, op) {
@@ -860,6 +877,8 @@ const OPS = {
     }
     // one shared need per name
     const shared = db.q(`SELECT * FROM items WHERE space_uid = ? AND shared = 1 AND deleted_at IS NULL AND ${inLists} ORDER BY created_at, pos`).all(ctx.uid, ...ids);
+    // the whole group is worked through in one go – and remembered for the undo
+    if (shared.length > LIMITS.linkedItems) throw new OpError('limit', 'too many shared items in these lists');
     const byNorm = new Map();
     for (const r of shared) byNorm.set(r.norm, [...(byNorm.get(r.norm) ?? []), r]);
     let mergedItems = 0;
@@ -903,7 +922,7 @@ const OPS = {
       if (this._fillPlaces(ctx, r)) keep(cur);
     }
     for (const [id, row] of before) {
-      undo.items.push(row);
+      undo.items.push(Object.fromEntries(UNDO_COLS.map((c) => [c, row[c]]))); // only what linkUndo puts back
       if (!undo.removed.includes(id)) this._pushItem(ctx, id);
     }
     this._act(ctx, a.id, 'list.link', { names: members.map((l) => l.name), merged: mergedItems });
@@ -920,7 +939,7 @@ const OPS = {
       this.db.q('UPDATE lists SET link_id = ? WHERE space_uid = ? AND id = ?').run(l.linkId, ctx.uid, l.id);
       this._pushList(ctx, l.id);
     }
-    const cols = ['list_id', 'group_id', 'qty', 'unit', 'note', 'prio', 'shared', 'places', 'checked', 'checked_by', 'checked_in', 'parked', 'pos', 'deleted_at'];
+    const cols = UNDO_COLS.filter((c) => c !== 'id');
     for (const r of undo.items) {
       this.db.q(`UPDATE items SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE space_uid = ? AND id = ?`).run(...cols.map((c) => r[c] ?? null), ctx.uid, r.id);
       this._pushItem(ctx, r.id);
@@ -1264,8 +1283,16 @@ const OPS = {
     const id = this._realId(ctx.uid, eid(op.id));
     const item = this._item(ctx.uid, id, { allowDeleted: true });
     if (item.deleted_at) {
-      // Delete wins. Keep the lost edit in the history so it can be restored from there.
-      this._act(ctx, item.list_id, 'item.editDeleted', { id, name: item.name, fields: op.fields });
+      // Delete wins. Keep the lost edit in the history so it can be restored from there –
+      // only the known fields, cut to their limits (the raw op is whatever the client sent)
+      const f = op.fields && typeof op.fields === 'object' ? op.fields : {};
+      const lost = {};
+      if (typeof f.name === 'string') lost.name = f.name.slice(0, LIMITS.itemName);
+      if (typeof f.note === 'string') lost.note = f.note.slice(0, LIMITS.note);
+      if (f.amount && typeof f.amount === 'object') lost.amount = { qty: String(f.amount.qty ?? '').slice(0, LIMITS.qty), unit: String(f.amount.unit ?? '').slice(0, LIMITS.unit) };
+      for (const k of ['checked', 'parked']) if (k in f) lost[k] = !!f[k];
+      if ('prio' in f) lost.prio = prioOf(f.prio);
+      this._act(ctx, item.list_id, 'item.editDeleted', { id, name: item.name, fields: lost });
       return { rejected: 'deleted', name: item.name };
     }
     const list = this._list(ctx.uid, item.list_id);
@@ -1545,6 +1572,11 @@ const OPS = {
     const devId = String(op.devId ?? '');
     const r = this.db.q('DELETE FROM devices WHERE space_uid = ? AND dev_id = ? RETURNING dev_id, name, token_hash').get(ctx.uid, devId);
     if (!r) return {};
+    // a kick is final on every path in: the device also leaves the deleted IDs this one was continued
+    // from – "continue" on one of them led straight back (and told the renewed ID)
+    this.db
+      .q("DELETE FROM devices WHERE token_hash = ? AND space_uid IN (SELECT CAST(substr(public_id, 3) AS INTEGER) FROM retired_ids WHERE reason = 'continued' AND space_uid = ?)")
+      .run(r.token_hash, ctx.uid);
     ctx.changes.push({ e: 'device', del: r.dev_id });
     ctx.kicked = r.token_hash;
     this._act(ctx, null, 'device.kick', { name: r.name });
