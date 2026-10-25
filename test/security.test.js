@@ -189,6 +189,16 @@ describe('version', () => {
 });
 
 describe('hardening (analysis after v0.5.2)', () => {
+  it('a hostile "ID" in the address costs no time – the parser is linear (was: one request stalled the server for a minute)', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const t = performance.now();
+    for (const id of ['a'.repeat(45) + '!', 'a'.repeat(99) + '!', 'a-'.repeat(49) + '!']) {
+      const r = await app.inject({ method: 'GET', url: `/api/spaces/${id}/lists`, headers: { 'x-shopwiz-token': T1 } });
+      expect(r.statusCode).toBe(404);
+    }
+    expect(performance.now() - t).toBeLessThan(500);
+    await app.close();
+  });
   it('a hello costs tokens: a flood of hellos on one connection ends it, normal reconnects pass', async () => {
     const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
     await app.listen({ port: 0, host: '127.0.0.1' });
