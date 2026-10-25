@@ -1641,7 +1641,7 @@ test('translation per ID: own DeepL key in the settings, stored encrypted, trave
   await expect(page.locator('.toast', { hasText: 'Translation setting saved.' })).toBeVisible();
   // the key is gone from the field and only hinted at from now on
   await expect(page.getByTestId('translate-key')).toHaveValue('');
-  await expect(page.getByTestId('translate-key')).toHaveAttribute('placeholder', /Key stored \(…6:fx\)/);
+  await expect(page.getByTestId('translate-key')).toHaveAttribute('placeholder', /Key stored \(…9876:fx\)/);
   await page.getByRole('button', { name: 'Close' }).first().click();
 
   // travel mode offers to translate – with the ID's own service

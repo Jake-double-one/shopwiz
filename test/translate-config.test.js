@@ -49,7 +49,7 @@ describe('an ID with its own translation service', () => {
 
     const r = await s.cfg({ mode: 'own', provider: 'deepl', key: KEY });
     expect(r.statusCode).toBe(200);
-    expect(r.json().translate).toEqual({ mode: 'own', provider: 'deepl', hasKey: true, keyHint: 'l:fx', region: '', email: '' });
+    expect(r.json().translate).toEqual({ mode: 'own', provider: 'deepl', hasKey: true, keyHint: 'eepl:fx', region: '', email: '' });
     const stored = s.app.store.db.q('SELECT tr_key FROM spaces').get().tr_key;
     expect(stored.startsWith('enc1.')).toBe(true);
     expect(stored).not.toContain('abcdefgh');

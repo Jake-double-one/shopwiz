@@ -416,7 +416,8 @@ export async function buildApp(config) {
       if (key) keyEnc = sealer.seal(key);
       else if (cur?.provider === provider && cur.keyEnc) keyEnc = cur.keyEnc;
       if (!keyEnc && provider !== 'mymemory') return reply.code(400).send({ error: 'invalid', message: 'key' });
-      if (key) extra.hint = key.slice(-4);
+      // the last characters as a hint – DeepL's free keys all end in ":fx", so a few more before that
+      if (key) extra.hint = key.endsWith(':fx') ? key.slice(-7) : key.slice(-4);
       else if (keyEnc) extra.hint = cur.extra.hint ?? '';
       if (provider === 'azure') {
         const region = typeof b.region === 'string' ? b.region.trim().toLowerCase() : '';
