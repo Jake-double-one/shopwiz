@@ -213,6 +213,8 @@
   "settings.translateInvalid": "Please check: {field}",
   "settings.translateOk": "{service} works.",
   "settings.translateHint": "The key is stored encrypted and is never shown again. Everyone in this ID can use and change this setting. With your own service only your own quota is used – the server's daily limit does not apply.",
+  "settings.translateServerQuota": "Server quota – shared by every ID on this server",
+  "settings.translateOwnQuota": "Your own quota – this ID only",
   "history.title": "History",
   "history.note": "What happened on this list. Entries are removed after 14 days.",
   "history.empty": "Nothing yet.",

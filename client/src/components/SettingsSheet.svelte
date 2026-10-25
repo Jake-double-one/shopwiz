@@ -8,7 +8,7 @@
   import { PRIO_STYLES, setPrioStyle, TEXT_SIZES, setTextSize } from '../lib/theme.js';
   import { load } from '../lib/storage.js';
   import { prefs, setSwipe, SWIPE_MODES, setLinkDefault } from '../lib/prefs.svelte.js';
-  import { t } from '../lib/i18n.svelte.js';
+  import { t, i18n } from '../lib/i18n.svelte.js';
   import { updateSpace, renameDevice, translatorChain, translatorName, OWN_TRANSLATORS } from '../lib/actions.js';
   import { api } from '../lib/api.js';
   import { sync } from '../lib/sync.svelte.js';
@@ -109,7 +109,27 @@
   let trRegion = $state(untrack(() => space.translate?.region ?? ''));
   let trEmail = $state(untrack(() => space.translate?.email ?? ''));
   let trBusy = $state(false);
-  let trStatus = $state(null); // { ok, text } after "Check"
+  // the services of this ID and how they do (green/red, DeepL's quota) – checked by the server
+  let trServices = $state(null); // { own, services } | null
+  let trChecking = $state(false);
+  async function loadTrStatus() {
+    if (!online) return;
+    trChecking = true;
+    try {
+      trServices = await api.translateStatus(spaceId);
+    } catch {
+      trServices = null;
+    } finally {
+      trChecking = false;
+    }
+  }
+  $effect(() => {
+    if (online && trServices === null) loadTrStatus();
+  });
+  const svcName = (p) => translatorName(p) || p;
+  const svcProblem = (x) => t(`help.svc.${x.problem}`, { detail: x.detail ?? '' });
+  const fmtN = (n) => n.toLocaleString(i18n.lang);
+  const pctOf = (u) => (u.limit ? Math.round((u.used / u.limit) * 1000) / 10 : 0).toLocaleString(i18n.lang);
   const needsKey = (p) => ['deepl', 'google', 'azure'].includes(p);
   const keyStored = $derived(trStored.hasKey && trStored.provider === trChoice);
   const trDirty = $derived(
@@ -118,32 +138,14 @@
   const trCanSave = $derived(trDirty && (!needsKey(trChoice) || keyStored || !!trKey.trim()));
   async function saveTranslate() {
     trBusy = true;
-    trStatus = null;
     try {
       const body = trChoice === 'off' || trChoice === 'server' ? { mode: trChoice } : { mode: 'own', provider: trChoice, key: trKey.trim(), region: trRegion.trim(), email: trEmail.trim() };
       await api.translateConfig(spaceId, body);
       trKey = '';
       toast(t('settings.translateSaved'));
+      loadTrStatus();
     } catch (e) {
       toast({ text: e.code === 'invalid' ? t('settings.translateInvalid', { field: e.detail ?? '' }) : t('settings.failed'), kind: 'alert' });
-    } finally {
-      trBusy = false;
-    }
-  }
-  async function checkTranslate() {
-    trBusy = true;
-    try {
-      const r = await api.translateStatus(spaceId);
-      const bad = (r.services ?? []).find((x) => !x.ok);
-      const first = (r.services ?? [])[0];
-      if (!first) trStatus = { ok: false, text: t('settings.translateOff') };
-      else if (bad) trStatus = { ok: false, text: `${translatorName(bad.provider) || bad.provider}: ${t(`help.svc.${bad.problem}`, { detail: bad.detail ?? '' })}` };
-      else {
-        const u = (r.services ?? []).find((x) => x.usage)?.usage;
-        trStatus = { ok: true, text: t('settings.translateOk', { service: translatorName(first.provider) }) + (u ? ` ${t('help.usage', { service: translatorName(first.provider), used: u.used.toLocaleString(), limit: u.limit.toLocaleString(), pct: u.limit ? Math.round((u.used / u.limit) * 1000) / 10 : 0 })}` : '') };
-      }
-    } catch {
-      trStatus = { ok: false, text: t('settings.failed') };
     } finally {
       trBusy = false;
     }
@@ -296,9 +298,30 @@
     {/if}
     <div class="actions">
       <button class="btn main" onclick={saveTranslate} disabled={trBusy || !online || !trCanSave} data-testid="translate-save">{t('settings.translateSave')}</button>
-      {#if trChoice !== 'off' && !trDirty}<button class="btn" onclick={checkTranslate} disabled={trBusy || !online}>{t('settings.translateCheck')}</button>{/if}
+      {#if trChoice !== 'off' && !trDirty}<button class="btn" onclick={loadTrStatus} disabled={trChecking || !online}>{t('settings.translateCheck')}</button>{/if}
     </div>
-    {#if trStatus}<p class="note" class:alert={!trStatus.ok} data-testid="translate-status">{trStatus.text}</p>{/if}
+    {#if trServices?.services?.length}
+      <div class="tr-services" data-testid="translate-status">
+        <p class="micro">{trServices.own ? t('settings.translateOwnQuota') : t('settings.translateServerQuota')}</p>
+        <p class="services">
+          {#each trServices.services as x, i (x.provider)}
+            {#if i}<span aria-hidden="true">→</span>{/if}
+            <span class="svc">{svcName(x.provider)}<span class="dot" class:ok={x.ok} role="img" aria-label={x.ok ? t('help.svc.ok') : svcProblem(x)} title={x.ok ? t('help.svc.ok') : svcProblem(x)}></span></span>
+          {/each}
+        </p>
+        {#each trServices.services.filter((x) => !x.ok) as x (x.provider)}
+          <p class="micro problem">{svcName(x.provider)}: {svcProblem(x)}</p>
+        {/each}
+        {#each trServices.services.filter((x) => x.usage) as x (x.provider)}
+          <div class="usage">
+            <p class="micro">{t('help.usage', { service: svcName(x.provider), used: fmtN(x.usage.used), limit: fmtN(x.usage.limit), pct: pctOf(x.usage) })}</p>
+            <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax={x.usage.limit} aria-valuenow={x.usage.used} aria-label={svcName(x.provider)}>
+              <span style:width="{Math.min(100, (x.usage.used / x.usage.limit) * 100)}%" class:warn={x.usage.used / x.usage.limit > 0.8}></span>
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
     <p class="note">{t('settings.translateHint')}</p>
   </section>
 
@@ -589,5 +612,51 @@
   }
   .row {
     flex-wrap: wrap;
+  }
+
+  .tr-services {
+    margin: 8px 0 4px;
+  }
+  .tr-services .services {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    margin: 2px 0 4px;
+  }
+  .svc {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--alert);
+  }
+  .dot.ok {
+    background: var(--ok, #2f8a4e);
+  }
+  .problem {
+    color: var(--alert);
+  }
+  .usage {
+    margin: 4px 0 8px;
+  }
+  .bar {
+    height: 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    background: var(--dusk);
+  }
+  .bar span.warn {
+    background: var(--alert);
   }
 </style>

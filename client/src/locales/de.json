@@ -213,6 +213,8 @@
   "settings.translateInvalid": "Bitte prüfen: {field}",
   "settings.translateOk": "{service} funktioniert.",
   "settings.translateHint": "Der Schlüssel wird verschlüsselt gespeichert und nie wieder angezeigt. Alle in dieser ID können diese Einstellung nutzen und ändern. Mit eigenem Dienst wird nur das eigene Kontingent verbraucht – das Tageslimit des Servers gilt dann nicht.",
+  "settings.translateServerQuota": "Server-Kontingent – teilen sich alle IDs dieses Servers",
+  "settings.translateOwnQuota": "Eigenes Kontingent – nur diese ID",
   "history.title": "Verlauf",
   "history.note": "Was auf dieser Liste passiert ist. Einträge werden nach 14 Tagen gelöscht.",
   "history.empty": "Noch nichts passiert.",

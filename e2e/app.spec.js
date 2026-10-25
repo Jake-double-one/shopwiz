@@ -638,11 +638,16 @@ test('travel mode: country from the address, bulk translation, own corrections, 
   await page.getByRole('button', { name: 'Close' }).first().click();
   await expect(page.locator('.item .tr')).toHaveCount(0);
 
-  // the service is named in the help
+  // the service and its state are shown in the settings, next to the choice – as the server's quota
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  const status = page.getByTestId('translate-status');
+  await expect(status).toContainText('Server quota');
+  await expect(status.locator('.svc')).toHaveText('LibreTranslate');
+  await expect(status.locator('.dot.ok')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  // the help only names it
   await page.getByRole('button', { name: 'How ShopWiz works' }).first().click();
-  await expect(page.locator('.services')).toContainText('Translation:');
-  await expect(page.locator('.services .svc')).toHaveText('LibreTranslate');
-  await expect(page.locator('.services .dot.ok')).toHaveCount(1);
+  await expect(page.getByText('Translation: LibreTranslate')).toBeVisible();
   await page.keyboard.press('Escape');
 
   // the flags' license ships with the app
