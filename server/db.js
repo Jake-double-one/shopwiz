@@ -233,6 +233,11 @@ function migrate(db) {
   // hash of the token of the device that created the space (IDs per device, SPACES_PER_DEVICE)
   if (!spaceCols.includes('created_by')) db.exec('ALTER TABLE spaces ADD COLUMN created_by TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS spaces_creator ON spaces(created_by)');
+  // the ID's own translation: mode ('server' | 'own' | 'off', NULL = server if there is one), service,
+  // its API key (encrypted, see secret.js) and extras such as the Azure region (JSON)
+  for (const col of ['tr_mode', 'tr_provider', 'tr_key', 'tr_extra']) {
+    if (!spaceCols.includes(col)) db.exec(`ALTER TABLE spaces ADD COLUMN ${col} TEXT`);
+  }
   const adminCols = db.prepare('PRAGMA table_info(admins)').all().map((c) => c.name);
   // the device's full key hash once its passkey is set up, and the promotion code until then
   if (!adminCols.includes('token_hash')) db.exec('ALTER TABLE admins ADD COLUMN token_hash TEXT');

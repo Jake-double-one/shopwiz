@@ -203,6 +203,8 @@ Die maschinelle Übersetzung läuft über den ShopWiz-Server – ein Übersetzun
 
 Eine gute kostenlose Kombination: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – zuerst DeepLs Qualität, Microsoft als dauerhafte Reserve, MyMemory als letzter Ausweg.
 
+**Jede ID kann ihren eigenen Dienst mitbringen.** Einstellungen → Übersetzung bietet *Server-Übersetzung* (die Dienste oben, falls konfiguriert), *DeepL / Google / Microsoft – eigener API-Schlüssel*, *MyMemory – kostenlos* oder *Aus*. Der Schlüssel einer ID liegt verschlüsselt auf dem Server (`ENCRYPTION_KEY`), wird nie wieder angezeigt (nur seine letzten vier Zeichen) und nur von dieser ID genutzt; das Tageslimit des Servers (`TRANSLATE_DAILY_CHARS`) gilt dafür nicht. Alle in der ID können die Einstellung ändern. LibreTranslate gibt es nur als Server-Dienst – es ist eine Adresse, die der Server aufrufen würde. Soll niemand Fremdes dein Kontingent verbrauchen können? Dann kommt kein bezahlter Schlüssel in die Server-Einstellungen: `TRANSLATE_PROVIDER` bleibt bei `mymemory` oder `none`, und jede ID zahlt mit ihrem eigenen Schlüssel.
+
 Artikelnamen sind kurz (10–15 Zeichen), und jeder Name wird pro ID nur einmal übersetzt – gemerkte Übersetzungen kosten nichts. Selbst DeepLs einmalige Million reicht für zehntausende Artikel. „Übersetzen“ in den Artikeldetails fragt immer neu an; im Listenmenü lassen sich alle Übersetzungen der Liste löschen, um neu anzufangen. Die Artikeldetails zeigen, welcher Dienst übersetzt hat, und die Hilfe nennt die Dienste neben der Version, jeweils mit grünem oder rotem Punkt – der Server prüft jeden Dienst (Schlüssel fehlt oder falsch, aufgebraucht, nicht erreichbar) und nennt den Grund. Bei DeepL steht dort auch, wie viel vom Kontingent verbraucht ist („271 von 1.000.000 Zeichen genutzt“).
 
 ### KI-Assistenten (Claude, ChatGPT, Grok, Siri)
@@ -332,7 +334,8 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `MYMEMORY_EMAIL` | – | Optional für MyMemory: hebt das kostenlose Kontingent auf ca. 50.000 Zeichen pro Tag |
 | `MCP_ENABLED` | `false` | `true` lässt KI-Assistenten (Claude, ChatGPT, Grok, Siri …) per MCP (`/mcp`) und REST (`/api/v1`) zu – siehe [KI-Assistenten](#ki-assistenten-claude-chatgpt-grok-siri) |
 | `TRANSLATE_LIMIT` | `300` | Artikelnamen pro ID und Stunde, die an Übersetzungsdienste gehen (dazu 40 Zeichen pro Name als Zeichenbudget; die Adresse bekommt von beidem das Doppelte) |
-| `TRANSLATE_DAILY_CHARS` | `100000` | Zeichen pro Tag, die der ganze Server an Übersetzungsdienste schickt – ein Kontingent für alle IDs; `0` = keine Grenze |
+| `TRANSLATE_DAILY_CHARS` | `100000` | Zeichen pro Tag, die der ganze Server an Übersetzungsdienste schickt – ein Kontingent für alle IDs (eigene Schlüssel einer ID zählen nicht mit); `0` = keine Grenze |
+| `ENCRYPTION_KEY` | – | Verschlüsselt, was IDs auf dem Server geheim halten (ihre eigenen Übersetzungs-API-Schlüssel) – ein beliebiger langer Zufallstext. Nicht gesetzt: ein Schlüssel wird einmal erzeugt und als `encryption.key` im Datenordner abgelegt; mit der Datenbank sichern. Ein verlorener Schlüssel kostet nur diese gespeicherten API-Schlüssel |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Ordner für eigene Skins (CSS-Dateien, siehe [Skin hinzufügen](#skin-hinzufügen)) – wird im Betrieb gelesen |
 | `DATA_DIR` | `/data` | Ort der Datenbank (in Docker: das Volume) |

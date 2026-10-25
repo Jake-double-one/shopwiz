@@ -65,6 +65,9 @@ export function loadConfig(env = process.env) {
     // characters per day for the whole server (every ID and address together) – the provider's
     // quota is one quota for all; 0 = no limit
     translateDailyChars: Math.max(int(env.TRANSLATE_DAILY_CHARS, 100_000), 0),
+    // encrypts what IDs keep secret in the database (their own translation API keys); unset = a key
+    // made once in the data folder
+    encryptionKey: env.ENCRYPTION_KEY || '',
     // AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1)
     mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
     // IDs a device may create itself (0 = no limit); joining doesn't count

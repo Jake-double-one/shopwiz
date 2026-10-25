@@ -204,6 +204,8 @@ Machine translation runs on the ShopWiz server – a translation service only ev
 
 A good free setup: `TRANSLATE_PROVIDER=deepl,azure,mymemory` – DeepL's quality first, Microsoft as long-term fallback, MyMemory as the last resort.
 
+**Every ID can bring its own service.** Settings → Translation offers *Server translation* (the services above, if you configured any), *DeepL / Google / Microsoft – own API key*, *MyMemory – free* or *Off*. An ID's key is stored encrypted on the server (`ENCRYPTION_KEY`), is never shown again (only its last four characters) and is used by this ID only; the server's daily limit (`TRANSLATE_DAILY_CHARS`) does not apply to it. Everybody in the ID can change the setting. LibreTranslate is a server-side service only – it is an address the server would call. Want to be sure strangers never spend your quota? Then put no paid key into the server settings: leave `TRANSLATE_PROVIDER` at `mymemory` or `none`, and every ID pays with its own key.
+
 Item names are short (10–15 characters) and every name is translated only once per ID – remembered translations cost nothing. Even DeepL's one-time million lasts for tens of thousands of items. “Translate” in the item details always asks again; the list menu can delete all translations of the list to start over. The item details say which service translated an item, and the help shows the services in use next to the version, each with a green or red dot – the server checks every service (wrong or missing key, used up, not reachable) and names the reason. For DeepL the help also shows how much of its quota is used (“271 of 1,000,000 characters used”).
 
 ### AI assistants (Claude, ChatGPT, Grok, Siri)
@@ -333,7 +335,8 @@ All settings are environment variables. The defaults are fine for most setups.
 | `MYMEMORY_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
 | `MCP_ENABLED` | `false` | `true` lets AI assistants (Claude, ChatGPT, Grok, Siri …) connect via MCP (`/mcp`) and REST (`/api/v1`) – see [AI assistants](#ai-assistants-claude-chatgpt-grok-siri) |
 | `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to translation services (and 40 characters per name as a character budget; the address gets twice both) |
-| `TRANSLATE_DAILY_CHARS` | `100000` | Characters per day the whole server sends to translation services – one quota for every ID; `0` = no limit |
+| `TRANSLATE_DAILY_CHARS` | `100000` | Characters per day the whole server sends to translation services – one quota for every ID (an ID's own key is not counted); `0` = no limit |
+| `ENCRYPTION_KEY` | – | Encrypts what IDs keep secret on the server (their own translation API keys) – any long random text. Unset: a key is made once and kept as `encryption.key` in the data folder; back it up with the database. A lost key only loses those stored API keys |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Folder for your own skins (CSS files, see [Adding a skin](#adding-a-skin)) – read while running |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |

@@ -4,7 +4,7 @@
   import Icon from './Icon.svelte';
   import { t } from '../lib/i18n.svelte.js';
   import Flag from './Flag.svelte';
-  import { renameList, setGroupMode, deleteList, clearChecked, shareListText, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translatorChain, linkLists, unlinkList } from '../lib/actions.js';
+  import { renameList, setGroupMode, deleteList, clearChecked, shareListText, setAddress, setPrioShortcuts, setTravel, missingTranslations, translatedNames, clearTranslations, translateNames, translationOn, translatorLabel, linkLists, unlinkList } from '../lib/actions.js';
   import { listItems, linkedLists } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { i18n } from '../lib/i18n.svelte.js';
@@ -201,7 +201,7 @@
           </select>
         </label>
       </div>
-      {#if sync.features.translate}
+      {#if translationOn()}
         {#if missing.length}
           <button class="btn block main" onclick={translateAll} disabled={translating || !online}>
             <Icon name="swap" />{translating ? t('travel.translating') : t('travel.translateAll', { count: missing.length })}
@@ -210,7 +210,7 @@
         {:else}
           <p class="micro">{t('travel.allDone')}</p>
         {/if}
-        <p class="micro">{t('travel.autoNote', { service: translatorChain() })}</p>
+        <p class="micro">{t('travel.autoNote', { service: translatorLabel() })}</p>
       {:else}
         <p class="micro">{t('travel.manualOnly')}</p>
       {/if}

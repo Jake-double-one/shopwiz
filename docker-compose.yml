@@ -31,8 +31,12 @@ services:
       # Travel mode translations: one service or several in order – the next one steps in
       # when one is used up or down. mymemory (free, no key) | deepl | azure | google | libretranslate | none
       TRANSLATE_PROVIDER: "mymemory"
-      # Characters per day the whole server sends to translation services (one quota for every ID; 0 = no limit)
+      # Characters per day the whole server sends to translation services (one quota for every ID; 0 = no limit).
+      # IDs can bring their own key instead (Settings → Translation) – that is not counted here
       TRANSLATE_DAILY_CHARS: "100000"
+      # Encrypts what IDs keep secret on the server (their own translation API keys): any long random
+      # text. Unset: a key is made once and kept as encryption.key in the data volume
+      ENCRYPTION_KEY: ""
       # One key per service – only for the ones listed above
       DEEPL_API_KEY: ""
       AZURE_TRANSLATOR_KEY: ""

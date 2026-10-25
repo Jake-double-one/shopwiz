@@ -14,7 +14,7 @@ async function call(method, path, body) {
     throw Object.assign(new Error('offline'), { code: 'offline' });
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw Object.assign(new Error(data.error || 'error'), { code: data.error || 'error', status: res.status, limit: data.limit });
+  if (!res.ok) throw Object.assign(new Error(data.error || 'error'), { code: data.error || 'error', status: res.status, limit: data.limit, detail: data.message });
   return data;
 }
 
@@ -29,5 +29,6 @@ export const api = {
   transfer: (id, body) => call('POST', `/api/spaces/${id}/transfer`, body),
   translate: (id, body) => call('POST', `/api/spaces/${id}/translate`, body),
   translateStatus: (id) => call('GET', `/api/spaces/${id}/translate/status`),
+  translateConfig: (id, body) => call('POST', `/api/spaces/${id}/translate/config`, body),
   connectAi: (id, name) => call('POST', `/api/spaces/${id}/ai`, { name }),
 };

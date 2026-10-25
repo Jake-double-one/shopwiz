@@ -9,7 +9,7 @@
   import { load } from '../lib/storage.js';
   import { prefs, setSwipe, SWIPE_MODES, setLinkDefault } from '../lib/prefs.svelte.js';
   import { t } from '../lib/i18n.svelte.js';
-  import { updateSpace, renameDevice } from '../lib/actions.js';
+  import { updateSpace, renameDevice, translatorChain, translatorName, OWN_TRANSLATORS } from '../lib/actions.js';
   import { api } from '../lib/api.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -99,6 +99,54 @@
   function forget() {
     forgetSpace(spaceId);
     onleave();
+  }
+
+  // ----- translation: the server's services, this ID's own service (its key), or off -----
+  const trStored = $derived(space.translate ?? {});
+  const trChoiceOf = (tr) => (tr.mode === 'own' ? tr.provider : (tr.mode ?? (sync.features.translate ? 'server' : 'off')));
+  let trChoice = $state(untrack(() => trChoiceOf(space.translate ?? {})));
+  let trKey = $state('');
+  let trRegion = $state(untrack(() => space.translate?.region ?? ''));
+  let trEmail = $state(untrack(() => space.translate?.email ?? ''));
+  let trBusy = $state(false);
+  let trStatus = $state(null); // { ok, text } after "Check"
+  const needsKey = (p) => ['deepl', 'google', 'azure'].includes(p);
+  const keyStored = $derived(trStored.hasKey && trStored.provider === trChoice);
+  const trDirty = $derived(
+    trChoice !== trChoiceOf(trStored) || !!trKey.trim() || (trChoice === 'azure' && trRegion.trim().toLowerCase() !== (trStored.region ?? '')) || (trChoice === 'mymemory' && trEmail.trim() !== (trStored.email ?? '')),
+  );
+  const trCanSave = $derived(trDirty && (!needsKey(trChoice) || keyStored || !!trKey.trim()));
+  async function saveTranslate() {
+    trBusy = true;
+    trStatus = null;
+    try {
+      const body = trChoice === 'off' || trChoice === 'server' ? { mode: trChoice } : { mode: 'own', provider: trChoice, key: trKey.trim(), region: trRegion.trim(), email: trEmail.trim() };
+      await api.translateConfig(spaceId, body);
+      trKey = '';
+      toast(t('settings.translateSaved'));
+    } catch (e) {
+      toast({ text: e.code === 'invalid' ? t('settings.translateInvalid', { field: e.detail ?? '' }) : t('settings.failed'), kind: 'alert' });
+    } finally {
+      trBusy = false;
+    }
+  }
+  async function checkTranslate() {
+    trBusy = true;
+    try {
+      const r = await api.translateStatus(spaceId);
+      const bad = (r.services ?? []).find((x) => !x.ok);
+      const first = (r.services ?? [])[0];
+      if (!first) trStatus = { ok: false, text: t('settings.translateOff') };
+      else if (bad) trStatus = { ok: false, text: `${translatorName(bad.provider) || bad.provider}: ${t(`help.svc.${bad.problem}`, { detail: bad.detail ?? '' })}` };
+      else {
+        const u = (r.services ?? []).find((x) => x.usage)?.usage;
+        trStatus = { ok: true, text: t('settings.translateOk', { service: translatorName(first.provider) }) + (u ? ` ${t('help.usage', { service: translatorName(first.provider), used: u.used.toLocaleString(), limit: u.limit.toLocaleString(), pct: u.limit ? Math.round((u.used / u.limit) * 1000) / 10 : 0 })}` : '') };
+      }
+    } catch {
+      trStatus = { ok: false, text: t('settings.failed') };
+    } finally {
+      trBusy = false;
+    }
   }
 </script>
 
@@ -220,6 +268,38 @@
       </button>
     </div>
     {#if sync.features.admin}<p class="note admin-note">{t('admin.transparency')}</p>{/if}
+  </section>
+
+  <section>
+    <p class="eyebrow">{t('settings.translate')}</p>
+    <label class="field">
+      <span>{t('settings.translateService')}</span>
+      <select class="select" bind:value={trChoice} onchange={() => ((trStatus = null), (trKey = ''))} data-testid="translate-service">
+        <option value="off">{t('settings.translateOff')}</option>
+        {#if sync.features.translate}<option value="server">{t('settings.translateServer', { chain: translatorChain() })}</option>{/if}
+        {#each OWN_TRANSLATORS as p (p)}
+          <option value={p}>{p === 'mymemory' ? t('settings.translateOwnFree', { service: translatorName(p) }) : t('settings.translateOwn', { service: translatorName(p) })}</option>
+        {/each}
+      </select>
+    </label>
+    {#if needsKey(trChoice)}
+      <label class="field">
+        <span>{t('settings.translateKey')}</span>
+        <input class="input" type="password" autocomplete="off" data-1p-ignore data-lpignore="true" bind:value={trKey} maxlength="200" placeholder={keyStored ? t('settings.translateKeySet', { hint: trStored.keyHint }) : t('settings.translateKeyPh')} data-testid="translate-key" />
+      </label>
+    {/if}
+    {#if trChoice === 'azure'}
+      <label class="field"><span>{t('settings.translateRegion')}</span><input class="input" bind:value={trRegion} maxlength="40" placeholder="westeurope" /></label>
+    {/if}
+    {#if trChoice === 'mymemory'}
+      <label class="field"><span>{t('settings.translateEmail')}</span><input class="input" type="email" bind:value={trEmail} maxlength="120" placeholder="you@example.com" /></label>
+    {/if}
+    <div class="actions">
+      <button class="btn main" onclick={saveTranslate} disabled={trBusy || !online || !trCanSave} data-testid="translate-save">{t('settings.translateSave')}</button>
+      {#if trChoice !== 'off' && !trDirty}<button class="btn" onclick={checkTranslate} disabled={trBusy || !online}>{t('settings.translateCheck')}</button>{/if}
+    </div>
+    {#if trStatus}<p class="note" class:alert={!trStatus.ok} data-testid="translate-status">{trStatus.text}</p>{/if}
+    <p class="note">{t('settings.translateHint')}</p>
   </section>
 
   {#if sync.features.ai}

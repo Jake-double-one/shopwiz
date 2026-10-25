@@ -211,7 +211,7 @@ describe('websocket sync', () => {
 
     // service status for the help
     const get = (path, token) => fetch(`http://${base}${path}`, { headers: token ? { 'x-shopwiz-token': token } : {} });
-    expect(await (await get(`/api/spaces/${id}/translate/status`, TA)).json()).toEqual({ services: [{ provider: 'mymemory', ok: true }] });
+    expect(await (await get(`/api/spaces/${id}/translate/status`, TA)).json()).toEqual({ own: false, services: [{ provider: 'mymemory', ok: true }] });
     expect((await get(`/api/spaces/${id}/translate/status`)).status).toBe(403);
 
     // members only, valid languages only

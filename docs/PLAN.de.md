@@ -381,3 +381,17 @@ Vor der Umsetzung prüfen: aktueller Stand der MCP-Unterstützung bei ChatGPT un
 - WebAuthn über `@simplewebauthn/server` / `@simplewebauthn/browser`.
 - WebSocket: `hello` mit Admin-Sitzung → Anwesenheit „admin“, Operationen mit dem Absender „Admin“.
 - README: eigener, abgesetzter Abschnitt mit Verweis auf `docs/ADMIN.md` / `docs/ADMIN.de.md`, damit die normale Anleitung einfach bleibt.
+
+## 13. Übersetzung pro ID – umgesetzt (v0.5.4)
+
+**Ziel:** Das Kontingent des Betreibers soll nicht von Fremden geleert werden können, und IDs sollen auch ohne Betreiber-Schlüssel übersetzen können. Jede ID wählt in den Einstellungen ihren Dienst.
+
+- **Dropdown in den Einstellungen:** *Aus*, *Server-Übersetzung* (genau eine Zeile für die Kette aus `TRANSLATE_PROVIDER`, nur wenn der Server etwas konfiguriert hat), *DeepL / Google / Microsoft – eigener API-Schlüssel*, *MyMemory – kostenlos, ohne Schlüssel* (optional E-Mail für mehr Kontingent). Azure braucht zusätzlich die Region.
+- **Kein LibreTranslate pro ID:** Das wäre eine Adresse, die der Server auf Zuruf eines Mitglieds aufruft (SSRF ins eigene Netz). LibreTranslate bleibt Sache des Betreibers.
+- **Schlüssel nur verschlüsselt** (AES-256-GCM, `server/secret.js`) in `spaces.tr_key`; der Schlüssel dafür kommt aus `ENCRYPTION_KEY` oder wird einmal erzeugt und als `encryption.key` im Datenordner abgelegt. Gezeigt werden nur „Schlüssel hinterlegt (…xxxx)“.
+- **Nur über REST** (`POST /api/spaces/:id/translate/config`): Der Schlüssel reist nie über die Live-Verbindung; Snapshot und Patches tragen nur Modus, Dienst und „hat Schlüssel“. Ein Eintrag im Verlauf (`translate.config`) ohne Schlüssel.
+- **Jedes Mitglied** darf die Einstellung ändern – gleiche Mitglieder, wie überall.
+- **Grenzen:** Mit eigenem Schlüssel gelten weiter die Grenzen pro ID und Adresse (Missbrauch), aber nicht `TRANSLATE_DAILY_CHARS` – das ist das Kontingent des Servers. Fremdsicher wird ein Server, indem er keinen bezahlten Schlüssel in der ENV führt.
+- **Bestehende IDs** laufen unverändert: ohne Einstellung „Server-Übersetzung“, falls konfiguriert, sonst „Aus“. „Fortsetzen“ übernimmt die Einstellung.
+- Spalten `spaces.tr_mode`, `tr_provider`, `tr_key`, `tr_extra`; Status-Prüfung (`/translate/status`) je ID mit dem eigenen Dienst.
+

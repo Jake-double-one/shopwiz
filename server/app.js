@@ -10,6 +10,7 @@ import { Hub } from './hub.js';
 import { createSkins } from './skins.js';
 import { Limiter } from './limiter.js';
 import { createTranslator, TranslateError } from './translate.js';
+import { createSealer } from './secret.js';
 import { createAi, AiError } from './ai.js';
 import { openApi } from './openapi.js';
 import { LANG_RE } from '../shared/countries.js';
@@ -43,6 +44,47 @@ export async function buildApp(config) {
     if (e.code !== 'quota') app.log.warn({ provider, err: e.message }, 'translation service failed – trying the next one');
   });
   for (const p of translator.problems) app.log.warn(`translation service "${p.provider}" is off: ${p.problem}`);
+
+  // ----- an ID's own translation service (its key stays encrypted in the database) -----
+  const sealer = createSealer(config, app.log);
+  // services an ID may bring its own key for – LibreTranslate is not among them: its address is a URL
+  // the server would fetch, and a member must not be able to point the server at anything
+  const OWN_PROVIDERS = ['deepl', 'google', 'azure', 'mymemory'];
+  const ownTranslators = new Map(); // uid → { sig, translator }
+  /** The translator an ID uses: { translator, own } – or null when translation is off for it. */
+  function translatorFor(uid) {
+    const tc = store.translateConfig(uid);
+    const mode = tc?.mode ?? (translator.available ? 'server' : 'off');
+    if (mode === 'off') return null;
+    if (mode === 'server') return translator.available ? { translator, own: false } : null;
+    if (!OWN_PROVIDERS.includes(tc.provider)) return null;
+    const sig = `${tc.provider}|${tc.keyEnc ?? ''}|${JSON.stringify(tc.extra)}`;
+    let cached = ownTranslators.get(uid);
+    if (!cached || cached.sig !== sig) {
+      const key = tc.keyEnc ? sealer.open(tc.keyEnc) : '';
+      if (tc.keyEnc && key === null) {
+        app.log.warn({ uid }, 'an ID\'s translation key cannot be opened – ENCRYPTION_KEY changed?');
+        return null;
+      }
+      const own = createTranslator(
+        {
+          translateProviders: [tc.provider],
+          deeplApiKey: tc.provider === 'deepl' ? key : '',
+          googleApiKey: tc.provider === 'google' ? key : '',
+          azureTranslatorKey: tc.provider === 'azure' ? key : '',
+          azureTranslatorRegion: tc.extra.region ?? '',
+          mymemoryEmail: tc.extra.email ?? '',
+        },
+        config.fetch,
+        (provider, e) => {
+          if (e.code !== 'quota') app.log.warn({ provider, err: e.message }, 'an ID\'s own translation service failed');
+        },
+      );
+      ownTranslators.set(uid, (cached = { sig, translator: own, statusAt: 0, status: null }));
+      if (ownTranslators.size > 1000) ownTranslators.delete(ownTranslators.keys().next().value);
+    }
+    return cached.translator.available ? { translator: cached.translator, own: true, cached } : null;
+  }
   // names sent to the translation provider per ID and hour – remembered ones are free
   const trUsage = new Map();
   const trIpUsage = new Map(); // the same budget per address, so many new IDs don't multiply it
@@ -270,7 +312,8 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
-    if (!translator.available) return reply.code(501).send({ error: 'not_configured' });
+    const tr = translatorFor(r.space.uid);
+    if (!tr) return reply.code(501).send({ error: 'not_configured' });
     const { lang, from } = req.body ?? {};
     if (!LANG_RE.test(lang ?? '') || !LANG_RE.test(from ?? '')) return reply.code(400).send({ error: 'invalid', message: 'lang' });
     const raw = Array.isArray(req.body?.names) ? req.body.names : [];
@@ -304,7 +347,7 @@ export async function buildApp(config) {
       ipUse.count + todo.length > config.translateLimit * 2 ||
       use.chars + chars > charLimit ||
       ipUse.chars + chars > charLimit * 2 ||
-      (config.translateDailyChars > 0 && trDay.chars + chars > config.translateDailyChars)
+      (!tr.own && config.translateDailyChars > 0 && trDay.chars + chars > config.translateDailyChars) // the server's quota, not an ID's own
     ) {
       return reply.code(429).send({ error: 'translate_limit', translations: out });
     }
@@ -312,13 +355,13 @@ export async function buildApp(config) {
     ipUse.count += todo.length;
     use.chars += chars;
     ipUse.chars += chars;
-    trDay.chars += chars;
+    if (!tr.own) trDay.chars += chars;
     if (trIpUsage.size > 10_000) for (const [k, u] of trIpUsage) if (u.reset <= now) trIpUsage.delete(k);
     if (trUsage.size > 10_000) for (const [k, u] of trUsage) if (u.reset <= now) trUsage.delete(k);
 
     let res;
     try {
-      res = await translator.translate(todo.map(([, name]) => name), from, lang);
+      res = await tr.translator.translate(todo.map(([, name]) => name), from, lang);
     } catch (e) {
       if (!(e instanceof TranslateError)) throw e;
       const code = e.code === 'config' ? 501 : 503;
@@ -339,8 +382,58 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    const tr = translatorFor(r.space.uid);
+    if (!tr) return { services: [], own: false };
+    if (tr.own) {
+      const c = tr.cached;
+      if (Date.now() - c.statusAt > 60_000) (c.statusAt = Date.now()), (c.status = tr.translator.status());
+      return { services: await c.status, own: true };
+    }
     if (Date.now() - statusCache.at > 60_000) statusCache = { at: Date.now(), data: translator.status() };
-    return { services: await statusCache.data };
+    return { services: await statusCache.data, own: false };
+  });
+
+  // The ID's translation setting: the server's services, its own service with its own key, or off.
+  // Only here, over REST – the key never travels over the live connection and is stored encrypted.
+  app.post('/api/spaces/:id/translate/config', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    const b = req.body ?? {};
+    const mode = ['server', 'own', 'off'].includes(b.mode) ? b.mode : null;
+    if (!mode) return reply.code(400).send({ error: 'invalid', message: 'mode' });
+    if (mode === 'server' && !translator.available) return reply.code(400).send({ error: 'not_configured' });
+    const cur = store.translateConfig(r.space.uid);
+    let provider = null;
+    let keyEnc = null;
+    let extra = {};
+    if (mode === 'own') {
+      provider = OWN_PROVIDERS.includes(b.provider) ? b.provider : null;
+      if (!provider) return reply.code(400).send({ error: 'invalid', message: 'provider' });
+      const key = typeof b.key === 'string' ? b.key.trim() : '';
+      if (key.length > 200 || /[\u0000-\u001f\u007f\s]/.test(key)) return reply.code(400).send({ error: 'invalid', message: 'key' });
+      // no new key typed: the stored one stays, as long as it is for the same service
+      if (key) keyEnc = sealer.seal(key);
+      else if (cur?.provider === provider && cur.keyEnc) keyEnc = cur.keyEnc;
+      if (!keyEnc && provider !== 'mymemory') return reply.code(400).send({ error: 'invalid', message: 'key' });
+      if (key) extra.hint = key.slice(-4);
+      else if (keyEnc) extra.hint = cur.extra.hint ?? '';
+      if (provider === 'azure') {
+        const region = typeof b.region === 'string' ? b.region.trim().toLowerCase() : '';
+        if (!/^[a-z0-9-]{0,40}$/.test(region)) return reply.code(400).send({ error: 'invalid', message: 'region' });
+        if (region) extra.region = region;
+      }
+      if (provider === 'mymemory') {
+        const email = typeof b.email === 'string' ? b.email.trim() : '';
+        if (email.length > 120 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return reply.code(400).send({ error: 'invalid', message: 'email' });
+        if (email) extra.email = email;
+      }
+    }
+    const dev = devOf(r);
+    const row = store.setTranslateConfig(r.space.uid, dev, { mode, provider, keyEnc, extra });
+    ownTranslators.delete(r.space.uid);
+    hub.broadcast(r.space.uid, { t: 'patch', changes: [{ e: 'space', row }] });
+    return { translate: row.translate };
   });
 
   // ---------- AI assistants (MCP + REST) ----------

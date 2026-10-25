@@ -164,7 +164,20 @@ export const mapSpace = (r) => ({
   createdAt: r.created_at,
   lastActiveAt: r.last_active_at,
   aiWrite: !!r.ai_write,
+  translate: mapTranslate(r),
 });
+/** The ID's translation setting as members see it – the key itself never leaves the server. */
+export const mapTranslate = (r) => {
+  const extra = parseJson(r.tr_extra) ?? {};
+  return { mode: r.tr_mode ?? null, provider: r.tr_provider ?? null, hasKey: !!r.tr_key, keyHint: extra.hint ?? '', region: extra.region ?? '', email: extra.email ?? '' };
+};
+const parseJson = (s) => {
+  try {
+    return s ? JSON.parse(s) : null;
+  } catch {
+    return null;
+  }
+};
 
 /** 1 = important, -1 = not important, 0 = normal */
 const prioOf = (v) => (Number(v) > 0 ? 1 : Number(v) < 0 ? -1 : 0);
@@ -428,6 +441,22 @@ export class Store {
     });
   }
 
+  /** The stored translation setting of a space: { mode, provider, keyEnc, extra } (keyEnc still sealed). */
+  translateConfig(uid) {
+    const r = this.spaceByUid(uid);
+    return r ? { mode: r.tr_mode ?? null, provider: r.tr_provider ?? null, keyEnc: r.tr_key ?? null, extra: parseJson(r.tr_extra) ?? {} } : null;
+  }
+
+  /** Store the translation setting (the key already sealed by the caller) → the space's patch row. */
+  setTranslateConfig(uid, dev, { mode, provider, keyEnc, extra }) {
+    const now = Date.now();
+    this.db
+      .q('UPDATE spaces SET tr_mode = ?, tr_provider = ?, tr_key = ?, tr_extra = ? WHERE uid = ?')
+      .run(mode, provider, keyEnc, extra && Object.keys(extra).length ? JSON.stringify(extra) : null, uid);
+    this._act({ uid, dev, now }, null, 'translate.config', { mode, provider, hasKey: !!keyEnc });
+    return mapSpace(this.spaceByUid(uid));
+  }
+
   /** Copy a deleted space into a fresh one. All members continuing end up in the same new space. */
   /** allowNew: asked before a new space is made (only the first member continuing makes one) */
   continueSpace(oldUid, tokenHash, deviceName, allowNew = () => {}) {
@@ -449,8 +478,8 @@ export class Store {
       const now = Date.now();
       const publicId = this.generatePublicId();
       const { lastInsertRowid } = db
-        .q('INSERT INTO spaces (public_id, name, ttl_days, rev, ai_write, created_by, last_active_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, tokenHash, now, now);
+        .q('INSERT INTO spaces (public_id, name, ttl_days, rev, ai_write, created_by, last_active_at, created_at, tr_mode, tr_provider, tr_key, tr_extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(publicId, old.name, old.ttl_days, old.rev, old.ai_write ?? 0, tokenHash, now, now, old.tr_mode ?? null, old.tr_provider ?? null, old.tr_key ?? null, old.tr_extra ?? null);
       const uid = Number(lastInsertRowid);
       // only what was still there: rows of deleted lists stay behind
       const live = {

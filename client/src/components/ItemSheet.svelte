@@ -5,7 +5,7 @@
   import Flag from './Flag.svelte';
   import PrioIcon from './PrioIcon.svelte';
   import { t, clock, i18n } from '../lib/i18n.svelte.js';
-  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, addEntry, increaseAmount } from '../lib/actions.js';
+  import { editItem, deleteItems, setParked, setTranslation, translateNames, translatorName, translationOn, addEntry, increaseAmount } from '../lib/actions.js';
   import { groupOptions, translationOf, linkedLists, boughtAt, sortedLists, learnedPlacement, suggestionsFor, viewItem } from '../lib/model.js';
   import { sync } from '../lib/sync.svelte.js';
   import { toast } from '../lib/toast.svelte.js';
@@ -192,7 +192,7 @@
         <label for="tr-input"><Flag country={travel.country} size={13} /> {t('travel.field', { lang: langName(travel.lang, i18n.lang) })}</label>
         <div class="row">
           <input id="tr-input" lang={travel.lang} data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" autocomplete="off" class="input tr-input" bind:value={tr} oninput={() => (trFor = trKey())} maxlength="120" placeholder={t('travel.fieldPh')} />
-          {#if sync.features.translate}
+          {#if translationOn()}
             <button type="button" class="btn" onclick={autoTranslate} disabled={translating || sync.status !== 'online'} title={t('travel.auto')}>
               <Icon name="swap" size={18} /><span class="auto-label">{translating ? '…' : t('travel.auto')}</span>
             </button>

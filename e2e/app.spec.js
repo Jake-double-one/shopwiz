@@ -1623,3 +1623,44 @@ test('administration: the main admin sets up a passkey, logs in with it and swit
   await expect(a.getByText('Logging in with the password is on')).toBeVisible();
   await ctx.close();
 });
+
+test('translation per ID: own DeepL key in the settings, stored encrypted, travel mode uses it, back to the server', async ({ page }) => {
+  await createList(page);
+  await add(page, 'Milch');
+  await add(page, 'Brot');
+
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  const service = page.getByTestId('translate-service');
+  await expect(service).toHaveValue('server');
+  await expect(service.locator('option', { hasText: 'Server translation (LibreTranslate)' })).toHaveCount(1);
+  await service.selectOption('deepl');
+  const save = page.getByTestId('translate-save');
+  await expect(save).toBeDisabled(); // a key is needed first
+  await page.getByTestId('translate-key').fill('e2e-dummy-deepl-key-9876:fx');
+  await save.click();
+  await expect(page.locator('.toast', { hasText: 'Translation setting saved.' })).toBeVisible();
+  // the key is gone from the field and only hinted at from now on
+  await expect(page.getByTestId('translate-key')).toHaveValue('');
+  await expect(page.getByTestId('translate-key')).toHaveAttribute('placeholder', /Key stored \(…6:fx\)/);
+  await page.getByRole('button', { name: 'Close' }).first().click();
+
+  // travel mode offers to translate – with the ID's own service
+  await page.getByRole('button', { name: 'List options' }).click();
+  await page.getByLabel('Shop address (optional)').fill('Via Roma 3, 07026 Olbia, Italia');
+  await page.getByRole('checkbox', { name: /Show items in the local language/ }).check();
+  await expect(page.getByRole('button', { name: 'Translate 2 items' })).toBeVisible();
+  await expect(page.locator('.travel')).toContainText('Translated with DeepL.');
+  await page.getByRole('button', { name: 'Close' }).first().click();
+
+  // after a reload the setting is still there; back to the server's service
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await expect(page.getByTestId('translate-service')).toHaveValue('deepl');
+  await expect(page.getByTestId('translate-key')).toHaveAttribute('placeholder', /Key stored/);
+  await page.getByTestId('translate-service').selectOption('server');
+  await page.getByTestId('translate-save').click();
+  await expect(page.locator('.toast', { hasText: 'Translation setting saved.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).first().click();
+  await page.getByRole('button', { name: 'List options' }).click();
+  await expect(page.locator('.travel')).toContainText('Translated with LibreTranslate.');
+});

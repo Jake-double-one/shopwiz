@@ -257,8 +257,21 @@ export const setPrioShortcuts = (list, on) => sync.send({ k: 'list.update', id: 
 
 /** Display name of the server's translation service */
 export const translatorName = (p) => ({ mymemory: 'MyMemory', libretranslate: 'LibreTranslate', deepl: 'DeepL', google: 'Google', azure: 'Microsoft' })[p] ?? '';
-/** "DeepL → Microsoft": the services in the order they are asked ('' = none) */
+/** "DeepL → Microsoft": the server's services in the order they are asked ('' = none) */
 export const translatorChain = () => (sync.features.translators ?? []).map(translatorName).filter(Boolean).join(' → ');
+/** Services an ID may bring its own key for (LibreTranslate is the server's business: it is an address) */
+export const OWN_TRANSLATORS = ['deepl', 'google', 'azure', 'mymemory'];
+/** How this ID translates right now: 'server' (the server's services) | 'own' (its own key) | 'off' */
+export function translationMode() {
+  const tr = v().space?.translate ?? {};
+  const mode = tr.mode ?? (sync.features.translate ? 'server' : 'off');
+  if (mode === 'server') return sync.features.translate ? 'server' : 'off';
+  if (mode === 'own') return tr.hasKey || tr.provider === 'mymemory' ? 'own' : 'off';
+  return 'off';
+}
+export const translationOn = () => translationMode() !== 'off';
+/** "DeepL → Microsoft" (server) or "DeepL" (the ID's own service) */
+export const translatorLabel = () => (translationMode() === 'own' ? translatorName(v().space.translate.provider) : translatorChain());
 
 /** travel: { country, lang } or null (off) */
 export const setTravel = (list, travel) => sync.send({ k: 'list.update', id: list.id, travel });
