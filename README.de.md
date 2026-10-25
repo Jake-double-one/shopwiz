@@ -40,8 +40,8 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Mengen-Knöpfe** | Auf Tablet und Computer stehen − und + direkt neben der Menge (g/ml in 100er-Schritten). Auf dem Handy ändert man die Menge im Bearbeiten-Dialog des Artikels. |
 | **Schlaue Eingabe** | `2 Milch`, `500g Hack`, `Milch x2` werden in Menge und Name zerlegt. Mehrere eingefügte Zeilen ergeben mehrere Artikel. |
 | **Hinweis bei Doppelten** | „Milch steht schon drauf“ → Menge erhöhen oder trotzdem hinzufügen. Abgehakte Artikel werden einfach wieder aktiviert. |
-| **Neuer Artikel mit Details** | Lange auf das gelbe + drücken öffnet einen Dialog: Name, Menge, Priorität, Notiz, Gruppe und Liste auf einmal; „Weiterer“ lässt ihn offen. Mit der installierten App: App-Symbol lange drücken → „Artikel hinzufügen“. |
-| **An ShopWiz teilen** | Text auf einer Webseite oder in einer Notiz markieren → Teilen → ShopWiz: Jede Zeile wird ein Artikel (installierte App unter Android). |
+| **Neuer Artikel mit Details** | Lange auf das gelbe + drücken öffnet einen Dialog: Name, Menge, Priorität, Notiz, Gruppe und Liste auf einmal; „Weiterer“ lässt ihn offen. Mit der installierten App: App-Symbol lange drücken → „Artikel hinzufügen“ (unter Android muss die App dafür aus Chrome oder Edge installiert sein – Brave und andere können das Kürzel nicht anlegen). |
+| **An ShopWiz teilen** | Text auf einer Webseite oder in einer Notiz markieren → Teilen → ShopWiz: Jede Zeile wird ein Artikel (App unter Android aus Chrome oder Edge installiert – andere Browser melden sie nicht als Teilen-Ziel an). |
 | **Schriftgröße** | Klein, normal oder groß pro Gerät; der Fokus-Modus hat eine eigene Größe („Aa“). |
 | **Wichtig / unwichtig** | Artikel als ↑ wichtig („nicht ohne nach Hause kommen“) oder ↓ unwichtig markieren. Wichtige Artikel stehen oben in ihrer Gruppe, unwichtige unten. Einstellbar in den Artikeldetails oder mit dem Knopf neben der Gruppenauswahl; pro Liste optional mit den Kürzeln `!Windeln` / `? Basilikum` beim Eintippen. Wie die Markierung aussieht, wählt jedes Gerät selbst. |
 | **Abgehaktes bleibt** | Wandert ans Ende der Gruppe und kann wieder aktiviert werden. Das Auge blendet es beim Einkaufen aus (pro Gerät). |
@@ -69,7 +69,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 | **Sprachen** | Englisch und Deutsch, pro Gerät wählbar. Deine Einträge werden nur übersetzt, wenn du für eine Liste den Reisemodus einschaltest. |
 | **Skins** | Dunkel, AMOLED (echtes Schwarz), Abendrot (dunkles Pflaumenrot und Koralle), Hell, Minze (zartes Mint und Grün) und Mango (kräftig und fruchtig) – pro Gerät in den Einstellungen wählbar. Weitere lassen sich als CSS-Datei ablegen, auch auf einem laufenden Server. Beim ersten Besuch folgt ShopWiz dem Browser (Dunkel oder Hell). Alle Skins halten den Kontrast-Standard WCAG AA ein (automatisch getestet). Design: *Feierabend-Designsystem v4*. |
 | **Eingebaute Hilfe** | Ein (?) in der Kopfzeile (und „So funktioniert ShopWiz“ auf der Startseite) erklärt alle Funktionen in kurzen Themen – offline und in der Sprache des Geräts. Neue Nutzer bekommen einmalig einen Hinweis. |
-| **Installierbar** | Läuft als App auf dem Homescreen (PWA). |
+| **Installierbar** | Läuft als App auf dem Homescreen (PWA). Unter Android aus Chrome oder Edge installieren: Nur die geben der App ihr Kürzel („Artikel hinzufügen“) und das Teilen-Ziel – Brave, Firefox und andere legen nur ein Lesezeichen auf den Homescreen. |
 
 ## So funktioniert es
 

@@ -41,8 +41,8 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Amount buttons** | On tablets and computers, − and + sit right next to the amount (g/ml in steps of 100). On phones the amount is changed in the item's edit dialog. |
 | **Smart entry** | `2 milk`, `500g minced meat`, `milk x2` are split into amount and name. Pasting several lines adds several items. |
 | **Duplicate hint** | “Milk is already on the list” → increase the amount or add anyway. A checked item is simply re-activated. |
-| **New item with details** | A long press on the yellow + opens a dialog: name, amount, priority, note, group and list at once; “Another” keeps it open. With the installed app: long press the app icon → “Add item”. |
-| **Share to ShopWiz** | Select text on a web page or in a note → Share → ShopWiz: every line becomes an item (installed app on Android). |
+| **New item with details** | A long press on the yellow + opens a dialog: name, amount, priority, note, group and list at once; “Another” keeps it open. With the installed app: long press the app icon → “Add item” (on Android this needs the app installed from Chrome or Edge – Brave and others can't add the shortcut). |
+| **Share to ShopWiz** | Select text on a web page or in a note → Share → ShopWiz: every line becomes an item (app installed from Chrome or Edge on Android – other browsers don't register it as a share target). |
 | **Text size** | Small, normal or large per device; the focus mode has its own size (“Aa”). |
 | **Important / not important** | Mark items ↑ important (“don't come home without it”) or ↓ not important. Important items move to the top of their group, unimportant ones to the bottom. Set in the item details or with the button next to the group picker; optionally per list with the shortcuts `!Diapers` / `? Basil` when typing. How the mark looks is chosen per device. |
 | **Checked items stay** | They move to the end of their group and can be unchecked again. The eye button hides them while you shop (per device). |
@@ -70,7 +70,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 | **Languages** | English and German, per device. Your entries are only translated if you turn on travel mode for a list. |
 | **Skins** | Dark, AMOLED (true black), Sunset (dark plum and coral), Light, Mint (soft mint and green) and Mango (bright and fruity) – picked per device in the settings. More can be dropped in as CSS files, also on a running server. On the first visit ShopWiz follows the browser (dark or light). Every skin meets the WCAG AA contrast level (tested automatically). Design: *Feierabend design system v4*. |
 | **Built-in help** | A (?) in the header (and “How ShopWiz works” on the start screen) explains every feature in short topics – offline and in the device's language. New users get a one-time hint. |
-| **Installable** | Works as an app on the home screen (PWA). |
+| **Installable** | Works as an app on the home screen (PWA). On Android, install it from Chrome or Edge: only they give the app its shortcut (“Add item”) and the share target – Brave, Firefox and others only put a bookmark on the home screen. |
 
 ## How it works
 
