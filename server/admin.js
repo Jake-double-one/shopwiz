@@ -132,6 +132,31 @@ export function createAdmin({ store, hub, config, log }) {
     return user && hash ? { user, hash } : null;
   }
 
+  // The main admin's passkeys and the "password off" switch belong to the credential they were set up
+  // under. A new credential (ADMIN_PASSWORD_HASH changed, or the env settings dropped for a setup
+  // code) starts over – otherwise whoever held the old password kept main-admin access by passkey,
+  // and the new password was refused while the password was switched off.
+  const credentialMark = () => {
+    const c = creds();
+    return c ? sha(`${c.user}\n${envHash ? config.adminPasswordHash : meta('main_hash')}`) : null;
+  };
+  function dropMainFactors() {
+    db.tx(() => {
+      db.q('DELETE FROM admin_keys WHERE did IS NULL').run();
+      db.q("DELETE FROM admin_meta WHERE key = 'password_login'").run();
+    });
+  }
+  {
+    const mark = credentialMark();
+    const known = meta('main_credential');
+    if (mark && known && known !== mark) {
+      dropMainFactors();
+      audit('system', 'reset', { reason: 'credential_changed' });
+      log.warn('the main admin\'s credential changed – its passkeys and the password switch were reset');
+    }
+    if (mark) setMeta('main_credential', mark);
+  }
+
   // ----- setting up the main admin: a code in the log, entered at /admin -----
   // (the log is what Portainer & co. show with one click – only who runs the server sees it)
   let setupCode = null;
@@ -532,15 +557,15 @@ export function createAdmin({ store, hub, config, log }) {
         const hash = await hashPassword(password);
         if (!setupCode) throw new AdminError(409, 'set_up'); // somebody else was faster while hashing
         setupCode = null;
-        const again = !!creds();
+        const again = !!creds() || mainHasKey();
         db.tx(() => {
           setMeta('main_user', name);
           setMeta('main_hash', hash);
-          if (again) {
-            // starting over: the main admin's passkeys go (one may be lost or in the wrong hands)
-            db.q('DELETE FROM admin_keys WHERE did IS NULL').run();
-            db.q("DELETE FROM admin_meta WHERE key = 'password_login'").run();
-          }
+          // a setup always starts over: no passkey and no "password off" of an earlier main admin
+          // survives (one may be lost or in the wrong hands – also from the v0.5.0 env settings)
+          db.q('DELETE FROM admin_keys WHERE did IS NULL').run();
+          db.q("DELETE FROM admin_meta WHERE key = 'password_login'").run();
+          setMeta('main_credential', sha(`${name}\n${hash}`));
         });
         if (again) for (const s of sessions.values()) if (s.role === 'main') endSession(s.key);
         audit('main', again ? 'reset' : 'setup');

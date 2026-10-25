@@ -483,6 +483,7 @@ export async function buildApp(config) {
   // what this server offers – sent with every welcome
   const features = { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled, admin: admin.enabled };
   await app.register(fastifyWebsocket, { options: { maxPayload: 512 * 1024 } });
+  const WS_MAX_BUFFERED = 16 * 1024 * 1024;
 
   app.get('/ws', { websocket: true }, (ws, req) => {
     const key = clientKey(req);
@@ -506,7 +507,11 @@ export async function buildApp(config) {
       bucket.tokens -= cost;
       return true;
     };
-    const costOf = (op) => 1 + Math.floor(((Array.isArray(op?.items) ? op.items.length : 0) + (Array.isArray(op?.ids) ? op.ids.length : 0)) / 10);
+    const len = (a) => (Array.isArray(a) ? a.length : 0);
+    const costOf = (op) => 1 + Math.floor((len(op?.items) + len(op?.ids) + len(op?.moves) + len(op?.names)) / 10);
+    // work done is paid afterwards too (an op that touches a whole list group costs more than its one
+    // frame) – the bucket may go below zero and the connection waits until it has refilled
+    const charge = (units) => (bucket.tokens -= Math.floor(units / 10));
     // a phone that vanished (no network, app killed) leaves a half-open socket: ping, and drop it
     // when no answer came – it would count against the per-address limit otherwise
     let alive = true;
@@ -521,7 +526,13 @@ export async function buildApp(config) {
       uid: null,
       devId: null,
       tokenHash: null,
-      send: (data) => ws.readyState === 1 && ws.send(data),
+      // a device that stops reading (but keeps the socket) would make the server hold everything
+      // sent to it – past this much unsent data it is dropped and reconnects later
+      send: (data) => {
+        if (ws.readyState !== 1) return;
+        if (ws.bufferedAmount > WS_MAX_BUFFERED) return ws.terminate();
+        ws.send(data);
+      },
       close: () => ws.close(),
     };
     const reply = (msg) => conn.send(JSON.stringify(msg));
@@ -555,6 +566,11 @@ export async function buildApp(config) {
 
     function onHello(msg) {
       if (limiter.blocked(key)) return reply({ t: 'error', error: 'rate_limited' });
+      // the last answer is still on its way out: a device asks once per connection (a snapshot each)
+      if (ws.bufferedAmount > 0) {
+        reply({ t: 'error', error: 'busy' });
+        return conn.close();
+      }
       if (!pay(25)) {
         // the device reconnects with back-off, like after a busy op
         reply({ t: 'error', error: 'busy' });
@@ -596,7 +612,7 @@ export async function buildApp(config) {
       conn.adminKey = null;
       conn.did = admin.enabled ? didOfHash(tokenHash) : null;
       hub.add(conn);
-      reply({
+      const welcome = JSON.stringify({
         t: 'welcome',
         serverTime: Date.now(),
         me: { devId: dev.dev_id, name: dev.name },
@@ -606,6 +622,8 @@ export async function buildApp(config) {
         ...(admin.enabled && { admin: admin.stateOf(conn.did) }),
         snapshot: store.snapshot(conn.uid),
       });
+      charge(welcome.length / 10_000); // a big snapshot costs more than the 25 of the hello
+      conn.send(welcome);
       hub.broadcast(conn.uid, { t: 'patch', changes: [{ e: 'device', row: mapDevice(store.device(conn.uid, tokenHash)) }] }, conn);
       hub.presence(conn.uid);
       keepShopping(conn);
@@ -690,6 +708,7 @@ export async function buildApp(config) {
       }
       try {
         const res = store.applyOp(conn.uid, dev, msg.id, msg.op, msg.at);
+        charge(res.changes.length);
         if (msg.op?.k !== 'device.shopping' && !conn.adminKey) keepShopping(conn);
         if (res.changes.length) hub.broadcast(conn.uid, { t: 'patch', rev: res.rev, changes: res.changes });
         reply({ t: 'ack', id: msg.id, ok: true, result: res.result });

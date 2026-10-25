@@ -264,3 +264,75 @@ describe('transfer only into IDs one is in', () => {
     await app.close();
   });
 });
+
+describe('audit run-1 fixes', () => {
+  const A = 'token-auditauditauditaudit1';
+  const B = 'token-auditauditauditaudit2';
+  const mk = () => new Store(openDb(':memory:'), loadConfig({}));
+  const now = () => Date.now();
+
+  it('a kicked device cannot come back through "continue" on the deleted ID the space was continued from', () => {
+    const store = mk();
+    const S = store.createSpace({ name: 'S', token: A, deviceName: 'Alice' });
+    const sUid = store.resolve(S, null).space.uid;
+    store.joinDevice(sUid, hashToken(B), 'Bob');
+    store.deleteSpace(sUid, 'Alice');
+    const C = store.continueSpace(sUid, hashToken(A), 'Alice');
+    expect(store.continueSpace(sUid, hashToken(B), 'Bob')).toBe(C);
+    // a device continues once: afterwards only the new ID decides whether it is in
+    expect(store.resolve(S, hashToken(B)).status).toBe('notfound');
+    const cUid = store.resolve(C, null).space.uid;
+    // Bob rejoins the old ID (as a stale client would) and gets kicked and locked out
+    store.joinDevice(sUid, hashToken(B), 'Bob');
+    expect(store.resolve(S, hashToken(B)).status).toBe('deleted');
+    const alice = store.device(cUid, hashToken(A));
+    const bob = store.device(cUid, hashToken(B));
+    store.applyOp(cUid, alice, 'kick1', { k: 'device.kick', devId: bob.dev_id }, now());
+    const C2 = store.renew(cUid);
+    expect(store.isMember(cUid, hashToken(B))).toBe(false);
+    // the way back is closed: no row in the predecessor, so no "continue" into C2
+    expect(store.resolve(S, hashToken(B)).status).toBe('notfound');
+    expect(store.isMember(cUid, hashToken(A))).toBe(true);
+    expect(store.resolve(C2, hashToken(A)).status).toBe('ok');
+  });
+
+  it('the history keeps validated values only – a huge name or edit field takes no room', () => {
+    const store = mk();
+    const id = store.createSpace({ name: 'H', token: A, deviceName: 'A' });
+    const uid = store.resolve(id, null).space.uid;
+    const dev = store.device(uid, hashToken(A));
+    const listId = store.snapshot(uid).lists[0].id;
+    store.applyOp(uid, dev, 'o1', { k: 'space.update', name: 'N'.repeat(400_000), ttlDays: '30' + ' '.repeat(400_000) }, now());
+    store.applyOp(uid, dev, 'o2', { k: 'item.add', id: 'itemaudit001', listId, name: 'Milk' }, now());
+    store.applyOp(uid, dev, 'o3', { k: 'item.delete', ids: ['itemaudit001'] }, now());
+    const r = store.applyOp(uid, dev, 'o4', { k: 'item.set', id: 'itemaudit001', fields: { junk: 'J'.repeat(400_000), name: 'x'.repeat(5000), checked: 1 } }, now());
+    expect(r.result.rejected).toBe('deleted');
+    const rows = store.db.q('SELECT action, payload FROM activity WHERE space_uid = ?').all(uid);
+    for (const row of rows) expect(row.payload.length).toBeLessThan(1000);
+    const upd = JSON.parse(rows.find((x) => x.action === 'space.update').payload);
+    expect(upd).toEqual({ name: 'N'.repeat(80), ttlDays: 30 });
+    const lost = JSON.parse(rows.find((x) => x.action === 'item.editDeleted').payload).fields;
+    expect(lost).toEqual({ name: 'x'.repeat(120), checked: true });
+  });
+
+  it('linking lists works through a bounded group at once and remembers only what the undo needs', () => {
+    const store = mk();
+    const id = store.createSpace({ name: 'L', token: A, deviceName: 'A' });
+    const uid = store.resolve(id, null).space.uid;
+    const dev = store.device(uid, hashToken(A));
+    const lists = [1, 2, 3].map((l) => ({ name: `L${l}`, items: Array.from({ length: 1400 }, (_, i) => ({ name: `L${l} item ${i}`, state: 'open' })) }));
+    store.importDoc(uid, dev, { lists });
+    const [l1, l2, l3] = store.snapshot(uid).lists.filter((l) => /^L\d$/.test(l.name)).map((l) => l.id);
+    const res = store.applyOp(uid, dev, 'link1', { k: 'list.link', id: l1, other: l2 }, now());
+    expect(res.result.linked).toBe(2);
+    const undo = JSON.parse(store.db.q('SELECT result FROM applied_ops WHERE space_uid = ? AND op_id = ?').get(uid, 'link1').result)._undo;
+    expect(undo.items).toHaveLength(2800);
+    expect(Object.keys(undo.items[0]).sort()).toEqual(['checked', 'checked_by', 'checked_in', 'deleted_at', 'group_id', 'id', 'list_id', 'note', 'parked', 'places', 'pos', 'prio', 'qty', 'shared', 'unit']);
+    // 2800 + 1400 shared items would be too much for one op
+    expect(() => store.applyOp(uid, dev, 'link2', { k: 'list.link', id: l1, other: l3 }, now())).toThrow(/too many shared items/);
+    expect(store.snapshot(uid).lists.find((l) => l.id === l3).linkId).toBeNull(); // rolled back, L3 stays on its own
+    // the undo still works with the compact rows
+    store.applyOp(uid, dev, 'undo1', { k: 'list.linkUndo', opId: 'link1' }, now());
+    expect(store.snapshot(uid).items.filter((i) => i.shared).length).toBe(0);
+  });
+});
