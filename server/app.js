@@ -193,6 +193,7 @@ export async function buildApp(config) {
   app.get('/api/spaces/:id/activity', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status }); // a deleted ID shows nothing more – continue it first
     const listId = typeof req.query.list === 'string' ? req.query.list : '';
     return { activity: store.activity(r.space.uid, listId) };
   });
@@ -337,6 +338,7 @@ export async function buildApp(config) {
   app.get('/api/spaces/:id/translate/status', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
     if (Date.now() - statusCache.at > 60_000) statusCache = { at: Date.now(), data: translator.status() };
     return { services: await statusCache.data };
   });

@@ -355,6 +355,18 @@ describe('hardening after audit run-1', () => {
     expect(store.joinDevice(uid, hashToken(B), 'Admina').name).toBe('Admina');
   });
 
+  it('a deleted ID shows nothing more, not even its history – continue it first', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const id = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'D', token: A, deviceName: 'A' } })).json().id;
+    const get = (path) => app.inject({ method: 'GET', url: `/api/spaces/${id}/${path}`, headers: { 'x-shopwiz-token': A } });
+    expect((await get('activity')).statusCode).toBe(200);
+    expect((await app.inject({ method: 'POST', url: `/api/spaces/${id}/delete`, headers: { 'x-shopwiz-token': A }, payload: {} })).statusCode).toBe(200);
+    expect((await get('activity')).json()).toEqual({ error: 'deleted' });
+    expect((await get('translate/status')).statusCode).toBe(409);
+    expect((await get('lists')).statusCode).toBe(404); // the lists were already gone
+    await app.close();
+  });
+
   it('the translate budget counts characters too, and the whole server has a daily cap', async () => {
     const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', fetch: fakeFetch, translateLimit: 300, translateDailyChars: 20_000 });
     const mk = async (token) => (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'T', token, deviceName: 'D' } })).json().id;

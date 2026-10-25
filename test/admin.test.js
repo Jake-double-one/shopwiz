@@ -651,6 +651,34 @@ describe('main admin credential changes (audit run-1)', () => {
   });
 });
 
+describe('promotion tickets (audit run-1)', () => {
+  const T4 = 'token-adminadminadminadmin4';
+  const options = async (code) => (await req('POST', '/api/admin/passkey/options', { token: T4, body: { purpose: 'register', code } })).body;
+  const verify = (o, key) => req('POST', '/api/admin/passkey/verify', { token: T4, body: { ticket: o.ticket, response: key.create(o.options, origin()) } });
+
+  it('a registration ticket belongs to its promotion: promoted again (or revoked and promoted), the old ticket is void', async () => {
+    const session = await login();
+    const did = await didOfToken(T4);
+    const code1 = (await req('POST', '/api/admin/promote', { session, body: { did } })).body.code;
+    const old = await options(code1);
+    expect(old.ticket).toBeTruthy();
+    // the main admin hands out a new code (the old one leaked; that it no longer opens anything is tested above)
+    const code2 = (await req('POST', '/api/admin/promote', { session, body: { did } })).body.code;
+    expect(code2).not.toBe(code1);
+    const r = await verify(old, authenticator());
+    expect(r.status).toBe(410);
+    expect((await req('GET', '/api/admin/overview', { session })).body.admins.find((a) => a.did === did).state).toBe('pending');
+    // revoked and promoted again: a ticket from before is void too
+    const spare = await options(code2);
+    expect((await req('POST', '/api/admin/revoke', { session, body: { did } })).status).toBe(200);
+    const code3 = (await req('POST', '/api/admin/promote', { session, body: { did } })).body.code;
+    expect((await verify(spare, authenticator())).status).toBe(410);
+    // the current code still works as before
+    const fresh = await options(code3);
+    expect((await verify(fresh, authenticator())).status).toBe(200);
+  });
+});
+
 describe('password hash strength', () => {
   it('new hashes use the OWASP scrypt level (32 MiB, three passes); old ones still verify', async () => {
     const h = await hashPassword('a fine long password');

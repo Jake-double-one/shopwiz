@@ -320,8 +320,9 @@ export function createAdmin({ store, hub, config, log }) {
         loginFailed('promotion');
         throw new AdminError(401, 'wrong_code');
       }
-      // the ticket binds the registration to this device – without carrying its key hash around
-      target = { role: 'device', did, bind: mac(`bind:${tokenHashOf(req)}`) };
+      // the ticket binds the registration to this device (without carrying its key hash around) and
+      // to this very promotion: promoted again or revoked, the ticket is as worthless as the old code
+      target = { role: 'device', did, bind: mac(`bind:${tokenHashOf(req)}`), promo: mac(`promo:${did}:${row.code}:${row.created_at}`) };
     }
     const exclude = db.q('SELECT id, transports FROM admin_keys WHERE did IS ?').all(target.did);
     const options = await generateRegistrationOptions({
@@ -360,6 +361,11 @@ export function createAdmin({ store, hub, config, log }) {
     const synced = credentialDeviceType === 'multiDevice' ? 1 : 0;
     db.tx(() => {
       if (c.role === 'device') {
+        // still the promotion the code was shown for? (a new code since: the ticket is void)
+        const cur = db.q('SELECT state, code, created_at FROM admins WHERE did = ?').get(c.did);
+        if (!cur || cur.state !== 'pending' || !cur.code || c.promo !== mac(`promo:${c.did}:${cur.code}:${cur.created_at}`)) {
+          throw new AdminError(cur?.state === 'active' ? 409 : 410, cur?.state === 'active' ? 'already' : 'expired');
+        }
         // exactly one passkey per promotion – whoever comes second is told so
         // … and from now on only for this device's full key, not just anything with the same D-ID
         const ok = db
