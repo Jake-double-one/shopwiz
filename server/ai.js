@@ -69,7 +69,7 @@ function entryOf(e) {
   };
 }
 
-export function createAi({ store, hub, config, log }) {
+export function createAi({ store, hub, config, log, seclog = null }) {
   const db = store.db;
   const calls = new Map(); // key hash → { count, reset } – per assistant, in memory only
 
@@ -737,6 +737,7 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
     try {
       ctx = auth(key);
     } catch (e) {
+      if (e.code === 'unauthorized' || e.code === 'rate_limited') seclog?.event(e.code === 'unauthorized' ? 'ai_key_invalid' : 'ai_limited', req.ip, { via: 'mcp' });
       return reply.code(e.status ?? 401).send({ jsonrpc: '2.0', error: { code: -32001, message: e.message }, id: null });
     }
     // a tool call whose arguments are not an object is a bad request, not a server error

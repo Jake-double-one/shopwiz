@@ -1,0 +1,24 @@
+# Parses ShopWiz's security log (SECURITY_LOG=true): one JSON line per event, with the client address.
+# Acquisition: the docker datasource with label type: shopwiz (see ../../acquis.yaml).
+onsuccess: next_stage
+debug: false
+filter: "evt.Parsed.program == 'shopwiz'"
+name: shopwiz/shopwiz-logs
+description: "Parse ShopWiz security log lines"
+nodes:
+  - filter: "evt.Line.Raw contains '\"log\":\"shopwiz-security\"'"
+    statics:
+      - parsed: json
+        expression: UnmarshalJSON(evt.Line.Raw, evt.Unmarshaled, "shopwiz")
+      - meta: service
+        value: shopwiz
+      - meta: log_type
+        expression: "'shopwiz_' + evt.Unmarshaled.shopwiz.event"
+      - meta: source_ip
+        expression: evt.Unmarshaled.shopwiz.ip
+      - target: evt.StrTime
+        expression: evt.Unmarshaled.shopwiz.time
+      - meta: via
+        expression: "evt.Unmarshaled.shopwiz.via != nil ? evt.Unmarshaled.shopwiz.via : ''"
+      - meta: method
+        expression: "evt.Unmarshaled.shopwiz.method != nil ? evt.Unmarshaled.shopwiz.method : ''"

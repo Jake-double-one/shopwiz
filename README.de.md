@@ -337,6 +337,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `TRANSLATE_DAILY_CHARS` | `100000` | Zeichen pro Tag, die der ganze Server an Übersetzungsdienste schickt – ein Kontingent für alle IDs (eigene Schlüssel einer ID zählen nicht mit); `0` = keine Grenze |
 | `ENCRYPTION_KEY` | – | Verschlüsselt, was IDs auf dem Server geheim halten (ihre eigenen Übersetzungs-API-Schlüssel) – ein beliebiger langer Zufallstext. Nicht gesetzt: ein Schlüssel wird einmal erzeugt und als `encryption.key` im Datenordner abgelegt; mit der Datenbank sichern. Ein verlorener Schlüssel kostet nur diese gespeicherten API-Schlüssel |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
+| `SECURITY_LOG` | `false` | `true` schreibt pro sicherheitsrelevantem Ereignis eine JSON-Zeile mit der Client-Adresse – siehe [Sicherheits-Log und CrowdSec](#sicherheits-log-und-crowdsec) |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Ordner für eigene Skins (CSS-Dateien, siehe [Skin hinzufügen](#skin-hinzufügen)) – wird im Betrieb gelesen |
 | `DATA_DIR` | `/data` | Ort der Datenbank (in Docker: das Volume) |
 
@@ -367,6 +368,25 @@ docker cp shopwiz:/data/backup.db ./shopwiz-backup.db
 Update: In Portainer **Pull and redeploy** (Web editor) bzw. neu bauen (Repository). Auf der Kommandozeile: `git pull && docker compose up -d --build`. Das Datenbankschema wird automatisch angelegt.
 
 Welche Version läuft: `curl https://dein-host/api/version` → `{"version":"v0.4.1","commit":"…","built":"…"}` (auch in `/healthz` und in der App unter Hilfe). Images von `main` heißen nach dem letzten Release, z. B. `v0.4.1-2-g1a2b3c4` = zwei Commits nach v0.4.1. Wer ein bestimmtes Release will, nimmt den Image-Tag (`ghcr.io/jake-double-one/shopwiz:0.4.1`) statt `latest`.
+
+## Sicherheits-Log und CrowdSec
+
+ShopWiz verfolgt nicht, wer was tut – aber ein Server soll sehen, wer an seiner Tür rüttelt. `SECURITY_LOG: "true"` schreibt für jedes sicherheitsrelevante Ereignis eine JSON-Zeile mit der Client-Adresse ins Container-Log: ausprobierte unbekannte IDs, erreichte Grenzen, fehlgeschlagene und erfolgreiche Admin-Anmeldungen, unbekannte Assistenten-Schlüssel, missbräuchliche Sync-Verbindungen. Nie etwas über Listen oder Artikel. Standardmäßig aus.
+
+```json
+{"time":"2026-10-25T11:02:17.410Z","log":"shopwiz-security","event":"id_notfound","ip":"203.0.113.5","via":"rest","id":"K7QM2XPA9Z"}
+```
+
+| Ereignis | Wann |
+|---|---|
+| `id_notfound`, `id_limited` | eine unbekannte ID wurde probiert (`via`: `rest`, `ws`, `transfer`); zu viele von einer Adresse |
+| `create_limited`, `import_limited`, `translate_limited` | eine Grenze wurde erreicht (neue IDs pro Adresse, Importe pro ID, Übersetzungsbudget) |
+| `ws_too_many`, `ws_flood`, `ws_slow_reader` | Sync-Verbindungen: mehr als 50 von einer Adresse, eine Nachrichtenflut, eine Verbindung, die nicht mehr liest |
+| `ai_key_invalid`, `ai_limited` | ein unbekannter oder entzogener Assistenten-Schlüssel (`via`: `rest`, `mcp`); ein Schlüssel über seiner Rate |
+| `admin_login_failed`, `admin_limited` | falsches Passwort, falscher Einrichtungs- oder Ernennungscode, falscher Passkey (`method`); zu viele von einer Adresse |
+| `admin_login`, `admin_setup`, `admin_passkey`, `admin_session_invalid` | ein Admin hat sich angemeldet (`method`, `role`), der Haupt-Admin wurde eingerichtet, ein Passkey registriert; eine Sync-Verbindung mit einer Admin-Sitzung, die keine ist |
+
+Hinter einem Reverse Proxy muss `TRUST_PROXY` stimmen, sonst steht in jeder Zeile der Proxy. Die Zeilen sind für [CrowdSec](https://www.crowdsec.net/) gemacht: Der Ordner [`crowdsec/`](crowdsec/) enthält einen Parser, vier Szenarien (ID-Raten, Admin-Bruteforce, Raten von Assistenten-Schlüsseln, Sync-Missbrauch), eine Collection und ein Acquisition-Beispiel, mit kurzer Anleitung. fail2ban geht genauso – die Zeilen sind einfaches JSON.
 
 ## Administration (optional)
 

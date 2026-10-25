@@ -22,6 +22,9 @@ services:
       # real client address. Without a proxy: "false"
       TRUST_PROXY: "true"
       LOG_LEVEL: "warn"
+      # "true": one JSON line per security event (unknown IDs, failed logins, floods …) with the client
+      # address, for CrowdSec & co. – see crowdsec/ in the repository. Never anything about lists
+      SECURITY_LOG: "false"
       # AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1).
       # Connect them in ShopWiz: Settings → AI assistants. Needs HTTPS from the internet.
       MCP_ENABLED: "false"

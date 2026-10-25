@@ -1,0 +1,17 @@
+# Sync connections that flood, never read, or come by the hundreds
+type: leaky
+name: shopwiz/sync-abuse
+description: "Abusing ShopWiz sync connections"
+filter: "evt.Meta.log_type in ['shopwiz_ws_too_many', 'shopwiz_ws_flood', 'shopwiz_ws_slow_reader', 'shopwiz_create_limited']"
+groupby: evt.Meta.source_ip
+capacity: 15
+leakspeed: "1m"
+blackhole: 15m
+labels:
+  service: shopwiz
+  type: dos
+  remediation: true
+  confidence: 2
+  spoofable: 0
+  behavior: "http:dos"
+  label: "ShopWiz sync abuse"

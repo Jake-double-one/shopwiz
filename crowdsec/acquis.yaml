@@ -1,0 +1,6 @@
+# Read ShopWiz's container log (add to /etc/crowdsec/acquis.yaml or drop into acquis.d/)
+source: docker
+container_name:
+  - shopwiz
+labels:
+  type: shopwiz

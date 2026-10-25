@@ -68,6 +68,8 @@ export function loadConfig(env = process.env) {
     // encrypts what IDs keep secret in the database (their own translation API keys); unset = a key
     // made once in the data folder
     encryptionKey: env.ENCRYPTION_KEY || '',
+    // one JSON line per security event with the client's address, for CrowdSec & co. (server/security-log.js)
+    securityLog: /^(1|true|on|yes)$/i.test(env.SECURITY_LOG ?? ''),
     // AI assistants (Claude, ChatGPT, Grok, Siri …) via MCP (/mcp) and REST (/api/v1)
     mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
     // IDs a device may create itself (0 = no limit); joining doesn't count

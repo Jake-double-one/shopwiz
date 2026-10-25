@@ -1,0 +1,17 @@
+# Failed admin logins: password, setup code, promotion code or passkey
+type: leaky
+name: shopwiz/admin-bruteforce
+description: "Guessing ShopWiz admin credentials"
+filter: "evt.Meta.log_type == 'shopwiz_admin_login_failed' || evt.Meta.log_type == 'shopwiz_admin_limited'"
+groupby: evt.Meta.source_ip
+capacity: 5
+leakspeed: "2m"
+blackhole: 15m
+labels:
+  service: shopwiz
+  type: bruteforce
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  behavior: "http:bruteforce"
+  label: "ShopWiz admin bruteforce"

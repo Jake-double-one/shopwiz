@@ -52,7 +52,7 @@ function sameCode(typed, real) {
 }
 const plainCode = (s) => String(s ?? '').toUpperCase().replace(/O/g, '0').replace(/[IL]/g, '1').replace(/[^0-9A-Z]/g, '');
 
-export function createAdmin({ store, hub, config, log }) {
+export function createAdmin({ store, hub, config, log, seclog = null }) {
   // the main admin from the settings (v0.5.0 way, without the browser) – otherwise from the database
   const envHash = config.adminUser && config.adminPasswordHash ? parseHash(config.adminPasswordHash) : null;
   if (config.adminUser && config.adminPasswordHash && !envHash) log.error('ADMIN_PASSWORD_HASH is not a valid hash – it is ignored');
@@ -86,7 +86,8 @@ export function createAdmin({ store, hub, config, log }) {
   let failEntry = null;
   // refused passkey setups: once per D-ID and 10 minutes, for the same reason
   const refused = new Map();
-  function loginFailed(method) {
+  function loginFailed(method, req = null) {
+    seclog?.event('admin_login_failed', req?.ip, { method });
     const t = now();
     if (failEntry && t - failEntry.at < 10 * MIN) {
       failEntry.count++;
@@ -178,6 +179,8 @@ export function createAdmin({ store, hub, config, log }) {
   }
 
   // ----- sessions -----
+
+  const limited = (req) => (seclog?.event('admin_limited', req?.ip), new AdminError(429, 'rate_limited'));
 
   function newSession(role, did) {
     const token = randomBytes(32).toString('base64url');
@@ -314,10 +317,10 @@ export function createAdmin({ store, hub, config, log }) {
       }
       if (row.expires_at <= now()) throw new AdminError(410, 'expired');
       // the promotion code from the main admin: a stolen device key alone can't take the promotion
-      if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
+      if (fails.blocked(ip)) throw limited(req);
       if (!sameCode(req.body?.code, row.code)) {
         fails.fail(ip);
-        loginFailed('promotion');
+        loginFailed('promotion', req);
         throw new AdminError(401, 'wrong_code');
       }
       // the ticket binds the registration to this device (without carrying its key hash around) and
@@ -389,6 +392,7 @@ export function createAdmin({ store, hub, config, log }) {
     });
     audit(c.role === 'main' ? 'main' : c.did, 'passkey_registered', { did: c.did, synced: !!synced });
     if (c.role === 'device') notify(c.did);
+    seclog?.event('admin_passkey', req.ip, { role: c.role });
     return { session: startSession(req, c.role, c.did), role: c.role, did: c.did };
   }
 
@@ -419,6 +423,7 @@ export function createAdmin({ store, hub, config, log }) {
     if (row && !row.token_hash) db.q('UPDATE admins SET token_hash = ? WHERE did = ?').run(tokenHashOf(req), row.did);
     const role = key.did ? 'device' : 'main';
     audit(role === 'main' ? 'main' : key.did, 'login', { method: 'passkey' });
+    seclog?.event('admin_login', req.ip, { method: 'passkey', role });
     return { session: startSession(req, role, key.did), role, did: key.did };
   }
 
@@ -548,13 +553,13 @@ export function createAdmin({ store, hub, config, log }) {
         const ip = clientKey(req);
         if (!secure(req)) throw new AdminError(403, 'https');
         if (!setupCode) throw new AdminError(409, 'set_up');
-        if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
+        if (fails.blocked(ip)) throw limited(req);
         const { code, user, password } = req.body ?? {};
         const typed = Buffer.from(plainCode(code));
         const real = Buffer.from(plainCode(setupCode));
         if (typed.length !== real.length || !timingSafeEqual(typed, real)) {
           fails.fail(ip);
-          loginFailed('setup');
+          loginFailed('setup', req);
           throw new AdminError(401, 'wrong_code');
         }
         const name = typeof user === 'string' ? user.replace(/[\u0000-\u001f\u007f]/g, '').trim() : '';
@@ -575,6 +580,7 @@ export function createAdmin({ store, hub, config, log }) {
         });
         if (again) for (const s of sessions.values()) if (s.role === 'main') endSession(s.key);
         audit('main', again ? 'reset' : 'setup');
+        seclog?.event('admin_setup', req.ip);
         return { session: newSession('main', null), role: 'main', did: null };
       }),
     );
@@ -584,7 +590,7 @@ export function createAdmin({ store, hub, config, log }) {
       handle(async (req) => {
         const ip = clientKey(req);
         if (!secure(req)) throw new AdminError(403, 'https');
-        if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
+        if (fails.blocked(ip)) throw limited(req);
         if (!passwordAllowed()) throw new AdminError(403, 'password_off');
         const c = creds();
         if (!c) throw new AdminError(409, 'setup');
@@ -606,10 +612,11 @@ export function createAdmin({ store, hub, config, log }) {
         }
         if (!ok) {
           fails.fail(ip);
-          loginFailed('password');
+          loginFailed('password', req);
           throw new AdminError(401, 'wrong');
         }
         audit('main', 'login', { method: 'password' });
+        seclog?.event('admin_login', req.ip, { method: 'password', role: 'main' });
         return { session: startSession(req, 'main', null), role: 'main', did: null };
       }),
     );
@@ -629,12 +636,12 @@ export function createAdmin({ store, hub, config, log }) {
         if (!c) throw new AdminError(400, 'expired_challenge');
         if (c.purpose === 'register') return register(req, c);
         const ip = clientKey(req);
-        if (fails.blocked(ip)) throw new AdminError(429, 'rate_limited');
+        if (fails.blocked(ip)) throw limited(req);
         try {
           return await authenticate(req, c);
         } catch (e) {
           fails.fail(ip);
-          loginFailed('passkey');
+          loginFailed('passkey', req);
           throw e;
         }
       }),

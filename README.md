@@ -338,6 +338,7 @@ All settings are environment variables. The defaults are fine for most setups.
 | `TRANSLATE_DAILY_CHARS` | `100000` | Characters per day the whole server sends to translation services – one quota for every ID (an ID's own key is not counted); `0` = no limit |
 | `ENCRYPTION_KEY` | – | Encrypts what IDs keep secret on the server (their own translation API keys) – any long random text. Unset: a key is made once and kept as `encryption.key` in the data folder; back it up with the database. A lost key only loses those stored API keys |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
+| `SECURITY_LOG` | `false` | `true` writes one JSON line per security event with the client's address – see [Security log and CrowdSec](#security-log-and-crowdsec) |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Folder for your own skins (CSS files, see [Adding a skin](#adding-a-skin)) – read while running |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |
 
@@ -368,6 +369,25 @@ docker cp shopwiz:/data/backup.db ./shopwiz-backup.db
 Update: in Portainer use **Pull and redeploy** (web editor) or **Pull and redeploy / re-build** (repository). On the command line: `git pull && docker compose up -d --build`. The database schema is created and kept up to date automatically.
 
 Which version runs: `curl https://your-host/api/version` → `{"version":"v0.4.1","commit":"…","built":"…"}` (also in `/healthz` and in the app under Help). Images from `main` are named after the last release, e.g. `v0.4.1-2-g1a2b3c4` = two commits after v0.4.1. To pin a release, use the image tag (`ghcr.io/jake-double-one/shopwiz:0.4.1`) instead of `latest`.
+
+## Security log and CrowdSec
+
+ShopWiz doesn't track what anybody does – but a server should see who hammers at its door. `SECURITY_LOG: "true"` writes one JSON line to the container log for every security-relevant event, with the client's address: unknown IDs tried, limits hit, failed and successful admin logins, unknown assistant keys, abusive sync connections. Never anything about lists or items. Off by default.
+
+```json
+{"time":"2026-10-25T11:02:17.410Z","log":"shopwiz-security","event":"id_notfound","ip":"203.0.113.5","via":"rest","id":"K7QM2XPA9Z"}
+```
+
+| Event | When |
+|---|---|
+| `id_notfound`, `id_limited` | an unknown ID was tried (`via`: `rest`, `ws`, `transfer`); too many from one address |
+| `create_limited`, `import_limited`, `translate_limited` | a limit was hit (new IDs per address, imports per ID, translation budget) |
+| `ws_too_many`, `ws_flood`, `ws_slow_reader` | sync connections: more than 50 from one address, a flood of messages, a connection that stopped reading |
+| `ai_key_invalid`, `ai_limited` | an unknown or revoked assistant key (`via`: `rest`, `mcp`); a key over its rate |
+| `admin_login_failed`, `admin_limited` | a wrong password, setup code, promotion code or passkey (`method`); too many from one address |
+| `admin_login`, `admin_setup`, `admin_passkey`, `admin_session_invalid` | an admin logged in (`method`, `role`), the main admin was set up, a passkey was registered; a sync connection with an admin session that isn't one |
+
+Behind a reverse proxy `TRUST_PROXY` must be right, otherwise every line names the proxy. The lines are made for [CrowdSec](https://www.crowdsec.net/): the folder [`crowdsec/`](crowdsec/) has a parser, four scenarios (ID guessing, admin bruteforce, assistant key guessing, sync abuse), a collection and an acquisition example, with a short guide. fail2ban works just as well – the lines are plain JSON.
 
 ## Administration (optional)
 

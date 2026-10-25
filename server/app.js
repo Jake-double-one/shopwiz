@@ -11,6 +11,7 @@ import { createSkins } from './skins.js';
 import { Limiter } from './limiter.js';
 import { createTranslator, TranslateError } from './translate.js';
 import { createSealer } from './secret.js';
+import { createSecurityLog } from './security-log.js';
 import { createAi, AiError } from './ai.js';
 import { openApi } from './openapi.js';
 import { LANG_RE } from '../shared/countries.js';
@@ -94,7 +95,9 @@ export async function buildApp(config) {
   app.decorate('store', store);
   app.decorate('hub', hub);
   // optional administration – off unless ADMIN_USER and ADMIN_PASSWORD_HASH are set
-  const admin = createAdmin({ store, hub, config, log: app.log });
+  const seclog = createSecurityLog(config);
+  if (seclog.enabled) app.log.info('security log is on – one line per security event, with client addresses');
+  const admin = createAdmin({ store, hub, config, log: app.log, seclog });
 
   const cleanup = () => {
     try {
@@ -157,6 +160,7 @@ export async function buildApp(config) {
   function lookup(req, reply, { requireMember = false } = {}) {
     const key = clientKey(req);
     if (limiter.blocked(key)) {
+      seclog.event('id_limited', req.ip, { via: 'rest' });
       reply.code(429).send({ error: 'rate_limited' });
       return null;
     }
@@ -167,6 +171,7 @@ export async function buildApp(config) {
     const res = id ? store.resolve(id, tokenHash) : { status: 'notfound' };
     if (res.status === 'notfound') {
       limiter.fail(key);
+      seclog.event('id_notfound', req.ip, { via: 'rest', id: String(req.params.id ?? '').slice(0, 24) });
       reply.code(404).send({ error: 'notfound' });
       return null;
     }
@@ -200,7 +205,10 @@ export async function buildApp(config) {
   app.post('/api/spaces', async (req, reply) => {
     const { name, token, deviceName, listName, doc } = req.body ?? {};
     if (typeof token !== 'string' || !TOKEN_RE.test(token)) return reply.code(400).send({ error: 'invalid', message: 'token' });
-    if (createLimiter.blocked(clientKey(req))) return reply.code(429).send({ error: 'rate_limited' });
+    if (createLimiter.blocked(clientKey(req))) {
+      seclog.event('create_limited', req.ip);
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
     const tokenHash = hashToken(token);
     if (overLimit(tokenHash)) return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
     createLimiter.fail(clientKey(req));
@@ -270,7 +278,10 @@ export async function buildApp(config) {
     // a continued ID is a new ID of the device that continues it – the same limits as creating one
     const ip = clientKey(req);
     const allowNew = () => {
-      if (createLimiter.blocked(ip)) throw new OpError('rate_limited');
+      if (createLimiter.blocked(ip)) {
+        seclog.event('create_limited', req.ip, { via: 'continue' });
+        throw new OpError('rate_limited');
+      }
       if (overLimit(r.tokenHash)) throw new OpError('space_limit');
       createLimiter.fail(ip);
     };
@@ -294,7 +305,10 @@ export async function buildApp(config) {
     const t = Date.now();
     let use = importUsage.get(r.space.uid);
     if (!use || use.reset <= t) importUsage.set(r.space.uid, (use = { count: 0, reset: t + 3_600_000 }));
-    if (use.count >= 20) return reply.code(429).send({ error: 'rate_limited' });
+    if (use.count >= 20) {
+      seclog.event('import_limited', req.ip);
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
     use.count++;
     if (importUsage.size > 10_000) for (const [k, u] of importUsage) if (u.reset <= t) importUsage.delete(k);
     const dev = devOf(r);
@@ -349,6 +363,7 @@ export async function buildApp(config) {
       ipUse.chars + chars > charLimit * 2 ||
       (!tr.own && config.translateDailyChars > 0 && trDay.chars + chars > config.translateDailyChars) // the server's quota, not an ID's own
     ) {
+      seclog.event('translate_limited', req.ip, { own: tr.own });
       return reply.code(429).send({ error: 'translate_limit', translations: out });
     }
     use.count += todo.length;
@@ -438,7 +453,7 @@ export async function buildApp(config) {
   });
 
   // ---------- AI assistants (MCP + REST) ----------
-  const ai = createAi({ store, hub, config, log: app.log });
+  const ai = createAi({ store, hub, config, log: app.log, seclog });
 
   // a member connects an assistant → its key, shown once
   app.post('/api/spaces/:id/ai', async (req, reply) => {
@@ -477,7 +492,10 @@ export async function buildApp(config) {
       const ctx = ai.auth(bearer(req));
       return await fn(ctx, req);
     } catch (e) {
-      if (e instanceof AiError) return reply.code(e.status).send({ error: e.code, message: e.message });
+      if (e instanceof AiError) {
+        if (e.code === 'unauthorized' || e.code === 'rate_limited') seclog.event(e.code === 'unauthorized' ? 'ai_key_invalid' : 'ai_limited', req.ip, { via: 'rest' });
+        return reply.code(e.status).send({ error: e.code, message: e.message });
+      }
       if (e instanceof OpError) return reply.code(e.code === 'notfound' ? 404 : 400).send({ error: e.code, message: e.message });
       throw e;
     }
@@ -509,6 +527,7 @@ export async function buildApp(config) {
     const target = targetId ? store.resolve(targetId, r.tokenHash) : { status: 'notfound' };
     if (target.status !== 'ok') {
       limiter.fail(clientKey(req));
+      seclog.event('id_notfound', req.ip, { via: 'transfer', id: String(to ?? '').slice(0, 24) });
       return reply.code(404).send({ error: 'target_notfound' });
     }
     // only into an ID one is in oneself (an admin is in all of them)
@@ -617,7 +636,10 @@ export async function buildApp(config) {
     const key = clientKey(req);
     // a few devices behind one address are normal – hundreds of open connections are not
     const open = (wsPerIp.get(key) ?? 0) + 1;
-    if (open > 50) return ws.close(1013, 'too many connections');
+    if (open > 50) {
+      seclog.event('ws_too_many', req.ip);
+      return ws.close(1013, 'too many connections');
+    }
     wsPerIp.set(key, open);
     ws.on('close', () => {
       const n = (wsPerIp.get(key) ?? 1) - 1;
@@ -658,7 +680,10 @@ export async function buildApp(config) {
       // sent to it – past this much unsent data it is dropped and reconnects later
       send: (data) => {
         if (ws.readyState !== 1) return;
-        if (ws.bufferedAmount > WS_MAX_BUFFERED) return ws.terminate();
+        if (ws.bufferedAmount > WS_MAX_BUFFERED) {
+          seclog.event('ws_slow_reader', req.ip);
+          return ws.terminate();
+        }
         ws.send(data);
       },
       close: () => ws.close(),
@@ -672,7 +697,10 @@ export async function buildApp(config) {
       }
     });
 
+    // once a connection is being closed for misbehaving, what it already sent is ignored
+    let closing = false;
     ws.on('message', (raw) => {
+      if (closing) return;
       let msg;
       try {
         msg = JSON.parse(raw.toString());
@@ -693,14 +721,20 @@ export async function buildApp(config) {
     });
 
     function onHello(msg) {
-      if (limiter.blocked(key)) return reply({ t: 'error', error: 'rate_limited' });
+      if (limiter.blocked(key)) {
+        seclog.event('id_limited', req.ip, { via: 'ws' });
+        return reply({ t: 'error', error: 'rate_limited' });
+      }
       // the last answer is still on its way out: a device asks once per connection (a snapshot each)
       if (ws.bufferedAmount > 0) {
+        closing = true;
         reply({ t: 'error', error: 'busy' });
         return conn.close();
       }
       if (!pay(25)) {
         // the device reconnects with back-off, like after a busy op
+        seclog.event('ws_flood', req.ip, { at: 'hello' });
+        closing = true;
         reply({ t: 'error', error: 'busy' });
         return conn.close();
       }
@@ -709,10 +743,14 @@ export async function buildApp(config) {
       const tokenHash = hashToken(msg.token);
       // an admin opens the ID with the session of the administration (never stored on the device)
       const adminSession = msg.admin === undefined ? null : admin.enabled ? admin.sessionFor(msg.admin, tokenHash) : null;
-      if (msg.admin !== undefined && !adminSession) return reply({ t: 'error', error: 'admin_auth' });
+      if (msg.admin !== undefined && !adminSession) {
+        seclog.event('admin_session_invalid', req.ip);
+        return reply({ t: 'error', error: 'admin_auth' });
+      }
       const res = id ? store.resolve(id, adminSession ? null : tokenHash) : { status: 'notfound' };
       if (res.status === 'notfound') {
         limiter.fail(key);
+        seclog.event('id_notfound', req.ip, { via: 'ws', id: String(msg.space ?? '').slice(0, 24) });
         return reply({ t: 'notfound' });
       }
       if (res.status === 'moved') return reply({ t: 'moved', id: res.id });
@@ -814,6 +852,8 @@ export async function buildApp(config) {
       if (conn.uid === null) return reply({ t: 'ack', id: msg.id, ok: false, error: 'no_hello' });
       if (!pay(costOf(msg.op))) {
         // no ack: the device keeps the op and sends it again after reconnecting (with back-off)
+        seclog.event('ws_flood', req.ip, { at: 'op' });
+        closing = true;
         reply({ t: 'error', error: 'busy' });
         return conn.close();
       }

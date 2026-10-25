@@ -1,0 +1,10 @@
+name: shopwiz/shopwiz
+description: "ShopWiz: parser for the security log and scenarios for ID guessing, admin bruteforce, assistant key guessing and sync abuse"
+author: shopwiz
+parsers:
+  - shopwiz/shopwiz-logs
+scenarios:
+  - shopwiz/id-bruteforce
+  - shopwiz/admin-bruteforce
+  - shopwiz/ai-key-bruteforce
+  - shopwiz/sync-abuse

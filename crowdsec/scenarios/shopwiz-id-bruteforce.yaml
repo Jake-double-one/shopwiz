@@ -1,0 +1,18 @@
+# Somebody tries unknown IDs: 20 within a short time from one address (ShopWiz itself refuses
+# that address after LOOKUP_LIMIT misses – this bans it at the door, for every service)
+type: leaky
+name: shopwiz/id-bruteforce
+description: "Guessing ShopWiz IDs"
+filter: "evt.Meta.log_type == 'shopwiz_id_notfound' || evt.Meta.log_type == 'shopwiz_id_limited'"
+groupby: evt.Meta.source_ip
+capacity: 20
+leakspeed: "30s"
+blackhole: 10m
+labels:
+  service: shopwiz
+  type: bruteforce
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  behavior: "http:bruteforce"
+  label: "ShopWiz ID guessing"

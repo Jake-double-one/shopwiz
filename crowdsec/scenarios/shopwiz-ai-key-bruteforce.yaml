@@ -1,0 +1,17 @@
+# Unknown or revoked assistant keys (MCP / REST)
+type: leaky
+name: shopwiz/ai-key-bruteforce
+description: "Guessing ShopWiz assistant keys"
+filter: "evt.Meta.log_type == 'shopwiz_ai_key_invalid'"
+groupby: evt.Meta.source_ip
+capacity: 10
+leakspeed: "1m"
+blackhole: 15m
+labels:
+  service: shopwiz
+  type: bruteforce
+  remediation: true
+  confidence: 3
+  spoofable: 0
+  behavior: "http:bruteforce"
+  label: "ShopWiz assistant key guessing"
