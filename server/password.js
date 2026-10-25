@@ -2,7 +2,9 @@
 // Format: scrypt:N:r:p:salt:hash (base64url) – no "$", so docker-compose files need no escaping.
 import { scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
 
-const DEFAULTS = { N: 16384, r: 8, p: 1 };
+// OWASP's scrypt level that fits a small container: 32 MiB per hash, three passes (N=2^17, r=8,
+// p=1 would be the same strength with 128 MiB at once). Old hashes keep their own parameters.
+const DEFAULTS = { N: 32768, r: 8, p: 3 };
 
 const run = (password, salt, len, { N, r, p }) =>
   new Promise((resolve, reject) =>

@@ -63,7 +63,8 @@ function str(v, max, { required = false, field = 'value' } = {}) {
 /** "Admin" is what the administration is called inside an ID – no device may call itself that */
 const checkedDeviceName = (v, opts) => {
   const s = str(v, LIMITS.deviceName, opts);
-  if (/^admin$/i.test(s)) throw new OpError('invalid', 'name reserved');
+  // also "Admin" dressed up with invisible characters, accents, full-width letters or spaces
+  if (s.normalize('NFKD').replace(/[\p{Cf}\p{M}\s]/gu, '').toLowerCase() === 'admin') throw new OpError('invalid', 'name reserved');
   return s;
 };
 

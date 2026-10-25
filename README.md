@@ -332,7 +332,8 @@ All settings are environment variables. The defaults are fine for most setups.
 | `LIBRETRANSLATE_API_KEY` | – | Only if your LibreTranslate requires keys |
 | `MYMEMORY_EMAIL` | – | Optional for MyMemory: raises the free quota to about 50,000 characters a day |
 | `MCP_ENABLED` | `false` | `true` lets AI assistants (Claude, ChatGPT, Grok, Siri …) connect via MCP (`/mcp`) and REST (`/api/v1`) – see [AI assistants](#ai-assistants-claude-chatgpt-grok-siri) |
-| `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to translation services |
+| `TRANSLATE_LIMIT` | `300` | Item names per ID and hour sent to translation services (and 40 characters per name as a character budget; the address gets twice both) |
+| `TRANSLATE_DAILY_CHARS` | `100000` | Characters per day the whole server sends to translation services – one quota for every ID; `0` = no limit |
 | `LOG_LEVEL` | `warn` | `info`, `warn`, `error`, … |
 | `SKINS_DIR` | `$DATA_DIR/skins` | Folder for your own skins (CSS files, see [Adding a skin](#adding-a-skin)) – read while running |
 | `DATA_DIR` | `/data` | Where the database lives (in Docker: the volume) |

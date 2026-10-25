@@ -336,3 +336,75 @@ describe('audit run-1 fixes', () => {
     expect(store.snapshot(uid).items.filter((i) => i.shared).length).toBe(0);
   });
 });
+
+describe('hardening after audit run-1', () => {
+  const A = 'token-hardhardhardhardhard1';
+  const B = 'token-hardhardhardhardhard2';
+  const fakeFetch = async (url) => {
+    const q = new URL(url).searchParams.get('q');
+    return { ok: true, status: 200, json: async () => ({ responseStatus: 200, responseData: { translatedText: `${q} (it)` } }) };
+  };
+
+  it('"Admin" stays reserved when dressed up with invisible characters, accents or spaces', () => {
+    const store = new Store(openDb(':memory:'), loadConfig({}));
+    const id = store.createSpace({ name: 'N', token: A, deviceName: 'Phone' });
+    const uid = store.resolve(id, null).space.uid;
+    for (const [i, name] of ['Admin​', 'A‌dmin', 'Ａdmin', 'A d m i n', 'Ádmin', 'ADMIN­'].entries()) {
+      expect(store.joinDevice(uid, hashToken(`token-lookalike-${i}-xxxxxxxx`), name).name).toBe('Device');
+    }
+    expect(store.joinDevice(uid, hashToken(B), 'Admina').name).toBe('Admina');
+  });
+
+  it('the translate budget counts characters too, and the whole server has a daily cap', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', fetch: fakeFetch, translateLimit: 300, translateDailyChars: 20_000 });
+    const mk = async (token) => (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'T', token, deviceName: 'D' } })).json().id;
+    const tr = (id, token, names, extra = {}) => app.inject({ method: 'POST', url: `/api/spaces/${id}/translate`, headers: { 'x-shopwiz-token': token }, payload: { lang: 'it', from: 'de', names, ...extra } });
+    const long = (n, tag) => Array.from({ length: n }, (_, i) => `${tag}${i}`.padEnd(120, 'x'));
+    const id1 = await mk(A);
+    // 300 names would be allowed by count, but 120 characters each is 36,000 – the character budget (12,000 per ID and hour) stops it
+    expect((await tr(id1, A, long(50, 'a'))).statusCode).toBe(200); // 6,000 chars
+    expect((await tr(id1, A, long(50, 'b'))).statusCode).toBe(200); // 12,000
+    expect((await tr(id1, A, long(50, 'c'))).statusCode).toBe(429); // over the ID's character budget
+    expect((await tr(id1, A, ['Milch'])).statusCode).toBe(429); // the budget is per hour – also for a short name now
+    // another ID of the same client: its own ID budget, but the address budget (24,000) and the day (20,000) count on
+    const id2 = await mk(B);
+    expect((await tr(id2, B, long(50, 'd'))).statusCode).toBe(200); // 18,000 for the day
+    expect((await tr(id2, B, long(50, 'e'))).statusCode).toBe(429); // 24,000 would pass the address, not the day
+    // remembered names are free – unless force asks the provider again, which is charged
+    expect((await tr(id2, B, long(50, 'd'))).statusCode).toBe(200);
+    expect((await tr(id2, B, long(50, 'd'), { force: true })).statusCode).toBe(429);
+    await app.close();
+  });
+
+  it('the op budget belongs to the device: reconnecting does not refill it', { timeout: 20_000 }, async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    await app.listen({ port: 0, host: '127.0.0.1' });
+    const base = `127.0.0.1:${app.server.address().port}`;
+    const id = (await (await fetch(`http://${base}/api/spaces`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'B', token: A, deviceName: 'A' }) })).json()).id;
+    const connect = async (token) => {
+      const ws = new WebSocket(`ws://${base}/ws`);
+      const got = [];
+      ws.addEventListener('message', (e) => got.push(JSON.parse(e.data)));
+      await new Promise((r) => ws.addEventListener('open', r));
+      ws.send(JSON.stringify({ t: 'hello', space: id, token, name: 'X' }));
+      const until = (pred) => new Promise((resolve, reject) => { const t = setInterval(() => { const m = got.find(pred); if (m) (clearInterval(t), resolve(m)); }, 10); setTimeout(() => (clearInterval(t), reject(new Error('timeout'))), 5000); });
+      await until((m) => m.t === 'welcome');
+      return { ws, got, until };
+    };
+    const c1 = await connect(A);
+    for (let i = 0; i < 700; i++) c1.ws.send(JSON.stringify({ t: 'op', id: `g${i}`, op: { k: 'space.update', name: `B ${i}` }, at: Date.now() }));
+    await c1.until((m) => m.t === 'error' && m.error === 'busy');
+    // the same device comes back: hello works, but its budget is still used up (it refills 10 a second,
+    // so a handful of ops pass – a fresh bucket of 600 would take all of these)
+    const c2 = await connect(A);
+    for (let i = 0; i < 100; i++) c2.ws.send(JSON.stringify({ t: 'op', id: `h${i}`, op: { k: 'space.update', name: `after ${i}` }, at: Date.now() }));
+    await c2.until((m) => m.t === 'error' && m.error === 'busy');
+    expect(c2.got.filter((m) => m.t === 'ack').length).toBeLessThan(50);
+    // another device in the same ID has its own budget
+    const c3 = await connect(B);
+    c3.ws.send(JSON.stringify({ t: 'op', id: 'other', op: { k: 'space.update', name: 'other' }, at: Date.now() }));
+    await c3.until((m) => m.t === 'ack' && m.id === 'other' && m.ok);
+    for (const c of [c1, c2, c3]) c.ws.close();
+    await app.close();
+  });
+});

@@ -46,6 +46,8 @@ export async function buildApp(config) {
   // names sent to the translation provider per ID and hour – remembered ones are free
   const trUsage = new Map();
   const trIpUsage = new Map(); // the same budget per address, so many new IDs don't multiply it
+  let trDay = { chars: 0, reset: 0 }; // the whole server: one provider quota for everybody
+  const TR_CHARS_PER_NAME = 40; // the character budget behind TRANSLATE_LIMIT (names are 10–15 characters)
   const wsPerIp = new Map(); // open sync connections per address
   app.decorate('store', store);
   app.decorate('hub', hub);
@@ -285,18 +287,33 @@ export async function buildApp(config) {
     const out = Object.fromEntries([...known].map(([norm, text]) => [byNorm.get(norm), text]));
     if (!todo.length) return { translations: out };
 
+    // budgets count names and characters (a name may be 120 characters long, and "force" asks
+    // again for remembered ones): per ID and hour, twice that per address, and per day for all
     const now = Date.now();
+    const chars = todo.reduce((n, [, name]) => n + name.length, 0);
     let use = trUsage.get(uid);
-    if (!use || use.reset <= now) trUsage.set(uid, (use = { count: 0, reset: now + 3_600_000 }));
+    if (!use || use.reset <= now) trUsage.set(uid, (use = { count: 0, chars: 0, reset: now + 3_600_000 }));
     const ip = clientKey(req);
     let ipUse = trIpUsage.get(ip);
-    if (!ipUse || ipUse.reset <= now) trIpUsage.set(ip, (ipUse = { count: 0, reset: now + 3_600_000 }));
-    if (use.count + todo.length > config.translateLimit || ipUse.count + todo.length > config.translateLimit * 2) {
+    if (!ipUse || ipUse.reset <= now) trIpUsage.set(ip, (ipUse = { count: 0, chars: 0, reset: now + 3_600_000 }));
+    if (trDay.reset <= now) trDay = { chars: 0, reset: now + 86_400_000 };
+    const charLimit = config.translateLimit * TR_CHARS_PER_NAME;
+    if (
+      use.count + todo.length > config.translateLimit ||
+      ipUse.count + todo.length > config.translateLimit * 2 ||
+      use.chars + chars > charLimit ||
+      ipUse.chars + chars > charLimit * 2 ||
+      (config.translateDailyChars > 0 && trDay.chars + chars > config.translateDailyChars)
+    ) {
       return reply.code(429).send({ error: 'translate_limit', translations: out });
     }
     use.count += todo.length;
     ipUse.count += todo.length;
+    use.chars += chars;
+    ipUse.chars += chars;
+    trDay.chars += chars;
     if (trIpUsage.size > 10_000) for (const [k, u] of trIpUsage) if (u.reset <= now) trIpUsage.delete(k);
+    if (trUsage.size > 10_000) for (const [k, u] of trUsage) if (u.reset <= now) trUsage.delete(k);
 
     let res;
     try {
@@ -484,6 +501,21 @@ export async function buildApp(config) {
   const features = { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled, admin: admin.enabled };
   await app.register(fastifyWebsocket, { options: { maxPayload: 512 * 1024 } });
   const WS_MAX_BUFFERED = 16 * 1024 * 1024;
+  // the op budget belongs to the device, not to the connection: reconnecting doesn't refill it
+  // (one bucket per device key – a dorm behind one address shares nothing)
+  const WS_BUCKET = 600;
+  const deviceBuckets = new Map();
+  const bucketFor = (hash) => {
+    let b = deviceBuckets.get(hash);
+    if (!b) deviceBuckets.set(hash, (b = { tokens: WS_BUCKET, at: Date.now() }));
+    return b;
+  };
+  const bucketSweep = setInterval(() => {
+    const old = Date.now() - 10 * 60_000; // untouched for ten minutes: full again anyway
+    for (const [k, b] of deviceBuckets) if (b.at < old) deviceBuckets.delete(k);
+  }, 60_000);
+  bucketSweep.unref();
+  app.addHook('onClose', async () => clearInterval(bucketSweep));
 
   app.get('/ws', { websocket: true }, (ws, req) => {
     const key = clientKey(req);
@@ -498,10 +530,10 @@ export async function buildApp(config) {
     });
     // ops per connection: a bucket that refills – room for a long offline queue, not for a flood.
     // What costs more takes more: a hello (whole snapshot) 25, batches one per ten rows
-    const bucket = { tokens: 600, at: Date.now() };
+    let bucket = { tokens: WS_BUCKET, at: Date.now() }; // until the hello says which device this is
     const pay = (cost) => {
       const t = Date.now();
-      bucket.tokens = Math.min(600, bucket.tokens + ((t - bucket.at) / 1000) * 10);
+      bucket.tokens = Math.min(WS_BUCKET, bucket.tokens + ((t - bucket.at) / 1000) * 10);
       bucket.at = t;
       if (bucket.tokens < cost) return false;
       bucket.tokens -= cost;
@@ -594,6 +626,7 @@ export async function buildApp(config) {
         hub.remove(conn);
         hub.presence(conn.uid);
       }
+      bucket = bucketFor(tokenHash);
       if (adminSession) return adminHello(res.space, adminSession, msg.admin, tokenHash);
       let dev;
       try {

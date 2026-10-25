@@ -650,3 +650,13 @@ describe('main admin credential changes (audit run-1)', () => {
     await b.a.close();
   });
 });
+
+describe('password hash strength', () => {
+  it('new hashes use the OWASP scrypt level (32 MiB, three passes); old ones still verify', async () => {
+    const h = await hashPassword('a fine long password');
+    expect(parseHash(h)).toMatchObject({ N: 32768, r: 8, p: 3 });
+    expect(await verifyPassword('a fine long password', h)).toBe(true);
+    const old = await hashPassword('a fine long password', { N: 16384, r: 8, p: 1 });
+    expect(await verifyPassword('a fine long password', old)).toBe(true);
+  });
+});
