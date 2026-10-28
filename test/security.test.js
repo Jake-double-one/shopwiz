@@ -288,7 +288,7 @@ describe('audit run-1 fixes', () => {
     const alice = store.device(cUid, hashToken(A));
     const bob = store.device(cUid, hashToken(B));
     store.applyOp(cUid, alice, 'kick1', { k: 'device.kick', devId: bob.dev_id }, now());
-    const C2 = store.renew(cUid);
+    const { newId: C2 } = store.renew(cUid);
     expect(store.isMember(cUid, hashToken(B))).toBe(false);
     // the way back is closed: no row in the predecessor, so no "continue" into C2
     expect(store.resolve(S, hashToken(B)).status).toBe('notfound');

@@ -5,10 +5,27 @@
   import { t, relTime } from '../lib/i18n.svelte.js';
   import { renameDevice, kickDevice } from '../lib/actions.js';
   import { isShopping } from '../lib/model.js';
+  import { api } from '../lib/api.js';
+  import { toast } from '../lib/toast.svelte.js';
 
-  let { devices, online, me, onclose } = $props();
+  let { devices, online, me, spaceId, onclose } = $props();
   let myName = $state(untrack(() => me?.name ?? ''));
   let confirmKick = $state(null);
+  let busy = $state(false);
+
+  /** Remove and renew the ID in one step: the device is out before anyone hears the new ID */
+  async function kickAndRenew(devId) {
+    busy = true;
+    try {
+      await api.renew(spaceId, [devId]);
+      confirmKick = null;
+      onclose();
+    } catch {
+      toast({ text: t('settings.failed'), kind: 'alert' });
+    } finally {
+      busy = false;
+    }
+  }
   const sorted = $derived([...devices].sort((a, b) => (a.devId === me?.devId ? -1 : b.devId === me?.devId ? 1 : b.lastSeenAt - a.lastSeenAt)));
 
   function saveName() {
@@ -48,6 +65,9 @@
         {#if !isMe}
           {#if confirmKick === d.devId}
             <button class="btn small danger solid" onclick={() => (kickDevice(d.devId), (confirmKick = null))}>{t('people.remove')}</button>
+            {#if me?.devId !== 'admin'}
+              <button class="btn small danger" onclick={() => kickAndRenew(d.devId)} disabled={busy} title={t('people.removeRenewHint')}>{t('people.removeRenew')}</button>
+            {/if}
             <button class="btn small" onclick={() => (confirmKick = null)}>{t('cancel')}</button>
           {:else}
             <button class="icon-btn" onclick={() => (confirmKick = d.devId)} aria-label={t('people.removeName', { name: d.name })} title={t('people.removeName', { name: d.name })}>
