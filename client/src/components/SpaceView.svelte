@@ -581,7 +581,7 @@
   {:else if sheet?.kind === 'settings'}
     <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} {admin} {onadmin} onshare={() => open('share')} onbackup={() => open('backup')} />
   {:else if sheet?.kind === 'people'}
-    <PeopleSheet {devices} online={sync.online} me={sync.me} onclose={closeSheet} />
+    <PeopleSheet {devices} online={sync.online} me={sync.me} spaceId={sync.spaceId} onclose={closeSheet} />
   {:else if sheet?.kind === 'conflicts'}
     <ConflictSheet {v} {conflicts} onclose={closeSheet} />
   {:else if sheet?.kind === 'history'}

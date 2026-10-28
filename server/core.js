@@ -384,17 +384,39 @@ export class Store {
     return this.db.q('SELECT * FROM devices WHERE space_uid = ? ORDER BY created_at, rowid').all(uid).map(mapDevice);
   }
 
-  renew(uid) {
+  /**
+   * A new public id. kick: dev ids removed in the same step – they never learn the new ID, which
+   * is the only way to really lock a device out (removed first and renewed later, it rejoins in between).
+   * → { newId, kicked: [{ dev_id, name, token_hash }] }
+   */
+  renew(uid, { kick = [] } = {}) {
     const { db } = this;
     return db.tx(() => {
       const space = this.spaceByUid(uid);
+      const kicked = [];
+      for (const devId of kick.slice(0, LIMITS.devicesPerSpace)) {
+        const r = this._kickDevice(uid, String(devId));
+        if (r) kicked.push(r);
+      }
       const newId = this.generatePublicId();
       db.q('INSERT INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, ?, ?, ?)').run(space.public_id, uid, 'renewed', Date.now());
       db.q('UPDATE spaces SET public_id = ? WHERE uid = ?').run(newId, uid);
       // a new ID cuts every AI connection – they have to be connected again
       db.q("DELETE FROM devices WHERE space_uid = ? AND kind = 'ai'").run(uid);
-      return newId;
+      return { newId, kicked };
     });
+  }
+
+  /** Remove a device from the space – on every path in. → the row removed, or null */
+  _kickDevice(uid, devId) {
+    const r = this.db.q('DELETE FROM devices WHERE space_uid = ? AND dev_id = ? RETURNING dev_id, name, token_hash').get(uid, devId);
+    if (!r) return null;
+    // a kick is final on every path in: the device also leaves the deleted IDs this one was continued
+    // from – "continue" on one of them led straight back (and told the renewed ID)
+    this.db
+      .q("DELETE FROM devices WHERE token_hash = ? AND space_uid IN (SELECT CAST(substr(public_id, 3) AS INTEGER) FROM retired_ids WHERE reason = 'continued' AND space_uid = ?)")
+      .run(r.token_hash, uid);
+    return r;
   }
 
   // ----- AI assistants: devices that connect with their own key (MCP / REST) -----
@@ -1611,14 +1633,8 @@ const OPS = {
   },
 
   'device.kick'(ctx, op) {
-    const devId = String(op.devId ?? '');
-    const r = this.db.q('DELETE FROM devices WHERE space_uid = ? AND dev_id = ? RETURNING dev_id, name, token_hash').get(ctx.uid, devId);
+    const r = this._kickDevice(ctx.uid, String(op.devId ?? ''));
     if (!r) return {};
-    // a kick is final on every path in: the device also leaves the deleted IDs this one was continued
-    // from – "continue" on one of them led straight back (and told the renewed ID)
-    this.db
-      .q("DELETE FROM devices WHERE token_hash = ? AND space_uid IN (SELECT CAST(substr(public_id, 3) AS INTEGER) FROM retired_ids WHERE reason = 'continued' AND space_uid = ?)")
-      .run(r.token_hash, ctx.uid);
     ctx.changes.push({ e: 'device', del: r.dev_id });
     ctx.kicked = r.token_hash;
     this._act(ctx, null, 'device.kick', { name: r.name });

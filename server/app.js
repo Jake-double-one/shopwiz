@@ -252,10 +252,14 @@ export async function buildApp(config) {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    // kick: devices removed in the same step – they are out before anyone hears the new ID
+    const kick = Array.isArray(req.body?.kick) ? req.body.kick.filter((d) => typeof d === 'string').slice(0, LIMITS.devicesPerSpace) : [];
     // a new ID cuts the AI connections – tell the devices which ones are gone
     const aiDevs = store.db.q("SELECT dev_id FROM devices WHERE space_uid = ? AND kind = 'ai'").all(r.space.uid);
-    const newId = store.renew(r.space.uid);
-    if (aiDevs.length) hub.broadcast(r.space.uid, { t: 'patch', changes: aiDevs.map((d) => ({ e: 'device', del: d.dev_id })) });
+    const { newId, kicked } = store.renew(r.space.uid, { kick });
+    for (const k of kicked) hub.kick(r.space.uid, k.token_hash);
+    const gone = [...aiDevs.map((d) => d.dev_id), ...kicked.map((k) => k.dev_id)];
+    if (gone.length) hub.broadcast(r.space.uid, { t: 'patch', changes: gone.map((d) => ({ e: 'device', del: d })) });
     hub.broadcast(r.space.uid, { t: 'renewed', id: newId });
     return { id: newId };
   });

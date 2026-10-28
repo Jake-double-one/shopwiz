@@ -86,7 +86,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 
 - The first time you open a list, you choose a name for your device (“Alex's phone”).
 - The participant row shows everybody; a green dot means “online right now”.
-- A device can be removed by any participant. Without a login this is not a lock-out – with the ID you can join again. To really lock someone out, use **Settings → Renew ID**.
+- A device can be removed by any participant. Without a login this is not a lock-out – with the ID you can join again. To really lock someone out, use **Remove and renew ID** in the participants list: the device is removed and the ID renewed in one step, so it never learns the new ID (removing first and renewing later leaves a gap to rejoin in).
 - Devices without activity for **30 days** are removed automatically. They can rejoin anytime with the link or ID.
 
 ### Groups and learning
