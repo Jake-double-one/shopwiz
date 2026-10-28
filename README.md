@@ -86,7 +86,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 
 - The first time you open a list, you choose a name for your device (“Alex's phone”).
 - The participant row shows everybody; a green dot means “online right now”.
-- A device can be removed by any participant. Without a login this is not a lock-out – with the ID you can join again. To really lock someone out, use **Settings → Renew ID**.
+- A device can be removed by any participant. Without a login this is not a lock-out – with the ID you can join again. To really lock someone out, use **Remove and renew ID** in the participants list: the device is removed and the ID renewed in one step, so it never learns the new ID (removing first and renewing later leaves a gap to rejoin in).
 - Devices without activity for **30 days** are removed automatically. They can rejoin anytime with the link or ID.
 - A device can be in up to 10 IDs at a time; **Settings → Forget ID on this device** frees a slot. An ID has room for 100 devices.
 
@@ -382,7 +382,7 @@ ShopWiz doesn't track what anybody does – but a server should see who hammers 
 | Event | When |
 |---|---|
 | `id_notfound`, `id_limited` | an unknown ID was tried (`via`: `rest`, `ws`, `transfer`); too many from one address |
-| `create_limited`, `import_limited`, `translate_limited` | a limit was hit (new IDs per address, imports per ID, translation budget) |
+| `create_limited`, `import_limited`, `transfer_limited`, `translate_limited` | a limit was hit (new IDs per address, imports per ID or address, items transferred per ID or address, translation budget) |
 | `ws_too_many`, `ws_flood`, `ws_slow_reader` | sync connections: more than 50 from one address, a flood of messages, a connection that stopped reading |
 | `ai_key_invalid`, `ai_limited` | an unknown or revoked assistant key (`via`: `rest`, `mcp`); a key over its rate |
 | `admin_login_failed`, `admin_limited` | a wrong password, setup code, promotion code or passkey (`method`); too many from one address |

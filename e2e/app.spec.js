@@ -198,6 +198,15 @@ test('renew moves members, kick removes a device', async ({ page, browser }) => 
   await expect(b.getByRole('heading', { name: 'You were removed' })).toBeVisible();
   await b.getByRole('button', { name: 'Rejoin' }).click();
   await expect(b.locator('.list-title')).toBeVisible();
+
+  // remove and renew in one step (the participants sheet is still open): Jana is out, and the
+  // list has a new ID she never saw
+  await page.getByRole('button', { name: 'Remove Jana' }).click();
+  await page.getByRole('button', { name: 'Remove and renew ID' }).click();
+  await expect(b.getByRole('heading', { name: 'You were removed' })).toBeVisible();
+  await page.waitForURL((u) => !u.pathname.endsWith(newId));
+  await b.getByRole('button', { name: 'Rejoin' }).click();
+  await expect(b.getByRole('heading', { name: 'ID not found' })).toBeVisible();
   await ctx.close();
 });
 

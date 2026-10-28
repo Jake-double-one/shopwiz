@@ -118,3 +118,15 @@ it('semantics: lists, groups, translations, permissions', async () => {
   app.store.applyOp(uid, phone, 'kick', { k: 'device.kick', devId: dev.devId }, Date.now());
   expect((await post(`/mcp/${key}`, { jsonrpc: '2.0', id: 1, method: 'tools/list' })).status).toBe(401);
 });
+
+it('the minute budget counts tool calls, not requests – and a batch is small', async () => {
+  // a fresh key has a fresh budget
+  const k = (await (await post(`/api/spaces/${id}/ai`, { name: 'Batcher' }, { 'content-type': 'application/json', 'x-shopwiz-token': T1 })).json()).key;
+  const calls = (n) => Array.from({ length: n }, (_, i) => ({ jsonrpc: '2.0', id: i + 1, method: 'tools/call', params: { name: 'list_lists', arguments: {} } }));
+  expect((await post(`/mcp/${k}`, calls(11))).status).toBe(400);
+  // 12 batches of 10 calls = 120 calls: the 13th request is over budget although it is only the 13th request
+  let last;
+  for (let i = 0; i < 13; i++) last = await post(`/mcp/${k}`, calls(10));
+  expect(last.status).toBe(429);
+  expect((await last.json()).error.code).toBe(-32001);
+});

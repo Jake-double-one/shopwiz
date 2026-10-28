@@ -23,7 +23,7 @@ export const api = {
   importInto: (id, doc, listId) => call('POST', `/api/spaces/${id}/import`, { doc, listId }),
   lists: (id) => call('GET', `/api/spaces/${id}/lists`),
   activity: (id, listId) => call('GET', `/api/spaces/${id}/activity?list=${encodeURIComponent(listId)}`),
-  renew: (id) => call('POST', `/api/spaces/${id}/renew`, {}),
+  renew: (id, kick = []) => call('POST', `/api/spaces/${id}/renew`, { kick }),
   leave: (id) => call('POST', `/api/spaces/${id}/leave`, {}),
   remove: (id) => call('POST', `/api/spaces/${id}/delete`, {}),
   continueSpace: (id, deviceName) => call('POST', `/api/spaces/${id}/continue`, { deviceName }),

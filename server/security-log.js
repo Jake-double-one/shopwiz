@@ -9,6 +9,7 @@
 //   id_limited         too many unknown IDs from this address – requests are refused for a while
 //   create_limited     too many new IDs from this address
 //   import_limited     too many imports into one ID
+//   transfer_limited   too many items transferred from one ID or address
 //   translate_limited  translation budget of the ID, the address or the day used up
 //   ws_too_many        more than 50 sync connections from this address
 //   ws_flood           a connection sent more than its budget allows (at: hello | op)

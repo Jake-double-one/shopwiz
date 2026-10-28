@@ -34,7 +34,7 @@ describe('spaces', () => {
 
   it('renews ids and moves members only', () => {
     const { store, id, uid } = setup();
-    const newId = store.renew(uid);
+    const { newId } = store.renew(uid);
     expect(newId).not.toBe(id);
     expect(store.resolve(id, hashToken(T1))).toEqual({ status: 'moved', id: newId });
     expect(store.resolve(id, hashToken('stranger-xxxxxxxxxxxxxxx'))).toEqual({ status: 'notfound' });
