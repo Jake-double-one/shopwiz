@@ -266,6 +266,7 @@
   "transfer.moved_one": "1 item moved to {name}",
   "transfer.moved_other": "{count} items moved to {name}",
   "transfer.failed": "Transfer failed.",
+  "transfer.limited": "A lot was transferred from this list or connection in the last hour. Please try again later.",
   "toast.reactivated": "{name} is back on the list",
   "toast.amountIncreased": "Amount of {name} increased",
   "toast.deleted": "{name} deleted",

@@ -381,7 +381,7 @@ ShopWiz doesn't track what anybody does – but a server should see who hammers 
 | Event | When |
 |---|---|
 | `id_notfound`, `id_limited` | an unknown ID was tried (`via`: `rest`, `ws`, `transfer`); too many from one address |
-| `create_limited`, `import_limited`, `translate_limited` | a limit was hit (new IDs per address, imports per ID or address, translation budget) |
+| `create_limited`, `import_limited`, `transfer_limited`, `translate_limited` | a limit was hit (new IDs per address, imports per ID or address, items transferred per ID or address, translation budget) |
 | `ws_too_many`, `ws_flood`, `ws_slow_reader` | sync connections: more than 50 from one address, a flood of messages, a connection that stopped reading |
 | `ai_key_invalid`, `ai_limited` | an unknown or revoked assistant key (`via`: `rest`, `mcp`); a key over its rate |
 | `admin_login_failed`, `admin_limited` | a wrong password, setup code, promotion code or passkey (`method`); too many from one address |

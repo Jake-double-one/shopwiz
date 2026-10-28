@@ -91,7 +91,7 @@ export async function buildApp(config) {
   const trIpUsage = new Map(); // the same budget per address, so many new IDs don't multiply it
   let trDay = { chars: 0, reset: 0 }; // the whole server: one provider quota for everybody
   const TR_CHARS_PER_NAME = 40; // the character budget behind TRANSLATE_LIMIT (names are 10–15 characters)
-  const wsPerIp = new Map(); // open sync connections per address
+  const wsPerIp = new Map(); // address → the open sync connections behind it
   app.decorate('store', store);
   app.decorate('hub', hub);
   // optional administration – off unless ADMIN_USER and ADMIN_PASSWORD_HASH are set
@@ -537,6 +537,16 @@ export async function buildApp(config) {
   app.put('/api/v1/lists/:list/translations', rest((ctx, req) => ai.setTranslations(ctx, req.params.list, req.body?.translations, req.body?.language)));
   app.put('/api/v1/lists/:list/travel', rest((ctx, req) => ai.setTravelMode(ctx, req.params.list, req.body ?? {})));
 
+  // A transfer writes like an import, and a moved group leaves its soft-deleted rows behind for the
+  // activity TTL – so it has a budget: items per hour, per source ID and per address
+  const transferUsage = new Map(); // `s:${uid}` | `a:${address}` → { items, reset }
+  const TRANSFER_ITEMS_PER_HOUR = 5000;
+  const transferBudget = (key, t) => {
+    let u = transferUsage.get(key);
+    if (!u || u.reset <= t) transferUsage.set(key, (u = { items: 0, reset: t + 3_600_000 }));
+    if (transferUsage.size > 10_000) for (const [k, v] of transferUsage) if (v.reset <= t) transferUsage.delete(k);
+    return u;
+  };
   app.post('/api/spaces/:id/transfer', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
@@ -551,9 +561,16 @@ export async function buildApp(config) {
     }
     // only into an ID one is in oneself (an admin is in all of them)
     if (!r.admin && !store.isMember(target.space.uid, r.tokenHash)) return reply.code(403).send({ error: 'not_member' });
+    const t = Date.now();
+    const budgets = [transferBudget(`s:${r.space.uid}`, t), transferBudget(`a:${clientKey(req)}`, t)];
+    if (budgets.some((u) => u.items >= TRANSFER_ITEMS_PER_HOUR)) {
+      seclog.event('transfer_limited', req.ip);
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
     const dev = devOf(r);
     try {
       const res = store.transfer(r.space.uid, dev, { targetUid: target.space.uid, targetListId: listId, itemIds, groupId, fromListId, mode });
+      for (const u of budgets) u.items += res.count;
       if (res.source.changes.length) hub.broadcast(r.space.uid, { t: 'patch', rev: res.source.rev, changes: res.source.changes });
       if (target.space.uid !== r.space.uid || res.target.changes.length) {
         hub.broadcast(target.space.uid, { t: 'patch', rev: res.target.rev, changes: res.target.changes });
@@ -634,7 +651,10 @@ export async function buildApp(config) {
   // what this server offers – sent with every welcome
   const features = { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled, admin: admin.enabled };
   await app.register(fastifyWebsocket, { options: { maxPayload: 512 * 1024 } });
+  // unsent data one socket may hold – and all sockets of one address together: a snapshot may be
+  // 15 MiB, and fifty connections that stop reading must not make the server hold fifty of them
   const WS_MAX_BUFFERED = 16 * 1024 * 1024;
+  const WS_MAX_BUFFERED_PER_ADDRESS = 64 * 1024 * 1024;
   // the op budget belongs to the device, not to the connection: reconnecting doesn't refill it
   // (one bucket per device key – a dorm behind one address shares nothing)
   const WS_BUCKET = 600;
@@ -654,16 +674,16 @@ export async function buildApp(config) {
   app.get('/ws', { websocket: true }, (ws, req) => {
     const key = clientKey(req);
     // a few devices behind one address are normal – hundreds of open connections are not
-    const open = (wsPerIp.get(key) ?? 0) + 1;
-    if (open > 50) {
+    let peers = wsPerIp.get(key);
+    if ((peers?.size ?? 0) >= 50) {
       seclog.event('ws_too_many', req.ip);
       return ws.close(1013, 'too many connections');
     }
-    wsPerIp.set(key, open);
+    if (!peers) wsPerIp.set(key, (peers = new Set()));
+    peers.add(ws);
     ws.on('close', () => {
-      const n = (wsPerIp.get(key) ?? 1) - 1;
-      if (n > 0) wsPerIp.set(key, n);
-      else wsPerIp.delete(key);
+      peers.delete(ws);
+      if (!peers.size) wsPerIp.delete(key);
     });
     // ops per connection: a bucket that refills – room for a long offline queue, not for a flood.
     // What costs more takes more: a hello (whole snapshot) 25, batches one per ten rows
@@ -696,10 +716,14 @@ export async function buildApp(config) {
       devId: null,
       tokenHash: null,
       // a device that stops reading (but keeps the socket) would make the server hold everything
-      // sent to it – past this much unsent data it is dropped and reconnects later
+      // sent to it – past this much unsent data it is dropped and reconnects later. One message
+      // always fits an empty socket (a snapshot, a large patch); the address total always counts
       send: (data) => {
         if (ws.readyState !== 1) return;
-        if (ws.bufferedAmount > WS_MAX_BUFFERED) {
+        const n = Buffer.byteLength(data);
+        let held = 0;
+        for (const s of peers) held += s.bufferedAmount;
+        if ((ws.bufferedAmount > 0 && ws.bufferedAmount + n > WS_MAX_BUFFERED) || held + n > WS_MAX_BUFFERED_PER_ADDRESS) {
           seclog.event('ws_slow_reader', req.ip);
           return ws.terminate();
         }

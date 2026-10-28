@@ -44,7 +44,7 @@
       toast(t(mode === 'move' ? 'transfer.moved' : 'transfer.copied', { count: r.count, name: target.name }));
       onclose();
     } catch (e) {
-      error = e.code === 'offline' ? t('start.offline') : t('transfer.failed');
+      error = e.code === 'offline' ? t('start.offline') : e.status === 429 ? t('transfer.limited') : t('transfer.failed');
     } finally {
       busy = false;
     }
