@@ -239,6 +239,23 @@ describe('hardening (analysis after v0.5.2)', () => {
     expect(store && id).toBeTruthy();
     await app.close();
   });
+
+  it('imports from one address are limited to 60 per hour – new IDs do not multiply the budget', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const doc = { lists: [{ name: 'L', items: [{ name: 'Milk' }] }] };
+    const mk = async () => (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1 } })).json().id;
+    const imp = async (sid) => (await app.inject({ method: 'POST', url: `/api/spaces/${sid}/import`, headers: { 'x-shopwiz-token': T1 }, payload: { doc } })).statusCode;
+    for (let i = 0; i < 3; i++) {
+      const sid = await mk();
+      for (let j = 0; j < 20; j++) expect(await imp(sid)).toBe(200);
+    }
+    expect(await imp(await mk())).toBe(429);
+    // a new ID from a backup counts as an import as well
+    expect((await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1, doc } })).statusCode).toBe(429);
+    // another address has its own budget
+    expect((await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1, doc }, remoteAddress: '10.9.9.9' })).statusCode).toBe(200);
+    await app.close();
+  });
 });
 
 describe('transfer budget', () => {
@@ -319,7 +336,7 @@ describe('audit run-1 fixes', () => {
     const alice = store.device(cUid, hashToken(A));
     const bob = store.device(cUid, hashToken(B));
     store.applyOp(cUid, alice, 'kick1', { k: 'device.kick', devId: bob.dev_id }, now());
-    const C2 = store.renew(cUid);
+    const { newId: C2 } = store.renew(cUid);
     expect(store.isMember(cUid, hashToken(B))).toBe(false);
     // the way back is closed: no row in the predecessor, so no "continue" into C2
     expect(store.resolve(S, hashToken(B)).status).toBe('notfound');
