@@ -241,6 +241,37 @@ describe('hardening (analysis after v0.5.2)', () => {
   });
 });
 
+describe('transfer budget', () => {
+  it('5000 items per hour from one ID, and from one address', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const mk = async (name) => {
+      const id = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name, token: T1, deviceName: 'X' } })).json().id;
+      const uid = app.store.resolve(id, null).space.uid;
+      return { id, uid, dev: app.store.device(uid, hashToken(T1)), list: app.store.snapshot(uid).lists[0] };
+    };
+    const fill = (s) => app.store.importDoc(s.uid, s.dev, { lists: [{ name: s.list.name, items: Array.from({ length: 1800 }, (_, i) => ({ name: `Thing ${i}` })) }] });
+    const src = await mk('Src');
+    fill(src);
+    const ids = (s) => app.store.snapshot(s.uid).items.slice(0, 300).map((i) => i.id);
+    const dst = await mk('Dst');
+    const targets = [dst.list.id, 'tlist0002', 'tlist0003'];
+    for (const [i, id] of targets.slice(1).entries()) app.store.applyOp(dst.uid, dst.dev, `l${i}`, { k: 'list.add', id, name: `T${i}`, pos: i + 2 }, Date.now());
+    const copy = (from, listId, ip) =>
+      app.inject({ method: 'POST', url: `/api/spaces/${from.id}/transfer`, headers: { 'x-shopwiz-token': T1 }, payload: { to: dst.id, listId, itemIds: ids(from), mode: 'copy' }, ...(ip && { remoteAddress: ip }) });
+    // 17 × 300 = 5100 items go through (six copies fill a list), the next request is refused
+    for (let i = 0; i < 17; i++) expect((await copy(src, targets[Math.floor(i / 6)])).statusCode).toBe(200);
+    expect((await copy(src, targets[2])).statusCode).toBe(429);
+    // the source ID is over budget from any address …
+    expect((await copy(src, targets[2], '10.7.7.7')).statusCode).toBe(429);
+    // … and the address from any source ID
+    const src2 = await mk('Src2');
+    fill(src2);
+    expect((await copy(src2, targets[2])).statusCode).toBe(429);
+    expect((await copy(src2, targets[2], '10.7.7.7')).statusCode).toBe(200);
+    await app.close();
+  });
+});
+
 describe('transfer only into IDs one is in', () => {
   it('a known but not joined ID is no target; after joining it is', async () => {
     const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });

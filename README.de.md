@@ -380,7 +380,7 @@ ShopWiz verfolgt nicht, wer was tut – aber ein Server soll sehen, wer an seine
 | Ereignis | Wann |
 |---|---|
 | `id_notfound`, `id_limited` | eine unbekannte ID wurde probiert (`via`: `rest`, `ws`, `transfer`); zu viele von einer Adresse |
-| `create_limited`, `import_limited`, `translate_limited` | eine Grenze wurde erreicht (neue IDs pro Adresse, Importe pro ID, Übersetzungsbudget) |
+| `create_limited`, `import_limited`, `transfer_limited`, `translate_limited` | eine Grenze wurde erreicht (neue IDs pro Adresse, Importe pro ID, übertragene Artikel pro ID oder Adresse, Übersetzungsbudget) |
 | `ws_too_many`, `ws_flood`, `ws_slow_reader` | Sync-Verbindungen: mehr als 50 von einer Adresse, eine Nachrichtenflut, eine Verbindung, die nicht mehr liest |
 | `ai_key_invalid`, `ai_limited` | ein unbekannter oder entzogener Assistenten-Schlüssel (`via`: `rest`, `mcp`); ein Schlüssel über seiner Rate |
 | `admin_login_failed`, `admin_limited` | falsches Passwort, falscher Einrichtungs- oder Ernennungscode, falscher Passkey (`method`); zu viele von einer Adresse |
