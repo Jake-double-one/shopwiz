@@ -63,7 +63,8 @@ Rules:
   - **Delete for good** – members see "An admin of this server deleted it for good" right away; the ID is never given out again.
 - **Devices:** all D-IDs with their device names and the IDs they are in.
 - **Admins:** the main admin with their passkeys, device admins with their state ("waiting for passkey" / active) and kind of passkey.
-- **Log:** logins, failed attempts (summed up), promotions, passkeys, opened and deleted IDs – without IP addresses. 180 days or at most 5000 entries.
+- **Invitations:** the open invitation codes and who issued them (`REGISTRATIONS`, see the README). Admins issue and withdraw codes here – in `REGISTRATIONS=off` that is the only way in for a new device. The log shows who invited whom, and the main admin gets a notice when a code was used.
+- **Log:** logins, failed attempts (summed up), promotions, passkeys, invitations, opened and deleted IDs – without IP addresses. 180 days or at most 5000 entries.
 - **Notices** for the main admin on the next visit: new passkeys, refused passkey setups, logins of device admins, failed attempts, deleted IDs.
 
 Device admins may do everything except promoting and revoking admins.

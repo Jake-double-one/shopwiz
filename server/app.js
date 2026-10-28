@@ -16,7 +16,7 @@ import { createAi, AiError } from './ai.js';
 import { openApi } from './openapi.js';
 import { LANG_RE } from '../shared/countries.js';
 import { normalizeName } from '../shared/parse.js';
-import { parseSpaceId, formatSpaceId } from '../shared/ids.js';
+import { parseSpaceId, formatSpaceId, parseInviteCode, formatInviteCode } from '../shared/ids.js';
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,100}$/;
 
@@ -201,6 +201,13 @@ export async function buildApp(config) {
   // yourAddress: what the limits count you as – to check TRUST_PROXY behind a proxy
   app.get('/healthz', async (req) => ({ ok: true, ...version, yourAddress: req.ip }));
   app.get('/api/version', async () => version);
+  // what the start page needs before any ID is open: who may create IDs here, whether the server
+  // still has none (the first ID is free), and whether this device is a member already
+  app.get('/api/config', async (req) => {
+    const token = req.headers['x-shopwiz-token'];
+    const tokenHash = typeof token === 'string' && TOKEN_RE.test(token) ? hashToken(token) : null;
+    return { registrations: config.registrations, firstFree: !store.hasSpaces(), member: !!tokenHash && (store.isMemberAnywhere(tokenHash) || (admin.enabled && admin.isAdmin(tokenHash))) };
+  });
 
   app.post('/api/spaces', async (req, reply) => {
     const { name, token, deviceName, listName, doc } = req.body ?? {};
@@ -211,24 +218,96 @@ export async function buildApp(config) {
     }
     const tokenHash = hashToken(token);
     if (overLimit(tokenHash)) return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
+    // REGISTRATIONS: a device nobody knows yet needs an invitation code – members, admins and the
+    // very first ID of a server are free. In "off" only administrators issue codes
+    let invite = null;
+    if (config.registrations !== 'open' && store.hasSpaces() && !store.isMemberAnywhere(tokenHash) && !(admin.enabled && admin.isAdmin(tokenHash))) {
+      const raw = req.body?.invite;
+      if (!raw) return reply.code(403).send({ error: config.registrations === 'off' ? 'closed' : 'invite_required' });
+      if (limiter.blocked(clientKey(req))) {
+        seclog.event('id_limited', req.ip, { via: 'invite' });
+        return reply.code(429).send({ error: 'rate_limited' });
+      }
+      const code = parseInviteCode(String(raw));
+      invite = code ? store.checkInvite(code) : null;
+      if (!invite) {
+        limiter.fail(clientKey(req));
+        seclog.event('invite_invalid', req.ip);
+        return reply.code(404).send({ error: 'invite_invalid' });
+      }
+    }
     createLimiter.fail(clientKey(req));
     try {
       const id = store.createSpace({ name, token, deviceName, listName });
+      let stats = null;
       // optional: start the new space from a backup file
       if (doc) {
         const { space } = store.resolve(id, null);
         try {
-          const res = store.importDoc(space.uid, store.device(space.uid, tokenHash), doc);
-          return { id, stats: res.stats };
+          stats = store.importDoc(space.uid, store.device(space.uid, tokenHash), doc).stats;
         } catch (e) {
           store.db.q('DELETE FROM spaces WHERE uid = ?').run(space.uid); // don't leave a half-imported id behind
           throw e;
         }
       }
-      return { id };
+      if (invite) {
+        const did = didOfHash(tokenHash);
+        store.redeemInvite(invite.code, did);
+        admin.audit(invite.did, 'invite_redeemed', { code: formatInviteCode(invite.code), did, id: formatSpaceId(id) });
+      }
+      return stats ? { id, stats } : { id };
     } catch (e) {
       return sendError(reply, e);
     }
+  });
+
+  // ----- invitations: a member hands a code to someone new (REGISTRATIONS=invite); in "off" only admins -----
+  const mayInvite = (tokenHash) => config.registrations === 'invite' || (config.registrations === 'off' && admin.enabled && admin.isAdmin(tokenHash));
+  const inviteRow = (i) => ({ code: formatInviteCode(i.code), createdAt: i.createdAt, expiresAt: i.expiresAt });
+  app.get('/api/spaces/:id/invites', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.admin) return { mayInvite: false, invites: [] };
+    return { mayInvite: mayInvite(r.tokenHash), invites: store.invitesOf(r.tokenHash).map(inviteRow) };
+  });
+  app.post('/api/spaces/:id/invites', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
+    if (r.admin) return reply.code(403).send({ error: 'admin' });
+    if (!mayInvite(r.tokenHash)) return reply.code(403).send({ error: 'closed' });
+    try {
+      const inv = store.createInvite(r.tokenHash, didOfHash(r.tokenHash));
+      admin.audit(didOfHash(r.tokenHash), 'invite_created', { code: formatInviteCode(inv.code), id: formatSpaceId(r.space.public_id) });
+      return inviteRow(inv);
+    } catch (e) {
+      return sendError(reply, e);
+    }
+  });
+  app.post('/api/spaces/:id/invites/revoke', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.admin) return reply.code(403).send({ error: 'admin' });
+    const code = parseInviteCode(String(req.body?.code ?? ''));
+    const gone = code ? store.revokeInvite(code, r.tokenHash) : null;
+    if (!gone) return reply.code(404).send({ error: 'notfound' });
+    admin.audit(didOfHash(r.tokenHash), 'invite_revoked', { code: formatInviteCode(code) });
+    return { ok: true };
+  });
+  // the start page checks a code before it shows the form – unknown codes count like unknown IDs
+  app.get('/api/invites/:code', async (req, reply) => {
+    const key = clientKey(req);
+    if (limiter.blocked(key)) {
+      seclog.event('id_limited', req.ip, { via: 'invite' });
+      return reply.code(429).send({ error: 'rate_limited' });
+    }
+    const code = parseInviteCode(req.params.code);
+    if (config.registrations === 'open' || !code || !store.checkInvite(code)) {
+      limiter.fail(key);
+      seclog.event('invite_invalid', req.ip);
+      return reply.code(404).send({ error: 'invite_invalid' });
+    }
+    return { ok: true };
   });
 
   // Lists of a space – used to pick a target when transferring items. Members only: an ID one
@@ -613,7 +692,7 @@ export async function buildApp(config) {
 
   // ---------- WebSocket sync ----------
   // what this server offers – sent with every welcome
-  const features = { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled, admin: admin.enabled };
+  const features = { translate: translator.available, translators: translator.providers, ai: config.mcpEnabled, admin: admin.enabled, registrations: config.registrations };
   await app.register(fastifyWebsocket, { options: { maxPayload: 512 * 1024 } });
   const WS_MAX_BUFFERED = 16 * 1024 * 1024;
   // the op budget belongs to the device, not to the connection: reconnecting doesn't refill it

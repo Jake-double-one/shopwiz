@@ -14,7 +14,7 @@ import { verifyPassword, parseHash, hashPassword } from './password.js';
 import { Limiter } from './limiter.js';
 import { hashToken } from './core.js';
 import { didFromDigest, parseDid } from '../shared/did.js';
-import { parseSpaceId, formatSpaceId, ALPHABET } from '../shared/ids.js';
+import { parseSpaceId, formatSpaceId, parseInviteCode, formatInviteCode, ALPHABET } from '../shared/ids.js';
 
 const MIN = 60_000;
 const DAY = 24 * 60 * MIN;
@@ -25,7 +25,7 @@ const PROMOTION_MS = DAY; // time a promoted device has to set up its passkey
 const CHALLENGE_MS = 5 * MIN;
 const TOKEN_RE = /^[A-Za-z0-9_-]{20,100}$/;
 // shown to the main admin at the next login
-const ALERTS = new Set(['passkey_registered', 'register_refused', 'login_failed', 'space_delete', 'login']);
+const ALERTS = new Set(['passkey_registered', 'register_refused', 'login_failed', 'space_delete', 'login', 'invite_redeemed']);
 
 const sha = (s) => createHash('sha256').update(String(s)).digest('base64url');
 /** D-ID of a device token's hash (see shared/did.js) */
@@ -56,7 +56,16 @@ export function createAdmin({ store, hub, config, log, seclog = null }) {
   // the main admin from the settings (v0.5.0 way, without the browser) – otherwise from the database
   const envHash = config.adminUser && config.adminPasswordHash ? parseHash(config.adminPasswordHash) : null;
   if (config.adminUser && config.adminPasswordHash && !envHash) log.error('ADMIN_PASSWORD_HASH is not a valid hash – it is ignored');
-  if (config.admin === 'off' && !envHash) return { enabled: false, routes() {}, stop() {} };
+  if (config.admin === 'off' && !envHash) {
+    return {
+      enabled: false,
+      routes() {},
+      stop() {},
+      // invitations are logged even without an administration – switched on later, it shows them
+      audit: (actor, action, detail = {}) => store.db.q('INSERT INTO admin_log (actor, action, detail, created_at) VALUES (?, ?, ?, ?)').run(actor, action, JSON.stringify(detail), Date.now()),
+      isAdmin: () => false,
+    };
+  }
   if (config.publicUrl.startsWith('http://') && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(config.publicUrl)) {
     log.warn('the administration needs HTTPS: passkeys don\'t work and the password would travel unencrypted over plain http');
   }
@@ -505,6 +514,9 @@ export function createAdmin({ store, hub, config, log, seclog = null }) {
         .map((e) => ({ ...e, names: [...e.names], admin: adminRow(e.did)?.state ?? null })),
       admins,
       mainKeys: s.role === 'main' ? keys.filter((k) => !k.did).map(keyRow) : [],
+      // open invitation codes and who issued them; admins may issue (and withdraw) them here, too
+      registrations: config.registrations,
+      invites: store.openInvites().map((i) => ({ code: formatInviteCode(i.code), did: i.did, createdAt: i.createdAt, expiresAt: i.expiresAt })),
       log,
       // since the main admin looked last: what others did, and failed logins
       alerts:
@@ -661,6 +673,39 @@ export function createAdmin({ store, hub, config, log, seclog = null }) {
       handle(async (req, s) => overview(s), {}),
     );
 
+    // ----- invitations by an admin: in REGISTRATIONS=off the only way in for a new device -----
+    app.post(
+      '/api/admin/invites',
+      handle(
+        async (req, s) => {
+          if (config.registrations === 'open') throw new AdminError(409, 'open');
+          const byHash = s.role === 'main' ? 'admin:main' : tokenHashOf(req);
+          let inv;
+          try {
+            inv = store.createInvite(byHash, actorOf(s));
+          } catch {
+            throw new AdminError(429, 'invite_limit');
+          }
+          audit(actorOf(s), 'invite_created', { code: formatInviteCode(inv.code), admin: true });
+          return { code: formatInviteCode(inv.code), createdAt: inv.createdAt, expiresAt: inv.expiresAt };
+        },
+        {},
+      ),
+    );
+    app.post(
+      '/api/admin/invites/revoke',
+      handle(
+        async (req, s) => {
+          const code = parseInviteCode(String(req.body?.code ?? ''));
+          const gone = code && store.revokeInvite(code);
+          if (!gone) throw new AdminError(404, 'notfound');
+          audit(actorOf(s), 'invite_revoked', { code: formatInviteCode(code), did: gone.did });
+          return { ok: true };
+        },
+        {},
+      ),
+    );
+
     app.post(
       '/api/admin/alerts/seen',
       handle(async () => (setMeta('main_seen', now()), { ok: true }), { main: true }),
@@ -755,6 +800,7 @@ export function createAdmin({ store, hub, config, log, seclog = null }) {
     sessionOf,
     sessionFor,
     stateOf,
+    audit,
     /** Active admins create as many IDs as they like (SPACES_PER_DEVICE). */
     isAdmin: (tokenHash) => {
       const row = tokenHash ? adminRow(didOfHash(tokenHash)) : null;

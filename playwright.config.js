@@ -30,6 +30,7 @@ export default defineConfig({
         DATA_DIR: ':memory:',
         LOOKUP_LIMIT: '1000',
         CREATE_LIMIT: '1000',
+        REGISTRATIONS: 'open', // the tests create IDs with many fresh devices
         TRANSLATE_PROVIDER: 'libretranslate',
         LIBRETRANSLATE_URL: 'http://127.0.0.1:8099',
         MCP_ENABLED: 'true',

@@ -11,7 +11,7 @@ const PW = 'a main admin password';
 async function start(extra = {}) {
   const lines = [];
   const app = await buildApp({
-    ...loadConfig({}),
+    ...loadConfig({}), registrations: 'open',
     dataDir: ':memory:',
     staticDir: './does-not-exist',
     securityLog: true,
@@ -88,7 +88,7 @@ describe('security log', () => {
 
   it('is off by default – the sink is never called', async () => {
     const lines = [];
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', securitySink: (l) => lines.push(l) });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', securitySink: (l) => lines.push(l) });
     for (let i = 0; i < 3; i++) await app.inject({ method: 'GET', url: '/api/spaces/ZZZZZZZZZ4/lists', headers: { 'x-shopwiz-token': T } });
     expect(lines).toEqual([]);
     expect(loadConfig({ SECURITY_LOG: 'true' }).securityLog).toBe(true);

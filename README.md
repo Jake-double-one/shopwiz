@@ -89,6 +89,13 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 - A device can be removed by any participant. Without a login this is not a lock-out – with the ID you can join again. To really lock someone out, use **Settings → Renew ID**.
 - Devices without activity for **30 days** are removed automatically. They can rejoin anytime with the link or ID.
 
+### Invitations (REGISTRATIONS)
+
+- By default a server takes new devices by invitation: someone who already uses it issues a code under **Share → Invite to ShopWiz** (an invitation link carries it). The code lets the new device create its own first ID – it opens none of the inviter's lists. From then on the device is a member and needs no more codes.
+- Codes look like `SWIV-XXX-XXX`, are good for 7 days and for one device; everyone has at most 5 open ones and can withdraw them. The start page takes an ID or a code in the same field.
+- Joining an ID someone gave you never needs a code – the ID is the invitation to that list. The very first ID of a fresh server is free.
+- `REGISTRATIONS=off`: only the administrators issue codes (in the administration); `open`: no codes at all, as before.
+
 ### Groups and learning
 
 - Each list has its own groups by default. In **List options → Groups** a list can use the **shared groups of the ID** instead – then all lists in that mode share groups and what was learned.
@@ -323,6 +330,7 @@ All settings are environment variables. The defaults are fine for most setups.
 | `LOOKUP_WINDOW_MIN` | `15` | … per this many minutes (protection against guessing IDs) |
 | `CREATE_LIMIT` | `30` | New IDs per client address and hour |
 | `SPACES_PER_DEVICE` | `0` | IDs a device may create itself (`0` = no limit). Only IDs it created and that still exist count – joining doesn't, deleting frees a place. |
+| `REGISTRATIONS` | `invite` | Who may create IDs. `invite`: a device nobody knows yet needs an invitation code (`SWIV-XXX-XXX`) from a member – issued under Share → “Invite to ShopWiz” or in the administration, 5 open per device, good for 7 days and one new device. The very first ID of a server is free. `open`: anyone. `off`: only codes issued by administrators let new devices in. Members create further IDs in every mode, and an ID someone gave you opens their lists in every mode. Servers that were open before this setting existed become `invite` with the update – their members can invite. |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in at the shop ends after this many minutes without activity |
 | `SIGNAL_TTL_MIN` | `30` | How long a call waits for a device that is offline |
 | `TRANSLATE_PROVIDER` | `mymemory` | Travel mode translation: one service or several in order, e.g. `deepl,azure,mymemory` – `mymemory`, `deepl`, `azure`, `google`, `libretranslate` or `none` |
@@ -382,6 +390,7 @@ ShopWiz doesn't track what anybody does – but a server should see who hammers 
 |---|---|
 | `id_notfound`, `id_limited` | an unknown ID was tried (`via`: `rest`, `ws`, `transfer`); too many from one address |
 | `create_limited`, `import_limited`, `translate_limited` | a limit was hit (new IDs per address, imports per ID, translation budget) |
+| `invite_invalid` | an unknown, used or run-out invitation code was tried (counts like an unknown ID) |
 | `ws_too_many`, `ws_flood`, `ws_slow_reader` | sync connections: more than 50 from one address, a flood of messages, a connection that stopped reading |
 | `ai_key_invalid`, `ai_limited` | an unknown or revoked assistant key (`via`: `rest`, `mcp`); a key over its rate |
 | `admin_login_failed`, `admin_limited` | a wrong password, setup code, promotion code or passkey (`method`); too many from one address |

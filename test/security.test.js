@@ -12,7 +12,7 @@ import { createAi, splitSpoken } from '../server/ai.js';
 const T1 = 'token-secsecsecsecsecsecsecs';
 let n = 0;
 function setup(extra = {}) {
-  const store = new Store(openDb(':memory:'), { ...loadConfig({}), deeplApiKey: 'SECRET-KEY', ...extra });
+  const store = new Store(openDb(':memory:'), { ...loadConfig({}), registrations: 'open', deeplApiKey: 'SECRET-KEY', ...extra });
   const id = store.createSpace({ name: 'Home', token: T1, deviceName: 'A', listName: 'Weekly' });
   const uid = store.resolve(id, null).space.uid;
   const dev = store.device(uid, hashToken(T1));
@@ -93,7 +93,7 @@ describe('security over HTTP', () => {
   });
 
   it('the page of an ID tells nothing about it – not its name, not its ID, not whether it exists', async () => {
-    app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: dir, publicUrl: 'https://shop.example' });
+    app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: dir, publicUrl: 'https://shop.example' });
     const res = await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'Secret household', token: T1, deviceName: 'A' } });
     const { id } = res.json();
     const html = (await app.inject({ method: 'GET', url: `/${id}` })).body;
@@ -119,7 +119,7 @@ describe('sync connection limits', () => {
   let base;
   afterAll(() => srv?.close());
   const start = async () => {
-    srv = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    srv = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     await srv.listen({ port: 0, host: '127.0.0.1' });
     base = `127.0.0.1:${srv.server.address().port}`;
   };
@@ -177,7 +177,7 @@ describe('version', () => {
   it('/healthz and /api/version tell which version runs (from the Docker build)', async () => {
     const before = { ...process.env };
     Object.assign(process.env, { APP_VERSION: 'v9.9.9', GIT_SHA: 'abc1234', BUILD_TIME: '2026-01-01T00:00:00Z' });
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     try {
       expect((await app.inject({ method: 'GET', url: '/healthz' })).json()).toMatchObject({ ok: true, version: 'v9.9.9', commit: 'abc1234', built: '2026-01-01T00:00:00Z' });
       expect((await app.inject({ method: 'GET', url: '/api/version' })).json()).toMatchObject({ version: 'v9.9.9', commit: 'abc1234' });
@@ -190,7 +190,7 @@ describe('version', () => {
 
 describe('hardening (analysis after v0.5.2)', () => {
   it('a hostile "ID" in the address costs no time – the parser is linear (was: one request stalled the server for a minute)', async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     const t = performance.now();
     for (const id of ['a'.repeat(45) + '!', 'a'.repeat(99) + '!', 'a-'.repeat(49) + '!']) {
       const r = await app.inject({ method: 'GET', url: `/api/spaces/${id}/lists`, headers: { 'x-shopwiz-token': T1 } });
@@ -200,7 +200,7 @@ describe('hardening (analysis after v0.5.2)', () => {
     await app.close();
   });
   it('a hello costs tokens: a flood of hellos on one connection ends it, normal reconnects pass', async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const base = `127.0.0.1:${app.server.address().port}`;
     const id = (await (await fetch(`http://${base}/api/spaces`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'H', token: T1 }) })).json()).id;
@@ -219,7 +219,7 @@ describe('hardening (analysis after v0.5.2)', () => {
   });
 
   it('API answers are not cached, the CSP has no open websocket hole, a broken path is a 404', async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     const r = await app.inject({ method: 'GET', url: '/api/version' });
     expect(r.headers['content-security-policy']).not.toMatch(/ws:|wss:/);
     expect(r.headers['content-security-policy']).toContain("connect-src 'self'");
@@ -230,7 +230,7 @@ describe('hardening (analysis after v0.5.2)', () => {
 
   it('imports into one ID are limited to 20 per hour', async () => {
     const { store, id } = setup();
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     const sid = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1 } })).json().id;
     const doc = { lists: [{ name: 'L', items: [{ name: 'Milk' }] }] };
     let last;
@@ -243,7 +243,7 @@ describe('hardening (analysis after v0.5.2)', () => {
 
 describe('transfer only into IDs one is in', () => {
   it('a known but not joined ID is no target; after joining it is', async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     const mk = (name, token) => app.inject({ method: 'POST', url: '/api/spaces', payload: { name, token, deviceName: 'X' } }).then((r) => r.json().id);
     const src = await mk('Src', T1);
     const dst = await mk('Dst', 'token-otherotherotherother1');
@@ -356,7 +356,7 @@ describe('hardening after audit run-1', () => {
   });
 
   it('a deleted ID shows nothing more, not even its history – continue it first', async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     const id = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'D', token: A, deviceName: 'A' } })).json().id;
     const get = (path) => app.inject({ method: 'GET', url: `/api/spaces/${id}/${path}`, headers: { 'x-shopwiz-token': A } });
     expect((await get('activity')).statusCode).toBe(200);
@@ -368,7 +368,7 @@ describe('hardening after audit run-1', () => {
   });
 
   it('the translate budget counts characters too, and the whole server has a daily cap', async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', fetch: fakeFetch, translateLimit: 300, translateDailyChars: 20_000 });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', fetch: fakeFetch, translateLimit: 300, translateDailyChars: 20_000 });
     const mk = async (token) => (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'T', token, deviceName: 'D' } })).json().id;
     const tr = (id, token, names, extra = {}) => app.inject({ method: 'POST', url: `/api/spaces/${id}/translate`, headers: { 'x-shopwiz-token': token }, payload: { lang: 'it', from: 'de', names, ...extra } });
     const long = (n, tag) => Array.from({ length: n }, (_, i) => `${tag}${i}`.padEnd(120, 'x'));
@@ -389,7 +389,7 @@ describe('hardening after audit run-1', () => {
   });
 
   it('the op budget belongs to the device: reconnecting does not refill it', { timeout: 20_000 }, async () => {
-    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     await app.listen({ port: 0, host: '127.0.0.1' });
     const base = `127.0.0.1:${app.server.address().port}`;
     const id = (await (await fetch(`http://${base}/api/spaces`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'B', token: A, deviceName: 'A' }) })).json()).id;

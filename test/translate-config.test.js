@@ -28,7 +28,7 @@ function fakeProvider() {
 
 async function start(extra = {}) {
   const p = fakeProvider();
-  const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', fetch: p.fetch, translateProviders: ['mymemory'], ...extra });
+  const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', fetch: p.fetch, translateProviders: ['mymemory'], ...extra });
   const h = { 'x-shopwiz-token': A, 'content-type': 'application/json' };
   const id = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'T', token: A, deviceName: 'Phone' } })).json().id;
   return {

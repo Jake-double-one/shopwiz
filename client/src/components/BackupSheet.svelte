@@ -11,7 +11,7 @@
   import { toMarkdown, parseMarkdown, docStats } from '../../../shared/backup.js';
 
   /** spaceId/v/list are missing when opened from the start screen (import as new ID only) */
-  let { spaceId = null, v = null, list = null, onclose, onopen } = $props();
+  let { spaceId = null, v = null, list = null, invite = '', onclose, onopen } = $props();
 
   let text = $state('');
   let fileName = $state('');
@@ -58,7 +58,7 @@
         if (!deviceName()) setDeviceName(suggestDeviceName());
         const name = (newName || doc.spaceName || t('backup.defaultName')).trim().slice(0, 80);
         const firstList = doc.lists.find((l) => l.name)?.name || name;
-        const r = await api.createSpace(name, deviceName(), firstList, doc);
+        const r = await api.createSpace(name, deviceName(), firstList, doc, invite || undefined);
         toast(t('backup.done', r.stats));
         onclose();
         onopen(r.id);

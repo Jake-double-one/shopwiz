@@ -43,3 +43,39 @@ export function randomEntityId(getRandomValues) {
 }
 
 export const ENTITY_ID_RE = /^[0-9a-z]{8,24}$/;
+
+// ----- invitation codes (REGISTRATIONS=invite / off) -----
+// "SWIV-XXX-XXX" – ShopWiz InVite: the prefix tells it from an ID in the one field of the start page,
+// six characters from the same alphabet follow. A code lets a device nobody knows yet create its
+// first ID – nothing else; it opens no list.
+export const INVITE_PREFIX = 'SWIV';
+export const INVITE_LENGTH = 6;
+
+/** User input (code, with or without dashes, or an invitation link) → "SWIVXXXXXX", or null. */
+export function parseInviteCode(input) {
+  if (typeof input !== 'string' || input.length > MAX_INPUT) return null;
+  let s = input.trim();
+  // an invitation link carries the code as ?invite=…
+  const q = s.indexOf('?');
+  if (q >= 0) s = new URLSearchParams(s.slice(q)).get('invite') ?? '';
+  s = s.toUpperCase().replace(/[\s\-_./]/g, '');
+  if (!s.startsWith(INVITE_PREFIX)) return null;
+  const tail = s.slice(INVITE_PREFIX.length).replace(/O/g, '0').replace(/[IL]/g, '1');
+  if (tail.length !== INVITE_LENGTH) return null;
+  for (const ch of tail) if (!ALPHABET.includes(ch)) return null;
+  return INVITE_PREFIX + tail;
+}
+
+/** SWIVK7QM2X → SWIV-K7Q-M2X */
+export function formatInviteCode(code) {
+  if (!code) return '';
+  return `${code.slice(0, 4)}-${code.slice(4, 7)}-${code.slice(7)}`;
+}
+
+export function randomInviteCode(getRandomValues) {
+  const bytes = new Uint8Array(INVITE_LENGTH);
+  getRandomValues(bytes);
+  let out = INVITE_PREFIX;
+  for (const b of bytes) out += ALPHABET[b & 31];
+  return out;
+}

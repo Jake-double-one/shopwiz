@@ -12,6 +12,9 @@ services:
     environment:
       # Public address, used for link previews (Open Graph) – e.g. https://shop.example.com
       PUBLIC_URL: ""
+      # Who may create IDs: "invite" (default) – a new device needs an invitation code from a member;
+      # "open" – anyone; "off" – only codes from administrators let new devices in (see the README)
+      REGISTRATIONS: "invite"
       # Default for new IDs: delete after this many days without any active device (max 367)
       SPACE_TTL_DAYS: "181"
       # Devices without activity are removed after this many days

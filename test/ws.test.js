@@ -16,7 +16,7 @@ const fakeFetch = async (url) => {
 };
 
 beforeAll(async () => {
-  app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', lookupLimit: 5, fetch: fakeFetch });
+  app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', lookupLimit: 5, fetch: fakeFetch });
   await app.listen({ port: 0, host: '127.0.0.1' });
   base = `127.0.0.1:${app.server.address().port}`;
 });
@@ -193,7 +193,7 @@ describe('websocket sync', () => {
     const { id } = await (await post('/api/spaces', { name: 'Trip', token: TA, deviceName: 'A' })).json();
     const a = client();
     await a.send({ t: 'hello', space: id, token: TA, name: 'A' });
-    expect((await a.wait((m) => m.t === 'welcome')).features).toEqual({ translate: true, translators: ['mymemory'], ai: false, admin: false });
+    expect((await a.wait((m) => m.t === 'welcome')).features).toEqual({ translate: true, translators: ['mymemory'], ai: false, admin: false, registrations: 'open' });
 
     const r1 = await (await post(`/api/spaces/${id}/translate`, { lang: 'it', from: 'de', names: ['Milch', 'Brot', 'milch'] }, TA)).json();
     expect(r1.translations).toEqual({ milch: 'milch (it)', Brot: 'Brot (it)' });

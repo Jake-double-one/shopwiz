@@ -88,6 +88,13 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 - Jeder Teilnehmer kann Geräte entfernen. Ohne Login ist das keine Sperre – mit der ID kann man wieder beitreten. Wer jemanden wirklich aussperren will, nutzt **Einstellungen → ID erneuern**.
 - Geräte ohne Aktivität seit **30 Tagen** werden automatisch entfernt und können jederzeit mit Link oder ID wieder teilnehmen.
 
+### Einladungen (REGISTRATIONS)
+
+- Standardmäßig nimmt ein Server neue Geräte auf Einladung auf: Wer ihn schon nutzt, stellt unter **Teilen → Zu ShopWiz einladen** einen Code aus (ein Einladungslink trägt ihn). Der Code lässt das neue Gerät seine erste eigene ID anlegen – die Listen des Einladenden öffnet er nicht. Ab dann ist das Gerät Mitglied und braucht keine Codes mehr.
+- Codes sehen so aus: `SWIV-XXX-XXX`, gelten 7 Tage und für ein Gerät; jeder hat höchstens 5 offene und kann sie zurückziehen. Die Startseite nimmt ID oder Code im selben Feld.
+- Einer ID beizutreten, die dir jemand gegeben hat, braucht nie einen Code – die ID ist die Einladung zu dieser Liste. Die allererste ID eines frischen Servers ist frei.
+- `REGISTRATIONS=off`: Nur die Administratoren stellen Codes aus (in der Administration); `open`: gar keine Codes, wie bisher.
+
 ### Gruppen und Mitlernen
 
 - Jede Liste hat standardmäßig eigene Gruppen. Unter **Listen-Optionen → Gruppen** kann eine Liste stattdessen die **gemeinsamen Gruppen der ID** nutzen – dann teilen sich alle Listen in diesem Modus Gruppen und Gelerntes.
@@ -322,6 +329,7 @@ Alle Einstellungen sind Umgebungsvariablen. Die Standardwerte passen für die me
 | `LOOKUP_WINDOW_MIN` | `15` | … pro so vielen Minuten (Schutz gegen das Erraten von IDs) |
 | `CREATE_LIMIT` | `30` | Neue IDs pro Adresse und Stunde |
 | `SPACES_PER_DEVICE` | `0` | So viele IDs darf ein Gerät selbst anlegen (`0` = unbegrenzt). Es zählen nur selbst angelegte, noch bestehende IDs – Beitreten zählt nicht, Löschen gibt einen Platz frei. |
+| `REGISTRATIONS` | `invite` | Wer IDs anlegen darf. `invite`: Ein noch unbekanntes Gerät braucht einen Einladungscode (`SWIV-XXX-XXX`) von einem Mitglied – ausgestellt unter Teilen → „Zu ShopWiz einladen“ oder in der Administration, 5 offene pro Gerät, 7 Tage und für ein neues Gerät gültig. Die allererste ID eines Servers ist frei. `open`: jeder. `off`: Nur von Administratoren ausgestellte Codes lassen neue Geräte herein. Mitglieder legen in jedem Modus weitere IDs an, und eine ID, die dir jemand gegeben hat, öffnet dessen Listen in jedem Modus. Server, die vor dieser Einstellung offen waren, werden mit dem Update `invite` – ihre Mitglieder können einladen. |
 | `SHOPPING_IDLE_MIN` | `60` | Check-in im Laden endet nach so vielen Minuten ohne Aktivität |
 | `SIGNAL_TTL_MIN` | `30` | So lange wartet ein Ruf auf ein Gerät, das offline ist |
 | `TRANSLATE_PROVIDER` | `mymemory` | Übersetzung im Reisemodus: ein Dienst oder mehrere in Reihenfolge, z. B. `deepl,azure,mymemory` – `mymemory`, `deepl`, `azure`, `google`, `libretranslate` oder `none` |
@@ -381,6 +389,7 @@ ShopWiz verfolgt nicht, wer was tut – aber ein Server soll sehen, wer an seine
 |---|---|
 | `id_notfound`, `id_limited` | eine unbekannte ID wurde probiert (`via`: `rest`, `ws`, `transfer`); zu viele von einer Adresse |
 | `create_limited`, `import_limited`, `translate_limited` | eine Grenze wurde erreicht (neue IDs pro Adresse, Importe pro ID, Übersetzungsbudget) |
+| `invite_invalid` | ein unbekannter, benutzter oder abgelaufener Einladungscode wurde probiert (zählt wie eine unbekannte ID) |
 | `ws_too_many`, `ws_flood`, `ws_slow_reader` | Sync-Verbindungen: mehr als 50 von einer Adresse, eine Nachrichtenflut, eine Verbindung, die nicht mehr liest |
 | `ai_key_invalid`, `ai_limited` | ein unbekannter oder entzogener Assistenten-Schlüssel (`via`: `rest`, `mcp`); ein Schlüssel über seiner Rate |
 | `admin_login_failed`, `admin_limited` | falsches Passwort, falscher Einrichtungs- oder Ernennungscode, falscher Passkey (`method`); zu viele von einer Adresse |

@@ -20,7 +20,7 @@ const call = async (name, args, k = key) => {
   return { status: r.status, j, data, isError: !!j.result?.isError };
 };
 beforeAll(async () => {
-  app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', mcpEnabled: true, translateProviders: ['none'] });
+  app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', mcpEnabled: true, translateProviders: ['none'] });
   await app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${app.server.address().port}`;
   ({ id } = await (await post('/api/spaces', { name: 'Home', token: T1, deviceName: 'Phone' }, { 'content-type': 'application/json' })).json());
