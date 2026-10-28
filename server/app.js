@@ -211,6 +211,8 @@ export async function buildApp(config) {
     }
     const tokenHash = hashToken(token);
     if (overLimit(tokenHash)) return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
+    // a new ID from a backup is an import, too
+    if (doc && !importAllowed(req)) return reply.code(429).send({ error: 'rate_limited' });
     createLimiter.fail(clientKey(req));
     try {
       const id = store.createSpace({ name, token, deviceName, listName });
@@ -296,21 +298,34 @@ export async function buildApp(config) {
   });
 
   // Import a backup (parsed client side, see shared/backup.js) into an existing space
-  // – a few per ID and hour are plenty; parsing 2 MB again and again is not
-  const importUsage = new Map();
+  // – a few per ID and hour are plenty; parsing 2 MB again and again is not. The same budget per
+  // address (a few times as large), so many new IDs don't multiply it
+  const importUsage = new Map(); // uid → { count, reset }
+  const importIpUsage = new Map(); // address → { count, reset }
+  const IMPORTS_PER_ID = 20;
+  const IMPORTS_PER_ADDRESS = 60;
+  const count = (map, key, limit, t) => {
+    let u = map.get(key);
+    if (!u || u.reset <= t) map.set(key, (u = { count: 0, reset: t + 3_600_000 }));
+    if (u.count >= limit) return false;
+    u.count++;
+    if (map.size > 10_000) for (const [k, v] of map) if (v.reset <= t) map.delete(k);
+    return true;
+  };
+  /** One import for this address (and ID, when given) – false when over budget, with the security event */
+  function importAllowed(req, uid = null) {
+    const t = Date.now();
+    if (!count(importIpUsage, clientKey(req), IMPORTS_PER_ADDRESS, t) || (uid !== null && !count(importUsage, uid, IMPORTS_PER_ID, t))) {
+      seclog.event('import_limited', req.ip);
+      return false;
+    }
+    return true;
+  }
   app.post('/api/spaces/:id/import', async (req, reply) => {
     const r = lookup(req, reply, { requireMember: true });
     if (!r) return;
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status });
-    const t = Date.now();
-    let use = importUsage.get(r.space.uid);
-    if (!use || use.reset <= t) importUsage.set(r.space.uid, (use = { count: 0, reset: t + 3_600_000 }));
-    if (use.count >= 20) {
-      seclog.event('import_limited', req.ip);
-      return reply.code(429).send({ error: 'rate_limited' });
-    }
-    use.count++;
-    if (importUsage.size > 10_000) for (const [k, u] of importUsage) if (u.reset <= t) importUsage.delete(k);
+    if (!importAllowed(req, r.space.uid)) return reply.code(429).send({ error: 'rate_limited' });
     const dev = devOf(r);
     try {
       const res = store.importDoc(r.space.uid, dev, req.body?.doc, { defaultListId: typeof req.body?.listId === 'string' ? req.body.listId : null });
