@@ -1,4 +1,5 @@
 <script>
+  import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import Scanner from './Scanner.svelte';
   import Prefs from './Prefs.svelte';
@@ -8,7 +9,7 @@
   import { t } from '../lib/i18n.svelte.js';
   import { api } from '../lib/api.js';
   import { knownSpaces, forgetSpace, deviceName, setDeviceName, suggestDeviceName } from '../lib/device.js';
-  import { parseSpaceId, formatSpaceId } from '../../../shared/ids.js';
+  import { parseSpaceId, formatSpaceId, parseInviteCode, formatInviteCode, INVITE_PREFIX } from '../../../shared/ids.js';
 
   let { onopen } = $props();
 
@@ -23,6 +24,40 @@
   let scanning = $state(false);
   let importing = $state(false);
   let helping = $state(false);
+
+  // REGISTRATIONS: what the server says about creating IDs – { registrations, firstFree, member };
+  // null until it answered (offline: everything as before, the server has the last word anyway)
+  let cfg = $state(null);
+  // an accepted invitation code (SWIV…) – the create form is shown for it
+  let invite = $state('');
+  // may this device create an ID without a code?
+  const mayCreate = $derived(!!cfg && (cfg.registrations === 'open' || cfg.firstFree || cfg.member || !!invite));
+  // the one field takes an ID – and, when this device needs one, an invitation code
+  const codeToo = $derived(!!cfg && cfg.registrations !== 'open' && !mayCreate);
+  onMount(() => {
+    api.config().then((c) => (cfg = c)).catch(() => (cfg = { registrations: 'open', firstFree: false, member: true }));
+    // an invitation link: the code is filled in, the person only has to confirm it
+    const q = new URLSearchParams(location.search).get('invite');
+    const code = q && parseInviteCode(q);
+    if (code) {
+      joinInput = formatInviteCode(code);
+      history.replaceState(null, '', '/');
+    }
+  });
+
+  async function redeem(code) {
+    busy = true;
+    joinError = '';
+    try {
+      await api.checkInvite(formatInviteCode(code));
+      invite = code;
+      joinInput = '';
+    } catch (e) {
+      joinError = e.code === 'offline' ? t('start.offline') : e.status === 429 ? t('status.limited') : t('start.inviteInvalid');
+    } finally {
+      busy = false;
+    }
+  }
 
   // a first-time user who keeps the suggested device name is asked once whether that's fine
   const suggested = suggestDeviceName();
@@ -54,10 +89,16 @@
     error = '';
     try {
       if (askName) setDeviceName(myName.trim().slice(0, 40) || suggestDeviceName());
-      const { id } = await api.createSpace(name, deviceName(), name);
+      const { id } = await api.createSpace(name, deviceName(), name, undefined, invite ? formatInviteCode(invite) : undefined);
       onopen(id);
     } catch (err) {
-      error = err.code === 'offline' ? t('start.offline') : err.code === 'space_limit' ? t('start.spaceLimit', { count: err.limit }) : err.code === 'id_limit' ? t('start.idLimit', { count: err.limit }) : t('start.createFailed');
+      if (['invite_required', 'invite_invalid', 'closed'].includes(err.code)) {
+        // the server wants a code (or this one is used up): back to the one field
+        invite = '';
+        if (cfg) cfg = { ...cfg, firstFree: false, member: false };
+        error = '';
+        joinError = t(err.code === 'invite_invalid' ? 'start.inviteInvalid' : 'start.inviteRequired');
+      } else error = err.code === 'offline' ? t('start.offline') : err.code === 'space_limit' ? t('start.spaceLimit', { count: err.limit }) : err.code === 'id_limit' ? t('start.idLimit', { count: err.limit }) : t('start.createFailed');
     } finally {
       busy = false;
     }
@@ -65,6 +106,8 @@
 
   function join(e) {
     e?.preventDefault();
+    const code = parseInviteCode(joinInput);
+    if (code) return redeem(code);
     const id = parseSpaceId(joinInput);
     if (!id) {
       joinError = t('start.invalidId');
@@ -81,6 +124,8 @@
     // live formatting: XXXX-XXXX-XX
     const raw = e.target.value.toUpperCase().replace(/[^0-9A-Z]/g, '');
     if (e.target.value.includes('/') || raw.length > 10) return void (joinInput = e.target.value);
+    // an invitation code: SWIV-XXX-XXX
+    if (raw.startsWith(INVITE_PREFIX)) return void (joinInput = [raw.slice(0, 4), raw.slice(4, 7), raw.slice(7, 10)].filter(Boolean).join('-'));
     joinInput = [raw.slice(0, 4), raw.slice(4, 8), raw.slice(8, 10)].filter(Boolean).join('-');
   }
 
@@ -122,9 +167,15 @@
     </section>
   {/if}
 
+  {#if cfg && mayCreate}
   <section class="card">
     <p class="eyebrow">{t('start.newEyebrow')}</p>
     <h2>{t('start.newTitle')}</h2>
+    {#if invite}
+      <p class="hint ok">{t('start.invited', { code: formatInviteCode(invite) })}</p>
+    {:else if cfg.registrations !== 'open' && cfg.firstFree}
+      <p class="hint">{t('start.firstFree')}</p>
+    {/if}
     <form onsubmit={create}>
       <label class="field">
         <span>{t('start.listName')}</span>
@@ -150,32 +201,38 @@
           importing = true;
         })}>{t('start.import')}</button>
   </section>
+  {/if}
 
+  {#if cfg}
   <section class="card">
-    <p class="eyebrow">{t('start.joinEyebrow')}</p>
-    <h2>{t('start.joinTitle')}</h2>
+    <p class="eyebrow">{t(codeToo ? 'start.codeEyebrow' : 'start.joinEyebrow')}</p>
+    <h2>{t(codeToo ? 'start.codeTitle' : 'start.joinTitle')}</h2>
+    {#if codeToo}
+      <p class="note">{t(cfg.registrations === 'off' ? 'start.closed' : 'start.inviteNote')}</p>
+    {/if}
     <form onsubmit={join}>
       <!-- the ID works like a password: let password managers save and fill it -->
       <input class="sr-only" type="text" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" />
       <label class="field">
-        <span>{t('start.idLabel')}</span>
+        <span>{t(codeToo ? 'start.codeLabel' : 'start.idLabel')}</span>
         <div class="row">
           <input
             class="input mono id-input"
             type={showId ? 'text' : 'password'}
             name="password"
-            aria-label={t('start.idLabel')}
+            aria-label={t(codeToo ? 'start.codeLabel' : 'start.idLabel')}
             value={joinInput}
             oninput={onJoinInput}
             onpaste={(e) => {
               const text = e.clipboardData?.getData('text') ?? '';
               const id = parseSpaceId(text);
-              if (id) {
+              const code = parseInviteCode(text);
+              if (id || code) {
                 e.preventDefault();
-                joinInput = formatSpaceId(id);
+                joinInput = id ? formatSpaceId(id) : formatInviteCode(code);
               }
             }}
-            placeholder="XXXX-XXXX-XX"
+            placeholder={codeToo ? 'XXXX-XXXX-XX · SWIV-XXX-XXX' : 'XXXX-XXXX-XX'}
             autocomplete="current-password"
             autocapitalize="characters"
             spellcheck="false"
@@ -192,9 +249,10 @@
         </div>
       </label>
       {#if joinError}<p class="hint alert">{joinError}</p>{/if}
-      <button class="btn dusk block" type="submit" disabled={!joinInput}>{t('start.join')}</button>
+      <button class="btn dusk block" type="submit" disabled={!joinInput || busy}>{t(parseInviteCode(joinInput) ? 'start.redeem' : 'start.join')}</button>
     </form>
   </section>
+  {/if}
 
   <p class="micro privacy">{t('start.privacy')}</p>
 </main>
@@ -229,7 +287,7 @@
 {/if}
 
 {#if importing}
-  <BackupSheet onclose={() => (importing = false)} {onopen} />
+  <BackupSheet onclose={() => (importing = false)} {onopen} invite={invite ? formatInviteCode(invite) : ''} />
 {/if}
 
 {#if scanning}

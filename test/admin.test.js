@@ -74,7 +74,7 @@ let app;
 let base;
 async function start(extra = {}) {
   const a = await buildApp({
-    ...loadConfig({}),
+    ...loadConfig({}), registrations: 'open',
     dataDir: ':memory:',
     staticDir: './does-not-exist',
     adminUser: 'boss',
@@ -154,11 +154,11 @@ describe('D-ID', () => {
 
 describe('administration switched off', () => {
   it('has no admin addresses and says so in the welcome', async () => {
-    const off = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const off = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
     const res = await off.inject({ method: 'GET', url: '/api/admin/status' });
     expect(res.statusCode).toBe(404);
     // a user without a valid hash: still off
-    const broken = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', adminUser: 'boss', adminPasswordHash: 'plain-password' });
+    const broken = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', adminUser: 'boss', adminPasswordHash: 'plain-password' });
     expect((await broken.inject({ method: 'POST', url: '/api/admin/login', payload: { user: 'boss', password: 'plain-password' } })).statusCode).toBe(404);
     await off.close();
     await broken.close();
@@ -414,7 +414,7 @@ describe('setting up in the browser (ADMIN=on, code from the log)', () => {
 
   async function boot(admin) {
     let said = null;
-    const a = await buildApp({ ...loadConfig({}), dataDir: dir, staticDir: './does-not-exist', admin, announce: (m) => (said = m) });
+    const a = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: dir, staticDir: './does-not-exist', admin, announce: (m) => (said = m) });
     await a.listen({ port: 0, host: '127.0.0.1' });
     const url = `http://127.0.0.1:${a.server.address().port}`;
     const call = async (method, path, body, session) => {
@@ -592,7 +592,7 @@ describe('main admin credential changes (audit run-1)', () => {
 
   async function boot(extra) {
     let said = null;
-    const a = await buildApp({ ...loadConfig({}), dataDir: dir, staticDir: './does-not-exist', announce: (m) => (said = m), ...extra });
+    const a = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: dir, staticDir: './does-not-exist', announce: (m) => (said = m), ...extra });
     await a.listen({ port: 0, host: '127.0.0.1' });
     const url = `http://127.0.0.1:${a.server.address().port}`;
     const call = async (method, path, { body, session } = {}) => {
@@ -641,6 +641,29 @@ describe('main admin credential changes (audit run-1)', () => {
     b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
     expect(await keyLogin(b, again)).toBe(200);
     await b.a.close();
+  });
+
+  it('admins issue invitations – in REGISTRATIONS=off the only way in for a new device', async () => {
+    const hash = await hashPassword(NEW, { N: 1024, r: 8, p: 1 });
+    const b = await boot({ adminUser: 'boss', adminPasswordHash: hash, registrations: 'off' });
+    const session = (await b.call('POST', '/api/admin/login', { body: { user: 'boss', password: NEW } })).body.session;
+    const inv = await b.call('POST', '/api/admin/invites', { session });
+    expect(inv.status).toBe(200);
+    expect(inv.body.code).toMatch(/^SWIV-[0-9A-Z]{3}-[0-9A-Z]{3}$/);
+    const ov = (await b.call('GET', '/api/admin/overview', { session })).body;
+    expect(ov.registrations).toBe('off');
+    expect(ov.invites).toEqual([expect.objectContaining({ code: inv.body.code, did: 'main' })]);
+    expect(ov.log[0]).toEqual(expect.objectContaining({ actor: 'main', action: 'invite_created' }));
+    // a stranger gets in with it – and only with it (the very first ID of the server is free)
+    const mk = (invite, token = 'token-strangerstrangerstr1') => fetch(`${b.url}/api/spaces`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'L', token, deviceName: 'S', invite }) });
+    expect((await mk(undefined, 'token-firstfirstfirstfirst1')).status).toBe(200);
+    expect((await mk(undefined)).status).toBe(403);
+    expect((await mk(inv.body.code)).status).toBe(200);
+    expect((await b.call('GET', '/api/admin/overview', { session })).body.invites).toEqual([]);
+    // withdrawing
+    const code2 = (await b.call('POST', '/api/admin/invites', { session })).body.code;
+    expect((await b.call('POST', '/api/admin/invites/revoke', { session, body: { code: code2 } })).status).toBe(200);
+    expect((await b.call('POST', '/api/admin/invites/revoke', { session, body: { code: code2 } })).status).toBe(404);
   });
 
   it('a database without the credential mark (0.5.3 or older) with a rotated hash drops them too, instead of adopting them', async () => {

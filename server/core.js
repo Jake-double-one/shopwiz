@@ -1,5 +1,5 @@
 import { createHash, webcrypto } from 'node:crypto';
-import { randomSpaceId, randomEntityId, ENTITY_ID_RE } from '../shared/ids.js';
+import { randomSpaceId, randomEntityId, randomInviteCode, ENTITY_ID_RE } from '../shared/ids.js';
 import { normalizeName, addAmounts } from '../shared/parse.js';
 import { linkName } from '../shared/backup.js';
 import { MAX_SPACE_TTL_DAYS } from './config.js';
@@ -32,7 +32,10 @@ export const LIMITS = {
   translationsPerSpace: 3000,
   batch: 300,
   linkedItems: 4000, // shared items a list group may hold – list.link works through all of them at once
+  invitesPerDevice: 5, // open invitation codes one device (or the main admin) may have
 };
+/** An invitation code is good for this long unless it is used. */
+export const INVITE_TTL = 7 * DAY;
 /** How large one history entry may get (the largest legitimate one, 300 deleted ids, is ~8 KB). */
 export const ACTIVITY_PAYLOAD_MAX = 32 * 1024;
 /** What "list.linkUndo" puts back – all that "list.link" remembers per item. */
@@ -115,6 +118,7 @@ export const mapList = (r) => ({
   createdAt: r.created_at,
 });
 export const mapGroup = (r) => ({ id: r.id, listId: r.list_id, parentId: r.parent_id, name: r.name, pos: r.pos });
+export const mapInvite = (r) => ({ code: r.code, did: r.by_did, byHash: r.by_hash, createdAt: r.created_at, expiresAt: r.expires_at, redeemedAt: r.redeemed_at ?? null, redeemedBy: r.redeemed_by ?? null });
 export const mapItem = (r) => ({
   id: r.id,
   listId: r.list_id,
@@ -253,6 +257,57 @@ export class Store {
   /** IDs this device created that still exist (SPACES_PER_DEVICE). */
   spacesCreatedBy(tokenHash) {
     return this.db.q('SELECT COUNT(*) AS c FROM spaces WHERE created_by = ? AND deleted_at IS NULL').get(tokenHash).c;
+  }
+
+  /** Does the server have any ID at all? (the very first one is free, whatever REGISTRATIONS says) */
+  hasSpaces() {
+    return !!this.db.q('SELECT 1 FROM spaces LIMIT 1').get();
+  }
+
+  /** Is this device in some (not deleted) ID – a member, who needs no invitation? */
+  isMemberAnywhere(tokenHash) {
+    return !!this.db.q('SELECT 1 FROM devices d JOIN spaces s ON s.uid = d.space_uid WHERE d.token_hash = ? AND d.kind IS NULL AND s.deleted_at IS NULL LIMIT 1').get(tokenHash);
+  }
+
+  // ----- invitations (REGISTRATIONS=invite / off): a code lets a device nobody knows create its first ID -----
+
+  /** The open (not used, not expired) invitations this device issued. */
+  invitesOf(byHash, now = Date.now()) {
+    return this.db.q('SELECT * FROM invites WHERE by_hash = ? AND redeemed_at IS NULL AND expires_at > ? ORDER BY created_at').all(byHash, now).map(mapInvite);
+  }
+
+  /** A new code, good for a week. byHash: the issuer's token hash ('admin:main' for the main admin). */
+  createInvite(byHash, did, now = Date.now()) {
+    if (this.invitesOf(byHash, now).length >= LIMITS.invitesPerDevice) throw new OpError('limit', 'too many open invitations');
+    let code;
+    do code = randomInviteCode(rnd);
+    while (this.db.q('SELECT 1 FROM invites WHERE code = ?').get(code));
+    this.db.q('INSERT INTO invites (code, by_hash, by_did, created_at, expires_at) VALUES (?, ?, ?, ?, ?)').run(code, byHash, did, now, now + INVITE_TTL);
+    return mapInvite(this.db.q('SELECT * FROM invites WHERE code = ?').get(code));
+  }
+
+  /** Take an unused code back. byHash: only one's own – null: any (the administration). */
+  revokeInvite(code, byHash = null) {
+    const sql = byHash === null ? 'DELETE FROM invites WHERE code = ? AND redeemed_at IS NULL RETURNING *' : 'DELETE FROM invites WHERE code = ? AND by_hash = ? AND redeemed_at IS NULL RETURNING *';
+    const r = this.db.q(sql).get(...(byHash === null ? [code] : [code, byHash]));
+    return r ? mapInvite(r) : null;
+  }
+
+  /** An open code → its row, else null. */
+  checkInvite(code, now = Date.now()) {
+    const r = this.db.q('SELECT * FROM invites WHERE code = ? AND redeemed_at IS NULL AND expires_at > ?').get(code, now);
+    return r ? mapInvite(r) : null;
+  }
+
+  /** Use a code up (did: the new device). → the row, or null when it was no longer open. */
+  redeemInvite(code, did, now = Date.now()) {
+    const r = this.db.q('UPDATE invites SET redeemed_at = ?, redeemed_by = ? WHERE code = ? AND redeemed_at IS NULL AND expires_at > ? RETURNING *').get(now, did, code, now);
+    return r ? mapInvite(r) : null;
+  }
+
+  /** Every open invitation – for the administration. */
+  openInvites(now = Date.now()) {
+    return this.db.q('SELECT * FROM invites WHERE redeemed_at IS NULL AND expires_at > ? ORDER BY created_at DESC').all(now).map(mapInvite);
   }
 
   spaceByUid(uid) {
@@ -626,6 +681,8 @@ export class Store {
       cap('memory', 'updated_at', LIMITS.memoryPerSpace);
       cap('suggestions', 'last_used_at', LIMITS.suggestionsPerSpace);
       cap('translations', 'updated_at', LIMITS.translationsPerSpace);
+      // used and run-out invitations are only history (the administration's log keeps it)
+      db.q('DELETE FROM invites WHERE expires_at < ? OR redeemed_at < ?').run(now - 30 * DAY, now - 30 * DAY);
     });
     return out;
   }

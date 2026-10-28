@@ -23,6 +23,14 @@ export function trustProxy(v) {
   return s;
 }
 
+export const REGISTRATIONS = ['open', 'invite', 'off'];
+export function registrations(v) {
+  const s = String(v ?? '')
+    .trim()
+    .toLowerCase();
+  return REGISTRATIONS.includes(s) ? s : 'invite';
+}
+
 export function loadConfig(env = process.env) {
   return {
     port: int(env.PORT, 8080),
@@ -74,6 +82,10 @@ export function loadConfig(env = process.env) {
     mcpEnabled: env.MCP_ENABLED === 'true' || env.MCP_ENABLED === '1',
     // IDs a device may create itself (0 = no limit); joining doesn't count
     spacesPerDevice: Math.max(int(env.SPACES_PER_DEVICE, 0), 0),
+    // who may create IDs: open = anyone; invite = a device nobody knows needs an invitation code from
+    // a member (the very first ID of a server is free); off = only codes from administrators let new
+    // devices in. Members keep creating IDs in every mode, and joining an ID one was given always works
+    registrations: registrations(env.REGISTRATIONS),
     // optional administration (docs/ADMIN.md): ADMIN=on – the main admin is set up in the browser
     // with a code from the log; ADMIN=reset sets them up again (forgotten password, lost passkey)
     admin: /^(on|true|1|yes)$/i.test((env.ADMIN || '').trim()) ? 'on' : /^reset$/i.test((env.ADMIN || '').trim()) ? 'reset' : 'off',

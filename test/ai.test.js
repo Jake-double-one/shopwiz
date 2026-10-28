@@ -32,7 +32,7 @@ async function mcp(path, method, params, n = 1) {
 const toolData = (r) => JSON.parse(r.body.result.content[0].text);
 
 beforeAll(async () => {
-  app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist', mcpEnabled: true, translateProviders: ['none'] });
+  app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist', mcpEnabled: true, translateProviders: ['none'] });
   await app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${app.server.address().port}`;
   ({ id } = await (await req('POST', '/api/spaces', { body: { name: 'Home', token: T1, deviceName: 'Phone' } })).json());

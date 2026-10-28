@@ -49,6 +49,16 @@ CREATE TABLE IF NOT EXISTS admin_meta (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS invites (      -- REGISTRATIONS=invite/off: a code lets a new device create its first ID
+  code        TEXT PRIMARY KEY,           -- SWIVXXXXXX (shown as SWIV-XXX-XXX)
+  by_hash     TEXT NOT NULL,              -- token hash of the device that issued it ('admin:main' for the main admin)
+  by_did      TEXT NOT NULL,              -- its D-ID, or 'main' – what the administration shows
+  created_at  INTEGER NOT NULL,
+  expires_at  INTEGER NOT NULL,
+  redeemed_at INTEGER,
+  redeemed_by TEXT                        -- D-ID of the device that used it
+);
+CREATE INDEX IF NOT EXISTS invites_by ON invites(by_hash);
 CREATE TABLE IF NOT EXISTS devices (
   space_uid      INTEGER NOT NULL REFERENCES spaces(uid) ON DELETE CASCADE,
   token_hash     TEXT NOT NULL,

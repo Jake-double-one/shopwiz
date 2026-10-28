@@ -19,7 +19,13 @@ async function call(method, path, body) {
 }
 
 export const api = {
-  createSpace: (name, deviceName, listName, doc) => call('POST', '/api/spaces', { name, deviceName, listName, doc, token: deviceToken() }),
+  createSpace: (name, deviceName, listName, doc, invite) => call('POST', '/api/spaces', { name, deviceName, listName, doc, invite, token: deviceToken() }),
+  // the start page: who may create IDs here, is the server still empty, is this device a member
+  config: () => call('GET', '/api/config'),
+  checkInvite: (code) => call('GET', `/api/invites/${encodeURIComponent(code)}`),
+  invites: (id) => call('GET', `/api/spaces/${id}/invites`),
+  invite: (id) => call('POST', `/api/spaces/${id}/invites`, {}),
+  revokeInvite: (id, code) => call('POST', `/api/spaces/${id}/invites/revoke`, { code }),
   importInto: (id, doc, listId) => call('POST', `/api/spaces/${id}/import`, { doc, listId }),
   lists: (id) => call('GET', `/api/spaces/${id}/lists`),
   activity: (id, listId) => call('GET', `/api/spaces/${id}/activity?list=${encodeURIComponent(listId)}`),

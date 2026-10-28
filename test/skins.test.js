@@ -74,7 +74,7 @@ describe('skins in the page', () => {
     writeFileSync(join(stat, 'index.html'), '<html><head><title>x</title><!--og--><!--skins--></head><body></body></html>');
     custom = tmp();
     writeFileSync(join(custom, 'night.css'), `/* name: Night</script><b>\n scheme: dark */\n:root { --bg: #050505; }`);
-    app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: stat, skinsDir: custom });
+    app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: stat, skinsDir: custom });
     await app.listen({ port: 0, host: '127.0.0.1' });
     base = `http://127.0.0.1:${app.server.address().port}`;
   });

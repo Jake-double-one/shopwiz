@@ -7,6 +7,8 @@
   import { toast } from '../lib/toast.svelte.js';
   import { formatSpaceId } from '../../../shared/ids.js';
   import { shareListText } from '../lib/actions.js';
+  import { api } from '../lib/api.js';
+  import { sync } from '../lib/sync.svelte.js';
 
   /** list: the list on screen – can be sent as plain text, too */
   let { space, spaceId, list = null, onclose } = $props();
@@ -14,9 +16,47 @@
   let svg = $state('');
   const canShare = typeof navigator !== 'undefined' && !!navigator.share && window.isSecureContext;
 
+  // invitations (REGISTRATIONS=invite, or an admin in "off"): the server says whether this device may
+  // issue codes, and lists its open ones – an admin opening the ID has no device and sees nothing here
+  const registrations = $derived(sync.features.registrations ?? 'open');
+  let inviting = $state(null); // { mayInvite, invites: [{ code, expiresAt }] }
+  let inviteBusy = $state(false);
   onMount(async () => {
     svg = await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#16211B', light: '#FBFCF9' } });
+    if (registrations !== 'open' && !sync.admin) api.invites(spaceId).then((r) => (inviting = r)).catch(() => {});
   });
+  const daysLeft = (ts) => Math.max(1, Math.ceil((ts - Date.now()) / 86_400_000));
+  async function shareInvite(code) {
+    const text = t('invite.text', { code });
+    const link = `${location.origin}/?invite=${code}`;
+    if (canShare) {
+      try {
+        await navigator.share({ title: 'ShopWiz', text, url: link });
+      } catch {
+        /* cancelled */
+      }
+    } else copy(`${text} ${link}`, t('invite.copied'));
+  }
+  async function newInvite() {
+    inviteBusy = true;
+    try {
+      const inv = await api.invite(spaceId);
+      inviting = { ...inviting, invites: [...inviting.invites, inv] };
+      await shareInvite(inv.code);
+    } catch (e) {
+      toast({ text: e.code === 'limit' ? t('invite.limit') : t('settings.failed'), kind: 'alert' });
+    } finally {
+      inviteBusy = false;
+    }
+  }
+  async function revoke(code) {
+    try {
+      await api.revokeInvite(spaceId, code);
+      inviting = { ...inviting, invites: inviting.invites.filter((i) => i.code !== code) };
+    } catch {
+      toast({ text: t('settings.failed'), kind: 'alert' });
+    }
+  }
 
   async function copy(text, msg) {
     try {
@@ -69,14 +109,55 @@
       <button class="btn block" onclick={() => shareListText(list)}><Icon name="list" />{t('shareText.button')}</button>
     </section>
   {/if}
-  <section class="as-text">
-    <p class="eyebrow">{t('recommend.title')}</p>
-    <p class="note">{t('recommend.note')}</p>
-    <button class="btn block" onclick={recommend}><Icon name="send" />{t('recommend.button')}</button>
-  </section>
+  {#if registrations === 'open'}
+    <section class="as-text">
+      <p class="eyebrow">{t('recommend.title')}</p>
+      <p class="note">{t('recommend.note')}</p>
+      <button class="btn block" onclick={recommend}><Icon name="send" />{t('recommend.button')}</button>
+    </section>
+  {:else if inviting?.mayInvite}
+    <section class="as-text">
+      <p class="eyebrow">{t('invite.title')}</p>
+      <p class="note">{t('invite.note')}</p>
+      <button class="btn block" onclick={newInvite} disabled={inviteBusy || inviting.invites.length >= 5}><Icon name="send" />{t('invite.button')}</button>
+      {#if inviting.invites.length}
+        <ul class="invites">
+          {#each inviting.invites as inv (inv.code)}
+            <li>
+              <span class="code mono">{inv.code}</span>
+              <span class="micro grow">{t('invite.expires', { count: daysLeft(inv.expiresAt) })}</span>
+              <button class="icon-btn" onclick={() => shareInvite(inv.code)} aria-label={t('invite.share')} title={t('invite.share')}><Icon name="share" size={18} /></button>
+              <button class="icon-btn" onclick={() => revoke(inv.code)} aria-label={t('invite.revoke')} title={t('invite.revoke')}><Icon name="x" size={18} /></button>
+            </li>
+          {/each}
+        </ul>
+        <p class="micro">{t('invite.open', { count: inviting.invites.length })}</p>
+      {/if}
+    </section>
+  {/if}
 </Sheet>
 
 <style>
+  .invites {
+    list-style: none;
+    margin: 12px 0 4px;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .invites li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .invites .code {
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    user-select: all;
+  }
+  .invites .grow {
+    flex: 1;
+  }
   .qr {
     width: min(260px, 70vw);
     margin: 0 auto;

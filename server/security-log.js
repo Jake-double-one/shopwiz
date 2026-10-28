@@ -8,6 +8,7 @@
 //   id_notfound        an unknown ID was tried (via: rest | ws | transfer; id: what was tried, cut short)
 //   id_limited         too many unknown IDs from this address – requests are refused for a while
 //   create_limited     too many new IDs from this address
+//   invite_invalid     an unknown, used or run-out invitation code was tried
 //   import_limited     too many imports into one ID
 //   transfer_limited   too many items transferred from one ID or address
 //   translate_limited  translation budget of the ID, the address or the day used up

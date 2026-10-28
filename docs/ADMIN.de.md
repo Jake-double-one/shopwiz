@@ -63,7 +63,8 @@ Regeln:
   - **Endgültig löschen** – die Teilnehmer sehen sofort „Ein Admin dieses Servers hat sie endgültig gelöscht“; die ID wird nie wieder vergeben.
 - **Geräte:** alle D-IDs mit ihren Gerätenamen und den IDs, in denen sie sind.
 - **Admins:** Haupt-Admin mit Passkeys, Geräte-Admins mit Status („wartet auf Passkey“ / aktiv) und Passkey-Art.
-- **Protokoll:** Anmeldungen, Fehlversuche (zusammengefasst), Ernennungen, Passkeys, geöffnete und gelöschte IDs – ohne IP-Adressen. 180 Tage bzw. höchstens 5000 Einträge.
+- **Einladungen:** die offenen Einladungscodes und wer sie ausgestellt hat (`REGISTRATIONS`, siehe README). Admins stellen hier Codes aus und ziehen sie zurück – bei `REGISTRATIONS=off` ist das der einzige Weg hinein für ein neues Gerät. Das Log zeigt, wer wen eingeladen hat; der Haupt-Admin bekommt einen Hinweis, wenn ein Code benutzt wurde.
+- **Protokoll:** Anmeldungen, Fehlversuche (zusammengefasst), Ernennungen, Passkeys, Einladungen, geöffnete und gelöschte IDs – ohne IP-Adressen. 180 Tage bzw. höchstens 5000 Einträge.
 - **Hinweise** für den Haupt-Admin beim nächsten Besuch: neue Passkeys, abgelehnte Passkey-Einrichtungen, Anmeldungen von Geräte-Admins, Fehlversuche, gelöschte IDs.
 
 Geräte-Admins dürfen alles außer Admins ernennen und entziehen.

@@ -159,11 +159,36 @@
     });
   }
 
+  // invitations by an admin – in REGISTRATIONS=off the only way in for new devices
+  let inviteCode = $state('');
+  let inviteBusy = $state(false);
+  async function newInvite() {
+    inviteBusy = true;
+    try {
+      const r = await admin.invite();
+      inviteCode = r.code;
+      await refresh();
+    } catch (e) {
+      toast({ text: errorText(e), kind: 'alert' });
+    } finally {
+      inviteBusy = false;
+    }
+  }
+  async function revokeInvite(code) {
+    try {
+      await admin.revokeInvite(code);
+      if (inviteCode === code) inviteCode = '';
+      await refresh();
+    } catch (e) {
+      toast({ text: errorText(e), kind: 'alert' });
+    }
+  }
+
   const actor = (a) => (a === 'main' ? t('admin.main') : a === 'system' ? t('admin.system') : `D-ID ${a}`);
   function logText(e) {
     const key = `admin.log.${e.action}`;
     const d = e.detail ?? {};
-    const s = t(key, { did: d.did ?? '', name: d.name ?? '', id: d.id ?? '', n: String(d.count ?? 1), method: d.method ? t(`admin.method.${d.method}`) : '' });
+    const s = t(key, { did: d.did ?? '', name: d.name ?? '', id: d.id ?? '', code: d.code ?? '', n: String(d.count ?? 1), method: d.method ? t(`admin.method.${d.method}`) : '' });
     return s === key ? e.action : s;
   }
   const kindOf = (k) => (k.synced ? t('admin.keySynced') : t('admin.keyDevice'));
@@ -337,7 +362,7 @@
 
     {#if data}
       <div class="tabs">
-        {#each [['spaces', data.spaces.length], ['devices', data.devices.length], ['admins', data.admins.length], ['log', null]] as [k, n] (k)}
+        {#each [['spaces', data.spaces.length], ['devices', data.devices.length], ['invites', (data.invites ?? []).length], ['admins', data.admins.length], ['log', null]] as [k, n] (k)}
           <button class="chip" aria-pressed={tab === k} onclick={() => (tab = k)}>
             {t(`admin.tab.${k}`)}{#if n !== null} <span class="n">{n}</span>{/if}
           </button>
@@ -386,6 +411,33 @@
                   <button class="btn small danger" onclick={() => (confirm = `space:${s.id}`)}><Icon name="trash" size={16} />{t('admin.delete')}</button>
                 </div>
               {/if}
+            </li>
+          {/each}
+        </ul>
+      {:else if tab === 'invites'}
+        <p class="note">{t(`admin.invitesNote.${data.registrations ?? 'open'}`)}</p>
+        {#if data.registrations !== 'open'}
+          <button class="btn dusk" onclick={newInvite} disabled={inviteBusy}><Icon name="send" />{t('invite.button')}</button>
+        {/if}
+        {#if inviteCode}
+          <section class="card promoted promo-card" role="status">
+            <p class="eyebrow">{t('invite.title')}</p>
+            <p class="code-line mono">{inviteCode}</p>
+            <p class="note">{t('admin.inviteHint', { days: 7 })}</p>
+          </section>
+        {/if}
+        {#if !(data.invites ?? []).length}<p class="muted">{t('admin.none')}</p>{/if}
+        <ul class="rows">
+          {#each data.invites ?? [] as i (i.code)}
+            <li class="rowcard">
+              <div class="main-line">
+                <b class="name mono">{i.code}</b>
+                <span class="mono sid">{i.did === 'main' ? t('admin.main') : `D-ID ${i.did}`}</span>
+              </div>
+              <p class="micro dates">
+                {t('admin.inviteDates', { created: relTime(i.createdAt), expires: new Date(i.expiresAt).toLocaleDateString() })}
+                · <button class="link" onclick={() => revokeInvite(i.code)}>{t('invite.revoke')}</button>
+              </p>
             </li>
           {/each}
         </ul>
@@ -664,6 +716,13 @@
   }
   .promote .btn {
     flex: none;
+  }
+  .code-line {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    user-select: all;
+    margin: 6px 0;
   }
   .log {
     list-style: none;
