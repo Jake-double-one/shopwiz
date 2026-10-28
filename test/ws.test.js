@@ -147,6 +147,16 @@ describe('websocket sync', () => {
     for (const x of [a, b, c]) x.c.ws.close();
   });
 
+  it('a hello into an 11th id is answered with id_limit', async () => {
+    const TX = 'token-elevenelevenelevenel1';
+    for (let i = 0; i < 10; i++) await post('/api/spaces', { name: `N${i}`, token: TX, deviceName: 'X' });
+    const { id } = await (await post('/api/spaces', { name: 'Other', token: 'token-hhhhhhhhhhhhhhhhhhhhhh', deviceName: 'Y' })).json();
+    const c = client();
+    await c.send({ t: 'hello', space: id, token: TX, name: 'X' });
+    expect((await c.wait((m) => m.t === 'error')).error).toBe('id_limit');
+    c.ws.close();
+  });
+
   it('keeps signals for devices that are offline and delivers them once', async () => {
     const TA = 'token-ffffffffffffffffffffff';
     const TB = 'token-gggggggggggggggggggggg';

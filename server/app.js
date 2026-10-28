@@ -227,6 +227,7 @@ export async function buildApp(config) {
       }
       return { id };
     } catch (e) {
+      if (e instanceof OpError && e.code === 'id_limit') return reply.code(403).send({ error: 'id_limit', limit: LIMITS.idsPerDevice });
       return sendError(reply, e);
     }
   });
@@ -246,6 +247,23 @@ export async function buildApp(config) {
     if (r.status !== 'ok') return reply.code(409).send({ error: r.status }); // a deleted ID shows nothing more – continue it first
     const listId = typeof req.query.list === 'string' ? req.query.list : '';
     return { activity: store.activity(r.space.uid, listId) };
+  });
+
+  // "Forget ID on this device": the device leaves the ID on the server, too – it counts against
+  // the IDs a device may be in (a deleted ID can still be continued, so it stays until then)
+  app.post('/api/spaces/:id/leave', async (req, reply) => {
+    const r = lookup(req, reply, { requireMember: true });
+    if (!r) return;
+    if (r.admin) return reply.code(403).send({ error: 'admin' });
+    if (r.status === 'ok') {
+      const gone = store.leaveSpace(r.space.uid, r.tokenHash);
+      if (gone) {
+        hub.drop(r.space.uid, r.tokenHash);
+        hub.broadcast(r.space.uid, { t: 'patch', changes: [{ e: 'device', del: gone.dev_id }] });
+        hub.presence(r.space.uid);
+      }
+    }
+    return { ok: true };
   });
 
   app.post('/api/spaces/:id/renew', async (req, reply) => {
@@ -290,6 +308,7 @@ export async function buildApp(config) {
     } catch (e) {
       if (e instanceof OpError && e.code === 'rate_limited') return reply.code(429).send({ error: 'rate_limited' });
       if (e instanceof OpError && e.code === 'space_limit') return reply.code(403).send({ error: 'space_limit', limit: config.spacesPerDevice });
+      if (e instanceof OpError && e.code === 'id_limit') return reply.code(403).send({ error: 'id_limit', limit: LIMITS.idsPerDevice });
       if (e instanceof OpError) return reply.code(400).send({ error: e.code, message: e.message });
       throw e;
     }
@@ -767,7 +786,7 @@ export async function buildApp(config) {
         dev = store.joinDevice(res.space.uid, tokenHash, msg.name);
       } catch (e) {
         if (e instanceof OpError) {
-          reply({ t: 'error', error: 'too_many_devices' });
+          reply({ t: 'error', error: e.code === 'id_limit' ? 'id_limit' : 'too_many_devices' });
           return conn.close();
         }
         throw e;

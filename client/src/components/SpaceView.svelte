@@ -317,7 +317,7 @@
   );
 </script>
 
-{#if ['notfound', 'deleted', 'kicked', 'limited', 'full', 'adminEnded'].includes(sync.status)}
+{#if ['notfound', 'deleted', 'kicked', 'limited', 'full', 'idLimit', 'adminEnded'].includes(sync.status)}
   <StatusScreen status={sync.status} deleted={sync.deleted} spaceId={id} {onleave} {onopen} {admin} />
 {:else if sync.ready && !list}
   <main class="wrap">

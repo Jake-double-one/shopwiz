@@ -518,3 +518,59 @@ describe('purchase count', () => {
     expect(item('itemmilk1').bought).toBe(4);
   });
 });
+
+describe('limits (audit run-3 follow-up)', () => {
+  it('the inactive part of a list keeps its 250 most recent items', () => {
+    const { store, uid, listId, devA } = setup();
+    let res;
+    for (let i = 0; i < 251; i++) res = store.applyOp(uid, devA, `p${i}`, { k: 'item.add', id: `park${String(i).padStart(5, '0')}`, listId, name: `Thing ${i}`, parked: true }, 1_000_000 + i);
+    const parked = store.snapshot(uid).items.filter((i) => i.parked);
+    expect(parked).toHaveLength(250);
+    expect(parked.find((i) => i.name === 'Thing 0')).toBeUndefined();
+    expect(parked.find((i) => i.name === 'Thing 250')).toBeTruthy();
+    // the others are told, and the history keeps it (restorable)
+    expect(res.changes).toContainEqual({ e: 'item', del: 'park00000' });
+    const act = store.activity(uid, listId).find((a) => a.action === 'item.delete');
+    expect(act.payload.ids).toEqual(['park00000']);
+    // open items are not touched
+    store.applyOp(uid, devA, 'open1', { k: 'item.add', id: 'openitem1', listId, name: 'Milk' }, Date.now());
+    expect(store.snapshot(uid).items.filter((i) => !i.parked)).toHaveLength(1);
+  });
+
+  it('a device is in at most 10 IDs; leaving frees a slot, deleted IDs do not count', () => {
+    const { store } = setup();
+    const T = 'token-tenidstenidstenids01';
+    const ids = [];
+    for (let i = 0; i < 10; i++) ids.push(store.createSpace({ name: `S${i}`, token: T, deviceName: 'X' }));
+    expect(() => store.createSpace({ name: 'S10', token: T, deviceName: 'X' })).toThrow(/too many IDs/);
+    const otherId = store.createSpace({ name: 'O', token: 'token-otherotherotherother2', deviceName: 'Y' });
+    const other = store.resolve(otherId, null).space.uid;
+    expect(() => store.joinDevice(other, hashToken(T), 'X')).toThrow(/too many IDs/);
+    // already in: fine
+    expect(store.joinDevice(store.resolve(ids[0], null).space.uid, hashToken(T), 'X').isNew).toBe(false);
+    // leaving one makes room
+    expect(store.leaveSpace(store.resolve(ids[0], null).space.uid, hashToken(T))).toBeTruthy();
+    expect(store.idsOf(hashToken(T))).toBe(9);
+    store.joinDevice(other, hashToken(T), 'X');
+    expect(() => store.joinDevice(other, hashToken(T), 'X')).not.toThrow();
+    // a deleted ID does not count
+    store.deleteSpace(store.resolve(ids[1], null).space.uid, 'X');
+    expect(store.idsOf(hashToken(T))).toBe(9);
+    expect(() => store.createSpace({ name: 'S11', token: T, deviceName: 'X' })).not.toThrow();
+  });
+
+  it('cleanup caps what an ID has learned', () => {
+    const { store, uid } = setup();
+    const mem = store.db.q('INSERT INTO memory (space_uid, scope, norm, group_name, subgroup_name, updated_at) VALUES (?, ?, ?, ?, ?, ?)');
+    const sug = store.db.q('INSERT INTO suggestions (space_uid, norm, name, uses, last_used_at) VALUES (?, ?, ?, 1, ?)');
+    const tr = store.db.q('INSERT INTO translations (space_uid, norm, lang, text, auto, provider, updated_at) VALUES (?, ?, ?, ?, 1, NULL, ?)');
+    for (let i = 0; i < 3010; i++) mem.run(uid, '', `m${i}`, 'G', '', i);
+    for (let i = 0; i < 1010; i++) sug.run(uid, `s${i}`, `S${i}`, i);
+    for (let i = 0; i < 3010; i++) tr.run(uid, `t${i}`, 'it', `T${i}`, i);
+    store.cleanup();
+    const count = (t) => store.db.q(`SELECT COUNT(*) AS c, MIN(${t === 'suggestions' ? 'last_used_at' : 'updated_at'}) AS oldest FROM ${t} WHERE space_uid = ?`).get(uid);
+    expect(count('memory')).toEqual({ c: 3000, oldest: 10 });
+    expect(count('suggestions')).toEqual({ c: 1000, oldest: 10 });
+    expect(count('translations')).toEqual({ c: 3000, oldest: 10 });
+  });
+});
