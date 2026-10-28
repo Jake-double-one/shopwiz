@@ -72,16 +72,24 @@ function entryOf(e) {
 export function createAi({ store, hub, config, log, seclog = null }) {
   const db = store.db;
   const calls = new Map(); // key hash → { count, reset } – per assistant, in memory only
+  const CALLS_PER_MINUTE = 120;
+  const MCP_BATCH_MAX = 10; // JSON-RPC messages in one request – a batch is a few calls, not a workload
 
-  /** key → ctx { uid, space, dev, write }; counts the request */
+  /** n calls against the assistant's minute budget – false once it is used up */
+  function charge(tokenHash, n = 1) {
+    const now = Date.now();
+    let c = calls.get(tokenHash);
+    if (!c || c.reset <= now) calls.set(tokenHash, (c = { count: 0, reset: now + 60_000 }));
+    c.count += n;
+    return c.count <= CALLS_PER_MINUTE;
+  }
+
+  /** key → ctx { uid, space, dev, write }; counts one call */
   function auth(key) {
     if (!config.mcpEnabled) throw new AiError('disabled', 'AI connections are switched off on this server (MCP_ENABLED)', 404);
     const r = store.resolveAiKey(key);
     if (!r) throw new AiError('unauthorized', 'unknown or revoked key', 401);
-    const now = Date.now();
-    let c = calls.get(r.dev.token_hash);
-    if (!c || c.reset <= now) calls.set(r.dev.token_hash, (c = { count: 0, reset: now + 60_000 }));
-    if (++c.count > 120) throw new AiError('rate_limited', 'too many requests – try again in a minute', 429);
+    if (!charge(r.dev.token_hash)) throw new AiError('rate_limited', 'too many requests – try again in a minute', 429);
     store.touch(r.space.uid, r.dev.token_hash);
     return { uid: r.space.uid, space: r.space, dev: r.dev, write: !!r.space.ai_write };
   }
@@ -740,8 +748,16 @@ Amounts can be part of the name ("2 l milk", "200g minced meat").`;
       if (e.code === 'unauthorized' || e.code === 'rate_limited') seclog?.event(e.code === 'unauthorized' ? 'ai_key_invalid' : 'ai_limited', req.ip, { via: 'mcp' });
       return reply.code(e.status ?? 401).send({ jsonrpc: '2.0', error: { code: -32001, message: e.message }, id: null });
     }
+    const msgs = Array.isArray(req.body) ? req.body : [req.body];
+    if (msgs.length > MCP_BATCH_MAX) return reply.code(400).send({ jsonrpc: '2.0', error: { code: -32600, message: `at most ${MCP_BATCH_MAX} messages per request` }, id: null });
+    // the budget counts tool calls, not requests: every call of a batch pays (auth paid for the first)
+    const toolCalls = msgs.filter((m) => m?.method === 'tools/call').length;
+    if (toolCalls > 1 && !charge(ctx.dev.token_hash, toolCalls - 1)) {
+      seclog?.event('ai_limited', req.ip, { via: 'mcp' });
+      return reply.code(429).send({ jsonrpc: '2.0', error: { code: -32001, message: 'too many requests – try again in a minute' }, id: null });
+    }
     // a tool call whose arguments are not an object is a bad request, not a server error
-    const bad = (Array.isArray(req.body) ? req.body : [req.body]).find(
+    const bad = msgs.find(
       (m) => m?.method === 'tools/call' && m.params?.arguments !== undefined && (typeof m.params.arguments !== 'object' || m.params.arguments === null || Array.isArray(m.params.arguments)),
     );
     if (bad) return reply.code(200).send({ jsonrpc: '2.0', error: { code: -32602, message: 'arguments must be an object' }, id: bad.id ?? null });
