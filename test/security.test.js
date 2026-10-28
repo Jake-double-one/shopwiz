@@ -239,6 +239,54 @@ describe('hardening (analysis after v0.5.2)', () => {
     expect(store && id).toBeTruthy();
     await app.close();
   });
+
+  it('imports from one address are limited to 60 per hour – new IDs do not multiply the budget', async () => {
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
+    const doc = { lists: [{ name: 'L', items: [{ name: 'Milk' }] }] };
+    const mk = async () => (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1 } })).json().id;
+    const imp = async (sid) => (await app.inject({ method: 'POST', url: `/api/spaces/${sid}/import`, headers: { 'x-shopwiz-token': T1 }, payload: { doc } })).statusCode;
+    for (let i = 0; i < 3; i++) {
+      const sid = await mk();
+      for (let j = 0; j < 20; j++) expect(await imp(sid)).toBe(200);
+    }
+    expect(await imp(await mk())).toBe(429);
+    // a new ID from a backup counts as an import as well
+    expect((await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1, doc } })).statusCode).toBe(429);
+    // another address has its own budget
+    expect((await app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'I', token: T1, doc }, remoteAddress: '10.9.9.9' })).statusCode).toBe(200);
+    await app.close();
+  });
+});
+
+describe('transfer budget', () => {
+  it('5000 items per hour from one ID, and from one address', async () => {
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
+    const mk = async (name) => {
+      const id = (await app.inject({ method: 'POST', url: '/api/spaces', payload: { name, token: T1, deviceName: 'X' } })).json().id;
+      const uid = app.store.resolve(id, null).space.uid;
+      return { id, uid, dev: app.store.device(uid, hashToken(T1)), list: app.store.snapshot(uid).lists[0] };
+    };
+    const fill = (s) => app.store.importDoc(s.uid, s.dev, { lists: [{ name: s.list.name, items: Array.from({ length: 1800 }, (_, i) => ({ name: `Thing ${i}` })) }] });
+    const src = await mk('Src');
+    fill(src);
+    const ids = (s) => app.store.snapshot(s.uid).items.slice(0, 300).map((i) => i.id);
+    const dst = await mk('Dst');
+    const targets = [dst.list.id, 'tlist0002', 'tlist0003'];
+    for (const [i, id] of targets.slice(1).entries()) app.store.applyOp(dst.uid, dst.dev, `l${i}`, { k: 'list.add', id, name: `T${i}`, pos: i + 2 }, Date.now());
+    const copy = (from, listId, ip) =>
+      app.inject({ method: 'POST', url: `/api/spaces/${from.id}/transfer`, headers: { 'x-shopwiz-token': T1 }, payload: { to: dst.id, listId, itemIds: ids(from), mode: 'copy' }, ...(ip && { remoteAddress: ip }) });
+    // 17 × 300 = 5100 items go through (six copies fill a list), the next request is refused
+    for (let i = 0; i < 17; i++) expect((await copy(src, targets[Math.floor(i / 6)])).statusCode).toBe(200);
+    expect((await copy(src, targets[2])).statusCode).toBe(429);
+    // the source ID is over budget from any address …
+    expect((await copy(src, targets[2], '10.7.7.7')).statusCode).toBe(429);
+    // … and the address from any source ID
+    const src2 = await mk('Src2');
+    fill(src2);
+    expect((await copy(src2, targets[2])).statusCode).toBe(429);
+    expect((await copy(src2, targets[2], '10.7.7.7')).statusCode).toBe(200);
+    await app.close();
+  });
 });
 
 describe('transfer only into IDs one is in', () => {
@@ -288,7 +336,7 @@ describe('audit run-1 fixes', () => {
     const alice = store.device(cUid, hashToken(A));
     const bob = store.device(cUid, hashToken(B));
     store.applyOp(cUid, alice, 'kick1', { k: 'device.kick', devId: bob.dev_id }, now());
-    const C2 = store.renew(cUid);
+    const { newId: C2 } = store.renew(cUid);
     expect(store.isMember(cUid, hashToken(B))).toBe(false);
     // the way back is closed: no row in the predecessor, so no "continue" into C2
     expect(store.resolve(S, hashToken(B)).status).toBe('notfound');
@@ -417,6 +465,23 @@ describe('hardening after audit run-1', () => {
     c3.ws.send(JSON.stringify({ t: 'op', id: 'other', op: { k: 'space.update', name: 'other' }, at: Date.now() }));
     await c3.until((m) => m.t === 'ack' && m.id === 'other' && m.ok);
     for (const c of [c1, c2, c3]) c.ws.close();
+    await app.close();
+  });
+});
+
+describe('a device is in at most 10 IDs (REST)', () => {
+  it('the 11th ID is refused with id_limit; leaving one makes room', async () => {
+    const app = await buildApp({ ...loadConfig({}), registrations: 'open', dataDir: ':memory:', staticDir: './does-not-exist' });
+    const T = 'token-limitlimitlimitlimit1';
+    const mk = () => app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'L', token: T, deviceName: 'X' } });
+    const ids = [];
+    for (let i = 0; i < 10; i++) ids.push((await mk()).json().id);
+    const r = await mk();
+    expect(r.statusCode).toBe(403);
+    expect(r.json()).toEqual({ error: 'id_limit', limit: 10 });
+    expect((await app.inject({ method: 'POST', url: `/api/spaces/${ids[0]}/leave`, headers: { 'x-shopwiz-token': T } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/api/spaces/${ids[0]}/lists`, headers: { 'x-shopwiz-token': T } })).statusCode).toBe(403);
+    expect((await mk()).statusCode).toBe(200);
     await app.close();
   });
 });

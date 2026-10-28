@@ -89,7 +89,7 @@ Device admins may do everything except promoting and revoking admins.
 | Problem | Solution |
 |---|---|
 | No setup code in the log | Is `ADMIN=on` set? The code only appears while no main admin is set up. To set it up again: `ADMIN=reset`. |
-| Password forgotten, passkey lost | Set `ADMIN=reset`, restart, set it up again with the new code from the log (the main admin's passkeys are deleted on the way), then back to `ADMIN=on`. Device admins stay. |
+| Password forgotten, passkey lost | Set `ADMIN=reset`, restart, set it up again with the new code from the log (the main admin's passkeys are deleted on the way, and don't log in while the code is pending), then back to `ADMIN=on`. Device admins stay. |
 | "The administration needs a secure connection" | Open it over HTTPS (or `localhost`). |
 | Passkeys stopped working after a domain change | Passkeys belong to the domain: the main admin logs in with the password, device admins are promoted again. |
 | Admin device lost | Take its rights away. The new device has a new D-ID – promote it. |
@@ -99,3 +99,5 @@ Device admins may do everything except promoting and revoking admins.
 ## Without the browser (advanced)
 
 Instead of the setup code, the main admin can be given by settings: set `ADMIN_USER` and `ADMIN_PASSWORD_HASH` (the hash comes from `node server/admin-hash.js` in the container). Then there is no code, and the two settings apply instead of the setup in the browser.
+
+The main admin's passkeys and the "password off" switch belong to the credential they were set up under. A changed `ADMIN_PASSWORD_HASH` (or a switch to the setup code) resets them – the main admin logs in with the new password and sets the passkey up again. The same happens on the first start after an upgrade from 0.5.3 or older when a main passkey exists: the server cannot tell which credential it belongs to, so it starts over.

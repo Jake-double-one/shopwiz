@@ -664,6 +664,44 @@ describe('main admin credential changes (audit run-1)', () => {
     const code2 = (await b.call('POST', '/api/admin/invites', { session })).body.code;
     expect((await b.call('POST', '/api/admin/invites/revoke', { session, body: { code: code2 } })).status).toBe(200);
     expect((await b.call('POST', '/api/admin/invites/revoke', { session, body: { code: code2 } })).status).toBe(404);
+  });
+
+  it('a database without the credential mark (0.5.3 or older) with a rotated hash drops them too, instead of adopting them', async () => {
+    const [hashA, hashB] = await Promise.all([OLD, NEW].map((p) => hashPassword(p, { N: 1024, r: 8, p: 1 })));
+    let b = await boot({ adminUser: 'boss', adminPasswordHash: hashA });
+    const mk = await plantKey(b, OLD);
+    // what an older release left behind: the passkey and the switch, but no mark of the credential
+    b.a.store.db.q("DELETE FROM admin_meta WHERE key = 'main_credential'").run();
+    await b.a.close();
+
+    b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
+    expect(await keyLogin(b, mk)).not.toBe(200);
+    const r = await b.call('POST', '/api/admin/login', { body: { user: 'boss', password: NEW } });
+    expect(r.status).toBe(200);
+    const ov = (await b.call('GET', '/api/admin/overview', { session: r.body.session })).body;
+    expect(ov.mainKeys).toHaveLength(0);
+    expect(ov.log.find((e) => e.action === 'reset')?.details ?? ov.log.find((e) => e.action === 'reset')).toBeTruthy();
+    await b.a.close();
+    // the mark is stored now: the next boot with the same hash keeps a new passkey
+    b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
+    const again = await plantKey(b, NEW);
+    await b.a.close();
+    b = await boot({ adminUser: 'boss', adminPasswordHash: hashB });
+    expect(await keyLogin(b, again)).toBe(200);
+    await b.a.close();
+  });
+
+  it('while a setup code is pending (ADMIN=reset), the old main passkey does not log in', async () => {
+    let b = await boot({ admin: 'on' });
+    const r = await b.call('POST', '/api/admin/setup', { body: { code: b.code, user: 'boss', password: NEW } });
+    expect(r.status).toBe(200);
+    const mk = await plantKey(b, NEW);
+    expect(await keyLogin(b, mk)).toBe(200);
+    await b.a.close();
+
+    b = await boot({ admin: 'reset' });
+    expect(b.code).toBeTruthy();
+    expect(await keyLogin(b, mk)).not.toBe(200);
     await b.a.close();
   });
 

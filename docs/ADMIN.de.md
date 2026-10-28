@@ -89,7 +89,7 @@ Geräte-Admins dürfen alles außer Admins ernennen und entziehen.
 | Problem | Lösung |
 |---|---|
 | Kein Einrichtungscode im Log | Steht `ADMIN=on`? Der Code erscheint nur, solange noch kein Haupt-Admin eingerichtet ist. Zum Neu-Einrichten: `ADMIN=reset`. |
-| Passwort vergessen, Passkey weg | `ADMIN=reset` setzen, neu starten, mit dem neuen Code aus dem Log neu einrichten (die Passkeys des Haupt-Admins werden dabei gelöscht), danach wieder `ADMIN=on`. Geräte-Admins bleiben. |
+| Passwort vergessen, Passkey weg | `ADMIN=reset` setzen, neu starten, mit dem neuen Code aus dem Log neu einrichten (die Passkeys des Haupt-Admins werden dabei gelöscht und melden nicht mehr an, solange der Code offen ist), danach wieder `ADMIN=on`. Geräte-Admins bleiben. |
 | „Die Administration braucht eine sichere Verbindung“ | Über HTTPS (oder `localhost`) aufrufen. |
 | Passkey geht nach Domainwechsel nicht mehr | Passkeys gehören zur Domain: Haupt-Admin meldet sich mit Passwort an, Geräte-Admins neu ernennen. |
 | Admin-Gerät verloren | Rechte entziehen. Das neue Gerät hat eine neue D-ID – neu ernennen. |
@@ -99,3 +99,5 @@ Geräte-Admins dürfen alles außer Admins ernennen und entziehen.
 ## Ohne Browser einrichten (für Fortgeschrittene)
 
 Statt Einrichtungscode lässt sich der Haupt-Admin auch fest vorgeben: `ADMIN_USER` und `ADMIN_PASSWORD_HASH` setzen (den Hash erzeugt `node server/admin-hash.js` im Container). Dann gibt es keinen Code, und die beiden Variablen gelten statt der Einrichtung im Browser.
+
+Die Passkeys des Haupt-Admins und der Schalter „Passwort aus“ gehören zu dem Zugang, unter dem sie eingerichtet wurden. Ein geänderter `ADMIN_PASSWORD_HASH` (oder der Wechsel zum Einrichtungscode) setzt sie zurück – der Haupt-Admin meldet sich mit dem neuen Passwort an und richtet den Passkey neu ein. Dasselbe passiert beim ersten Start nach einem Update von 0.5.3 oder älter, wenn ein Haupt-Passkey existiert: Der Server kann nicht wissen, zu welchem Zugang er gehört, und fängt neu an.

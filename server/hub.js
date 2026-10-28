@@ -31,6 +31,10 @@ export class Hub {
   presence(uid) {
     this.broadcast(uid, { t: 'presence', online: this.online(uid) });
   }
+  /** A device left the ID by itself: close its sockets without a word. */
+  drop(uid, tokenHash) {
+    for (const c of this.conns(uid)) if (c.tokenHash === tokenHash) c.close();
+  }
   /** Drop a device (kick): notify and close every socket it has open. */
   kick(uid, tokenHash) {
     for (const c of this.conns(uid)) {

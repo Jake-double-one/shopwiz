@@ -317,7 +317,7 @@
   );
 </script>
 
-{#if ['notfound', 'deleted', 'kicked', 'limited', 'full', 'adminEnded'].includes(sync.status)}
+{#if ['notfound', 'deleted', 'kicked', 'limited', 'full', 'idLimit', 'adminEnded'].includes(sync.status)}
   <StatusScreen status={sync.status} deleted={sync.deleted} spaceId={id} {onleave} {onopen} {admin} />
 {:else if sync.ready && !list}
   <main class="wrap">
@@ -581,7 +581,7 @@
   {:else if sheet?.kind === 'settings'}
     <SettingsSheet space={v.space} spaceId={sync.spaceId} onclose={closeSheet} {onleave} {onopen} {admin} {onadmin} onshare={() => open('share')} onbackup={() => open('backup')} />
   {:else if sheet?.kind === 'people'}
-    <PeopleSheet {devices} online={sync.online} me={sync.me} onclose={closeSheet} />
+    <PeopleSheet {devices} online={sync.online} me={sync.me} spaceId={sync.spaceId} onclose={closeSheet} />
   {:else if sheet?.kind === 'conflicts'}
     <ConflictSheet {v} {conflicts} onclose={closeSheet} />
   {:else if sheet?.kind === 'history'}

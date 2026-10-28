@@ -78,15 +78,16 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 - Eine ID sieht so aus: `K7QM-2XPA-9F` – 10 Zeichen, ohne leicht verwechselbare Zeichen (kein `O`/`0`, `I`/`1`, `L`).
 - **Wer die ID kennt, kann die Listen öffnen und ändern.** Behandle sie wie einen Schlüssel.
 - Der Link `https://dein-server/K7QM2XPA9F` öffnet die Listen direkt.
-- Jede ID hat einen Namen (muss nicht einmalig sein) und kann mehrere Listen enthalten.
+- Jede ID hat einen Namen (muss nicht einmalig sein) und kann bis zu 10 Listen enthalten. Der inaktive Teil einer Liste behält seine 250 jüngsten Artikel; ältere werden gelöscht und bleiben 14 Tage im Verlauf.
 - **Ablauf:** Eine ID wird samt allen Daten gelöscht, wenn sie **181 Tage lang kein aktives Gerät** hatte. Pro ID in den Einstellungen änderbar (7–367 Tage).
 
 ### Geräte und Teilnehmer
 
 - Beim ersten Öffnen gibst du deinem Gerät einen Namen („Jakes Handy“).
 - Die Teilnehmerzeile zeigt alle; ein grüner Punkt heißt „gerade online“.
-- Jeder Teilnehmer kann Geräte entfernen. Ohne Login ist das keine Sperre – mit der ID kann man wieder beitreten. Wer jemanden wirklich aussperren will, nutzt **Einstellungen → ID erneuern**.
+- Jeder Teilnehmer kann Geräte entfernen. Ohne Login ist das keine Sperre – mit der ID kann man wieder beitreten. Wer jemanden wirklich aussperren will, nutzt in der Teilnehmerliste **Entfernen und ID erneuern**: Das Gerät wird entfernt und die ID im selben Schritt erneuert, die neue ID erfährt es nicht mehr (erst entfernen und später erneuern lässt eine Lücke zum Wiederbeitreten).
 - Geräte ohne Aktivität seit **30 Tagen** werden automatisch entfernt und können jederzeit mit Link oder ID wieder teilnehmen.
+- Ein Gerät ist in höchstens 10 IDs gleichzeitig; **Einstellungen → ID auf diesem Gerät vergessen** macht einen Platz frei. Eine ID hat Platz für 100 Geräte.
 
 ### Einladungen (REGISTRATIONS)
 
@@ -388,7 +389,7 @@ ShopWiz verfolgt nicht, wer was tut – aber ein Server soll sehen, wer an seine
 | Ereignis | Wann |
 |---|---|
 | `id_notfound`, `id_limited` | eine unbekannte ID wurde probiert (`via`: `rest`, `ws`, `transfer`); zu viele von einer Adresse |
-| `create_limited`, `import_limited`, `translate_limited` | eine Grenze wurde erreicht (neue IDs pro Adresse, Importe pro ID, Übersetzungsbudget) |
+| `create_limited`, `import_limited`, `transfer_limited`, `translate_limited` | eine Grenze wurde erreicht (neue IDs pro Adresse, Importe pro ID oder Adresse, übertragene Artikel pro ID oder Adresse, Übersetzungsbudget) |
 | `invite_invalid` | ein unbekannter, benutzter oder abgelaufener Einladungscode wurde probiert (zählt wie eine unbekannte ID) |
 | `ws_too_many`, `ws_flood`, `ws_slow_reader` | Sync-Verbindungen: mehr als 50 von einer Adresse, eine Nachrichtenflut, eine Verbindung, die nicht mehr liest |
 | `ai_key_invalid`, `ai_limited` | ein unbekannter oder entzogener Assistenten-Schlüssel (`via`: `rest`, `mcp`); ein Schlüssel über seiner Rate |

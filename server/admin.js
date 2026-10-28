@@ -156,13 +156,16 @@ export function createAdmin({ store, hub, config, log, seclog = null }) {
       db.q("DELETE FROM admin_meta WHERE key = 'password_login'").run();
     });
   }
+  // Without a stored mark (a database last written by a release before this binding existed), an
+  // existing main passkey may belong to a credential that was replaced in the meantime – so it
+  // starts over as well, instead of being adopted by whatever credential is set now.
   {
     const mark = credentialMark();
     const known = meta('main_credential');
-    if (mark && known && known !== mark) {
+    if (mark && ((known && known !== mark) || (!known && mainHasKey()))) {
       dropMainFactors();
-      audit('system', 'reset', { reason: 'credential_changed' });
-      log.warn('the main admin\'s credential changed – its passkeys and the password switch were reset');
+      audit('system', 'reset', { reason: known ? 'credential_changed' : 'credential_unknown' });
+      log.warn('the main admin\'s passkeys and the password switch were reset (credential changed or not known to them)');
     }
     if (mark) setMeta('main_credential', mark);
   }
@@ -409,6 +412,8 @@ export function createAdmin({ store, hub, config, log, seclog = null }) {
     const response = req.body?.response;
     const key = typeof response?.id === 'string' ? db.q('SELECT * FROM admin_keys WHERE id = ?').get(response.id) : null;
     if (!key || key.rp_id !== c.rpID) throw new AdminError(401, 'wrong');
+    // a pending setup (ADMIN=reset) starts the main admin over: their old passkey waits for it
+    if (!key.did && setupCode) throw new AdminError(401, 'wrong');
     // a device's passkey only works on that device, a synced copy elsewhere does not
     const row = key.did ? adminRow(key.did) : null;
     if (key.did && (row?.state !== 'active' || !boundTo(row, tokenHashOf(req)))) throw new AdminError(403, 'other_device');

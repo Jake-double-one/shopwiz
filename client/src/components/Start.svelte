@@ -98,7 +98,7 @@
         if (cfg) cfg = { ...cfg, firstFree: false, member: false };
         error = '';
         joinError = t(err.code === 'invite_invalid' ? 'start.inviteInvalid' : 'start.inviteRequired');
-      } else error = err.code === 'offline' ? t('start.offline') : err.code === 'space_limit' ? t('start.spaceLimit', { count: err.limit }) : t('start.createFailed');
+      } else error = err.code === 'offline' ? t('start.offline') : err.code === 'space_limit' ? t('start.spaceLimit', { count: err.limit }) : err.code === 'id_limit' ? t('start.idLimit', { count: err.limit }) : t('start.createFailed');
     } finally {
       busy = false;
     }
@@ -131,6 +131,7 @@
 
   function forget(id) {
     forgetSpace(id);
+    api.leave(id).catch(() => {}); // the server forgets this device there, too (a slot of the 10 IDs)
     known = knownSpaces();
   }
 </script>

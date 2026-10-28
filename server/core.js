@@ -8,7 +8,6 @@ import { PROVIDERS } from './translate.js';
 
 const DAY = 86_400_000;
 const MIN_SPACE_TTL_DAYS = 7;
-const SUGGESTION_LIMIT = 1500;
 
 export const LIMITS = {
   spaceName: 80,
@@ -21,10 +20,16 @@ export const LIMITS = {
   deviceName: 40,
   unit: 16,
   qty: 12,
-  listsPerSpace: 50,
+  listsPerSpace: 10,
   groupsPerSpace: 500,
   devicesPerSpace: 100,
+  idsPerDevice: 10, // IDs a device is in at once – deleted ones don't count
   itemsPerList: 2000,
+  inactivePerList: 250, // the inactive part keeps the most recent ones, older ones are deleted
+  // what an ID learns: names it knows, groups it remembers, translations – the oldest go first
+  memoryPerSpace: 3000,
+  suggestionsPerSpace: 1000,
+  translationsPerSpace: 3000,
   batch: 300,
   linkedItems: 4000, // shared items a list group may hold – list.link works through all of them at once
   invitesPerDevice: 5, // open invitation codes one device (or the main admin) may have
@@ -356,6 +361,8 @@ export class Store {
     }
     // every new token is a new device row – an ID cannot be filled up endlessly
     if (db.q('SELECT COUNT(*) AS c FROM devices WHERE space_uid = ?').get(uid).c >= LIMITS.devicesPerSpace) throw new OpError('limit', 'too many devices');
+    // and a device is in a handful of IDs, not in hundreds (deleted IDs don't count – they can be continued)
+    if (this.idsOf(tokenHash) >= LIMITS.idsPerDevice) throw new OpError('id_limit', 'this device is in too many IDs');
     const devId = newEntityId().slice(0, 12);
     db.q('INSERT INTO devices (space_uid, token_hash, dev_id, name, last_seen_at, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
       uid,
@@ -370,6 +377,16 @@ export class Store {
 
   device(uid, tokenHash) {
     return this.db.q('SELECT * FROM devices WHERE space_uid = ? AND token_hash = ?').get(uid, tokenHash);
+  }
+
+  /** How many (not deleted) IDs this device is in. */
+  idsOf(tokenHash) {
+    return this.db.q('SELECT COUNT(*) AS c FROM devices d JOIN spaces s ON s.uid = d.space_uid WHERE d.token_hash = ? AND d.kind IS NULL AND s.deleted_at IS NULL').get(tokenHash).c;
+  }
+
+  /** The device leaves the ID ("forget ID on this device") → the row removed, or null. */
+  leaveSpace(uid, tokenHash) {
+    return this.db.q('DELETE FROM devices WHERE space_uid = ? AND token_hash = ? RETURNING dev_id, name').get(uid, tokenHash) ?? null;
   }
 
   /**
@@ -427,7 +444,7 @@ export class Store {
       memory: db.q('SELECT * FROM memory WHERE space_uid = ?').all(uid).map(mapMemory),
       suggestions: db
         .q('SELECT * FROM suggestions WHERE space_uid = ? ORDER BY last_used_at DESC LIMIT ?')
-        .all(uid, SUGGESTION_LIMIT)
+        .all(uid, LIMITS.suggestionsPerSpace)
         .map(mapSuggestion),
       conflicts: db.q('SELECT * FROM conflicts WHERE space_uid = ? ORDER BY created_at').all(uid).map(mapConflict),
       translations: db.q('SELECT * FROM translations WHERE space_uid = ?').all(uid).map(mapTranslation),
@@ -439,17 +456,39 @@ export class Store {
     return this.db.q('SELECT * FROM devices WHERE space_uid = ? ORDER BY created_at, rowid').all(uid).map(mapDevice);
   }
 
-  renew(uid) {
+  /**
+   * A new public id. kick: dev ids removed in the same step – they never learn the new ID, which
+   * is the only way to really lock a device out (removed first and renewed later, it rejoins in between).
+   * → { newId, kicked: [{ dev_id, name, token_hash }] }
+   */
+  renew(uid, { kick = [] } = {}) {
     const { db } = this;
     return db.tx(() => {
       const space = this.spaceByUid(uid);
+      const kicked = [];
+      for (const devId of kick.slice(0, LIMITS.devicesPerSpace)) {
+        const r = this._kickDevice(uid, String(devId));
+        if (r) kicked.push(r);
+      }
       const newId = this.generatePublicId();
       db.q('INSERT INTO retired_ids (public_id, space_uid, reason, created_at) VALUES (?, ?, ?, ?)').run(space.public_id, uid, 'renewed', Date.now());
       db.q('UPDATE spaces SET public_id = ? WHERE uid = ?').run(newId, uid);
       // a new ID cuts every AI connection – they have to be connected again
       db.q("DELETE FROM devices WHERE space_uid = ? AND kind = 'ai'").run(uid);
-      return newId;
+      return { newId, kicked };
     });
+  }
+
+  /** Remove a device from the space – on every path in. → the row removed, or null */
+  _kickDevice(uid, devId) {
+    const r = this.db.q('DELETE FROM devices WHERE space_uid = ? AND dev_id = ? RETURNING dev_id, name, token_hash').get(uid, devId);
+    if (!r) return null;
+    // a kick is final on every path in: the device also leaves the deleted IDs this one was continued
+    // from – "continue" on one of them led straight back (and told the renewed ID)
+    this.db
+      .q("DELETE FROM devices WHERE token_hash = ? AND space_uid IN (SELECT CAST(substr(public_id, 3) AS INTEGER) FROM retired_ids WHERE reason = 'continued' AND space_uid = ?)")
+      .run(r.token_hash, uid);
+    return r;
   }
 
   // ----- AI assistants: devices that connect with their own key (MCP / REST) -----
@@ -636,6 +675,12 @@ export class Store {
       db.q('DELETE FROM conflicts WHERE created_at < ?').run(cutoff);
       db.q('DELETE FROM applied_ops WHERE created_at < ?').run(cutoff);
       db.q('DELETE FROM merged_items WHERE created_at < ?').run(cutoff);
+      // what an ID has learned stays bounded – the oldest entries go first
+      const cap = (table, order, limit) =>
+        db.q(`DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM (SELECT rowid, row_number() OVER (PARTITION BY space_uid ORDER BY ${order} DESC) AS rn FROM ${table}) WHERE rn > ?)`).run(limit);
+      cap('memory', 'updated_at', LIMITS.memoryPerSpace);
+      cap('suggestions', 'last_used_at', LIMITS.suggestionsPerSpace);
+      cap('translations', 'updated_at', LIMITS.translationsPerSpace);
       // used and run-out invitations are only history (the administration's log keeps it)
       db.q('DELETE FROM invites WHERE expires_at < ? OR redeemed_at < ?').run(now - 30 * DAY, now - 30 * DAY);
     });
@@ -667,6 +712,7 @@ export class Store {
       const handler = Object.hasOwn(OPS, op.k) ? OPS[op.k] : null;
       if (typeof handler !== 'function') throw new OpError('invalid', 'unknown op');
       const result = handler.call(this, ctx, op) ?? {};
+      this._pruneInactive(ctx);
       db.q('INSERT INTO applied_ops (space_uid, op_id, result, created_at) VALUES (?, ?, ?, ?)').run(uid, opId, JSON.stringify(result), now);
       return { result: visible(result), changes: ctx.changes, rev, kickedHash: ctx.kicked, allDone: ctx.allDone };
     });
@@ -710,6 +756,24 @@ export class Store {
       return { group: p ? p.name : '', subgroup: g.name };
     }
     return { group: g.name, subgroup: '' };
+  }
+  /**
+   * The inactive part of a list keeps its most recent LIMITS.inactivePerList items; older ones are
+   * deleted (and stay in the history for a while). Runs after every op that parked something.
+   */
+  _pruneInactive(ctx) {
+    const lists = new Set(ctx.changes.filter((c) => c.e === 'item' && c.row?.parked).map((c) => c.row.listId));
+    for (const id of lists) {
+      const list = this.db.q('SELECT * FROM lists WHERE space_uid = ? AND id = ? AND deleted_at IS NULL').get(ctx.uid, id);
+      if (!list) continue;
+      const old = this._visibleItems(ctx.uid, list, 'i.parked = 1', [], "COALESCE(json_extract(i.meta, '$.parked.at'), i.created_at) DESC, i.rowid DESC").slice(LIMITS.inactivePerList);
+      for (const r of old) {
+        this.db.q('UPDATE items SET deleted_at = ? WHERE space_uid = ? AND id = ?').run(ctx.now, ctx.uid, r.id);
+        ctx.changes.push({ e: 'item', del: r.id });
+        this._dropConflicts(ctx, r.id);
+      }
+      if (old.length) this._act(ctx, list.id, 'item.delete', { names: old.slice(0, 20).map((r) => r.name), count: old.length, ids: old.map((r) => r.id), inactiveLimit: true });
+    }
   }
   _learn(ctx, list, norm, groupId) {
     const path = this._groupPath(ctx.uid, groupId);
@@ -1668,14 +1732,8 @@ const OPS = {
   },
 
   'device.kick'(ctx, op) {
-    const devId = String(op.devId ?? '');
-    const r = this.db.q('DELETE FROM devices WHERE space_uid = ? AND dev_id = ? RETURNING dev_id, name, token_hash').get(ctx.uid, devId);
+    const r = this._kickDevice(ctx.uid, String(op.devId ?? ''));
     if (!r) return {};
-    // a kick is final on every path in: the device also leaves the deleted IDs this one was continued
-    // from – "continue" on one of them led straight back (and told the renewed ID)
-    this.db
-      .q("DELETE FROM devices WHERE token_hash = ? AND space_uid IN (SELECT CAST(substr(public_id, 3) AS INTEGER) FROM retired_ids WHERE reason = 'continued' AND space_uid = ?)")
-      .run(r.token_hash, ctx.uid);
     ctx.changes.push({ e: 'device', del: r.dev_id });
     ctx.kicked = r.token_hash;
     this._act(ctx, null, 'device.kick', { name: r.name });
@@ -1831,6 +1889,7 @@ Store.prototype.transfer = function transfer(srcUid, device, { targetUid, target
     if (items.length) {
       this._act(sctx, items[0].list_id, mode === 'move' ? 'transfer.move' : 'transfer.copy', { count: items.length, names: items.slice(0, 20).map((r) => r.name), ids: items.map((r) => r.id) });
     }
+    this._pruneInactive(tctx);
     return { source: { changes: sctx.changes, rev: sRev }, target: { changes: tctx.changes, rev: tRev }, count: items.length };
   });
 };
@@ -1960,6 +2019,7 @@ Store.prototype.importDoc = function importDoc(uid, device, doc, { defaultListId
       this._pushItem(ctx, id);
     }
     this._act(ctx, null, 'import', stats);
+    this._pruneInactive(ctx);
     return { changes: ctx.changes, rev, stats };
   });
 };

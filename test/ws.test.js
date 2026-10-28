@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { buildApp } from '../server/app.js';
 import { loadConfig } from '../server/config.js';
+import { hashToken } from '../server/core.js';
 
 const T1 = 'token-aaaaaaaaaaaaaaaaaaaaaa';
 const T2 = 'token-bbbbbbbbbbbbbbbbbbbbbb';
@@ -145,6 +146,43 @@ describe('websocket sync', () => {
     expect(c.c.inbox.some((m) => m.t === 'signal')).toBe(false);
     expect(b.c.inbox.some((m) => m.t === 'signal' && m.kind === 'allDone')).toBe(false);
     for (const x of [a, b, c]) x.c.ws.close();
+  });
+
+  it('a hello into an 11th id is answered with id_limit', async () => {
+    const TX = 'token-elevenelevenelevenel1';
+    for (let i = 0; i < 10; i++) await post('/api/spaces', { name: `N${i}`, token: TX, deviceName: 'X' });
+    const { id } = await (await post('/api/spaces', { name: 'Other', token: 'token-hhhhhhhhhhhhhhhhhhhhhh', deviceName: 'Y' })).json();
+    const c = client();
+    await c.send({ t: 'hello', space: id, token: TX, name: 'X' });
+    expect((await c.wait((m) => m.t === 'error')).error).toBe('id_limit');
+    c.ws.close();
+  });
+
+  it('remove and renew in one step: the removed device never learns the new id', async () => {
+    const TA = 'token-ffffffffffffffffffffff';
+    const TB = 'token-gggggggggggggggggggggg';
+    const { id } = await (await post('/api/spaces', { name: 'Flat', token: TA, deviceName: 'A' })).json();
+    const a = client();
+    await a.send({ t: 'hello', space: id, token: TA, name: 'A' });
+    await a.wait((m) => m.t === 'welcome');
+    const b = client();
+    await b.send({ t: 'hello', space: id, token: TB, name: 'B' });
+    const devB = (await b.wait((m) => m.t === 'welcome')).me.devId;
+    await a.wait((m) => m.t === 'presence' && m.online.length === 2);
+
+    const r = await (await post(`/api/spaces/${id}/renew`, { kick: [devB] }, TA)).json();
+    expect((await a.wait((m) => m.t === 'renewed')).id).toBe(r.id);
+    expect((await a.wait((m) => m.t === 'patch' && m.changes.some((c) => c.e === 'device' && c.del === devB))).changes).toBeTruthy();
+    await b.wait((m) => m.t === 'kicked');
+    expect(b.inbox.some((m) => m.t === 'renewed')).toBe(false);
+    // B is no member any more: the old id is gone for it, and a rejoin on it finds nothing
+    const uid = app.store.resolve(r.id, null).space.uid;
+    expect(app.store.isMember(uid, hashToken(TB))).toBe(false);
+    const b2 = client();
+    await b2.send({ t: 'hello', space: id, token: TB, name: 'B' });
+    await b2.wait((m) => m.t === 'notfound');
+    expect(app.store.resolve(id, hashToken(TA)).status).toBe('moved');
+    for (const x of [a, b, b2]) x.ws.close();
   });
 
   it('keeps signals for devices that are offline and delivers them once', async () => {

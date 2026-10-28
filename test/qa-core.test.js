@@ -121,7 +121,7 @@ describe('full review: server core', () => {
     const { op, lidl } = setup();
     op({ k: 'list.add', id: 'gone00001', name: 'Gone', pos: 2 });
     op({ k: 'list.delete', id: 'gone00001' });
-    for (let i = 0; i < 49; i++) op({ k: 'list.add', id: `full${String(i).padStart(5, '0')}`, name: `L${i}`, pos: i + 3 });
+    for (let i = 0; i < 9; i++) op({ k: 'list.add', id: `full${String(i).padStart(5, '0')}`, name: `L${i}`, pos: i + 3 });
     expect(() => op({ k: 'list.restore', id: 'gone00001' })).toThrow(/too many lists/);
     expect(lidl).toBeTruthy();
   });
