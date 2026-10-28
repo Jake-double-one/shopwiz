@@ -98,6 +98,7 @@
 
   function forget() {
     forgetSpace(spaceId);
+    api.leave(spaceId).catch(() => {}); // the server forgets this device there, too (a slot of the 10 IDs)
     onleave();
   }
 

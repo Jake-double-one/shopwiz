@@ -78,7 +78,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 - Eine ID sieht so aus: `K7QM-2XPA-9F` – 10 Zeichen, ohne leicht verwechselbare Zeichen (kein `O`/`0`, `I`/`1`, `L`).
 - **Wer die ID kennt, kann die Listen öffnen und ändern.** Behandle sie wie einen Schlüssel.
 - Der Link `https://dein-server/K7QM2XPA9F` öffnet die Listen direkt.
-- Jede ID hat einen Namen (muss nicht einmalig sein) und kann mehrere Listen enthalten.
+- Jede ID hat einen Namen (muss nicht einmalig sein) und kann bis zu 10 Listen enthalten. Der inaktive Teil einer Liste behält seine 250 jüngsten Artikel; ältere werden gelöscht und bleiben 14 Tage im Verlauf.
 - **Ablauf:** Eine ID wird samt allen Daten gelöscht, wenn sie **181 Tage lang kein aktives Gerät** hatte. Pro ID in den Einstellungen änderbar (7–367 Tage).
 
 ### Geräte und Teilnehmer
@@ -87,6 +87,7 @@ Liste erzeugen, die 10-stellige ID (oder einen QR-Code) teilen – und alle kauf
 - Die Teilnehmerzeile zeigt alle; ein grüner Punkt heißt „gerade online“.
 - Jeder Teilnehmer kann Geräte entfernen. Ohne Login ist das keine Sperre – mit der ID kann man wieder beitreten. Wer jemanden wirklich aussperren will, nutzt in der Teilnehmerliste **Entfernen und ID erneuern**: Das Gerät wird entfernt und die ID im selben Schritt erneuert, die neue ID erfährt es nicht mehr (erst entfernen und später erneuern lässt eine Lücke zum Wiederbeitreten).
 - Geräte ohne Aktivität seit **30 Tagen** werden automatisch entfernt und können jederzeit mit Link oder ID wieder teilnehmen.
+- Ein Gerät ist in höchstens 10 IDs gleichzeitig; **Einstellungen → ID auf diesem Gerät vergessen** macht einen Platz frei. Eine ID hat Platz für 100 Geräte.
 
 ### Gruppen und Mitlernen
 

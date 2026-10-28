@@ -468,3 +468,20 @@ describe('hardening after audit run-1', () => {
     await app.close();
   });
 });
+
+describe('a device is in at most 10 IDs (REST)', () => {
+  it('the 11th ID is refused with id_limit; leaving one makes room', async () => {
+    const app = await buildApp({ ...loadConfig({}), dataDir: ':memory:', staticDir: './does-not-exist' });
+    const T = 'token-limitlimitlimitlimit1';
+    const mk = () => app.inject({ method: 'POST', url: '/api/spaces', payload: { name: 'L', token: T, deviceName: 'X' } });
+    const ids = [];
+    for (let i = 0; i < 10; i++) ids.push((await mk()).json().id);
+    const r = await mk();
+    expect(r.statusCode).toBe(403);
+    expect(r.json()).toEqual({ error: 'id_limit', limit: 10 });
+    expect((await app.inject({ method: 'POST', url: `/api/spaces/${ids[0]}/leave`, headers: { 'x-shopwiz-token': T } })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: `/api/spaces/${ids[0]}/lists`, headers: { 'x-shopwiz-token': T } })).statusCode).toBe(403);
+    expect((await mk()).statusCode).toBe(200);
+    await app.close();
+  });
+});

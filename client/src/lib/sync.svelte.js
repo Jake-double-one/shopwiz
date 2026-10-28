@@ -304,7 +304,7 @@ function reduce(v, op, at, me) {
 
 class Sync {
   spaceId = $state(null);
-  /** idle | connecting | online | offline | notfound | deleted | kicked | limited */
+  /** idle | connecting | online | offline | notfound | deleted | kicked | limited | full | idLimit */
   status = $state('idle');
   me = $state(null);
   // what this server offers, e.g. { translate: true }
@@ -417,7 +417,7 @@ class Sync {
       clearInterval(this.pingTimer);
       this.ws = null;
       this.online = [];
-      if (['notfound', 'deleted', 'kicked', 'limited', 'full', 'adminEnded', 'idle'].includes(this.status)) return;
+      if (['notfound', 'deleted', 'kicked', 'limited', 'full', 'idLimit', 'adminEnded', 'idle'].includes(this.status)) return;
       this.status = 'offline';
       this.scheduleReconnect();
     };
@@ -560,6 +560,7 @@ class Sync {
       case 'error':
         if (msg.error === 'rate_limited') this.stop('limited');
         if (msg.error === 'too_many_devices') this.stop('full');
+        if (msg.error === 'id_limit') this.stop('idLimit');
         if (msg.error === 'admin_auth') this.stop('adminEnded');
         break;
       default:

@@ -79,7 +79,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 - An ID looks like `K7QM-2XPA-9F`: 10 characters, no easily confused characters (no `O`/`0`, `I`/`1`, `L`).
 - **Anyone who knows the ID can open and edit the lists.** Treat it like a key.
 - The link `https://your-server/K7QM2XPA9F` opens the lists directly.
-- Every ID has a name (it doesn't have to be unique) and can contain several lists.
+- Every ID has a name (it doesn't have to be unique) and can contain up to 10 lists. The inactive part of a list keeps its 250 most recent items; older ones are deleted and stay in the history for 14 days.
 - **Expiry:** an ID and all its data is deleted after **181 days without any active device**. This can be changed per ID in the settings (7–367 days).
 
 ### Devices and participants
@@ -88,6 +88,7 @@ Create a list, share a 10-character ID (or a QR code), and everyone shops along 
 - The participant row shows everybody; a green dot means “online right now”.
 - A device can be removed by any participant. Without a login this is not a lock-out – with the ID you can join again. To really lock someone out, use **Remove and renew ID** in the participants list: the device is removed and the ID renewed in one step, so it never learns the new ID (removing first and renewing later leaves a gap to rejoin in).
 - Devices without activity for **30 days** are removed automatically. They can rejoin anytime with the link or ID.
+- A device can be in up to 10 IDs at a time; **Settings → Forget ID on this device** frees a slot. An ID has room for 100 devices.
 
 ### Groups and learning
 

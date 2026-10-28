@@ -20,8 +20,8 @@
       replaceKnown(spaceId, id);
       sync.close();
       onopen(id);
-    } catch {
-      error = t('status.continueFailed');
+    } catch (e) {
+      error = e.code === 'id_limit' ? t('start.idLimit', { count: e.limit }) : t('status.continueFailed');
     } finally {
       busy = false;
     }
@@ -72,6 +72,10 @@
     {:else if status === 'full'}
       <h2>{t('status.fullTitle')}</h2>
       <p class="note">{t('status.full')}</p>
+      <button class="btn" onclick={onleave}>{t('back')}</button>
+    {:else if status === 'idLimit'}
+      <h2>{t('status.idLimitTitle')}</h2>
+      <p class="note">{t('status.idLimit')}</p>
       <button class="btn" onclick={onleave}>{t('back')}</button>
     {:else}
       <h2>{t('status.limitedTitle')}</h2>
