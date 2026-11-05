@@ -18,7 +18,7 @@
     "check": "svelte-check --tsconfig ./jsconfig.json"
   },
   "dependencies": {
-    "@fastify/static": "^10.1.7",
+    "@fastify/static": "^10.1.10",
     "@fastify/websocket": "^11.0.0",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@simplewebauthn/server": "^14.0.3",
