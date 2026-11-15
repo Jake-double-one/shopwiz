@@ -21,25 +21,25 @@
     "@fastify/static": "^10.1.10",
     "@fastify/websocket": "^11.3.7",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "@simplewebauthn/server": "^14.0.3",
+    "@simplewebauthn/server": "^14.1.0",
     "fastify": "^5.12.8",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "^5.0.0",
     "@fontsource/instrument-sans": "^5.0.0",
-    "@playwright/test": "^1.50.0",
+    "@playwright/test": "^1.65.0",
     "@simplewebauthn/browser": "^14.0.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "ajv": "^8.20.0",
-    "concurrently": "^10.0.6",
+    "concurrently": "^10.0.7",
     "flag-icons": "^7.5.0",
     "jsqr": "^1.4.0",
     "qrcode": "^1.5.4",
     "sortablejs": "^1.15.0",
     "svelte": "^5.57.3",
     "svelte-check": "^4.7.8",
-    "vite": "^8.3.6",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   }
 }
